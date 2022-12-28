@@ -29,7 +29,7 @@ rule integrityOfEnqueue(address recipient, uint256 etherAmount, uint256 sharesAm
 
     uint256 requestId = enqueue(e, recipient, etherAmount, sharesAmount);
 
-    uint128 actualEtherAmount = getRequestsCumulativeEther(uintrequestId256);
+    uint128 actualEtherAmount = getRequestsCumulativeEther(requestId);
     uint128 actualSharesAmount = getRequestsCumulativeShares(requestId);
     address actualRecipient = getRequestsRecipient(requestId);
     bool isClaimed = isRequestClaimed(requestId);
