@@ -20,7 +20,7 @@ methods {
     isRequestClaimed(uint256) returns (bool) envfree
 }
 
-// sum all etherLocked is less or equal to lockedEath 
+// sum all etherLocked is less or equal to lockedEath - not correct, EACH ONE AHOULD BE LESS OR EQUAL
 
 // invariant - for all reqId1, reqId2 | if reqId1 > reqId2 => reqId1.cumulativeEther >= reqId2.cumulativeEther && reqId1.cumulativeShares >= reqId2.cumulativeShares.
 
