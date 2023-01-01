@@ -10,6 +10,10 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
         return queue[requestId];
     }
 
+    function getPricesLength() public view returns (uint256) {
+        return finalizationPrices.length;
+    }
+
     function getRequestsCumulativeEther(uint256 requestId) public returns (uint128) {
         Request storage req = getRequestById(requestId);
         return req.cumulativeEther;
@@ -28,6 +32,28 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
     function isRequestClaimed(uint256 requestId) public returns (bool) {
         Request storage req = getRequestById(requestId);
         return req.claimed;
+    }
+
+    function calculateFinalizationParamsForReqId(
+        uint256 _lastIdToFinalize,
+        uint256 _totalPooledEther,
+        uint256 _totalShares
+    ) public view returns (uint256 etherToLock, uint256 sharesToBurn) {
+        return _calculateDiscountedBatch(
+            _lastIdToFinalize,
+            _lastIdToFinalize,
+            _toUint128(_totalPooledEther),
+            _toUint128(_totalShares)
+        );
+    }
+
+    function isPriceHintValid(uint256 _requestId, uint256 hint) public view returns (bool isInRange) {
+        return _isPriceHintValid(_requestId, hint);
+    }
+
+    function balnceOfEth(address user) public view returns(uint256)
+    {
+        return user.balance;
     }
 
 }
