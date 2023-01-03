@@ -56,4 +56,12 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
         return user.balance;
     }
 
+    function getFinalizationPricesLength() public returns (uint256) {
+        return finalizationPrices.length;
+    }
+
+    function getPriceIndex(uint256 priceIndex) public returns (uint256) {
+        return finalizationPrices[priceIndex].index;
+    }
+
 }

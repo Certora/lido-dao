@@ -21,6 +21,8 @@ methods {
     balnceOfEth(address) returns(uint256) envfree
     getPricesLength() returns (uint256) envfree
     MIN_WITHDRAWAL() returns (uint256) envfree
+    getFinalizationPricesLength() returns (uint256) envfree
+    getPriceIndex(uint256) returns (uint256) envfree
 
     // Harness:
     calculateFinalizationParamsForReqId(uint256, uint256, uint256) returns (uint256, uint256) envfree
@@ -81,6 +83,14 @@ rule integrityOfFinialize(uint256 _lastIdToFinalize, uint256 _etherToLock, uint2
  *                   INVARIANTS                   *
  **************************************************/
 
+invariant cantWithdrawLessThanMinWithdrawal() 
+    forall uint256 reqId . reqId < queueLength() && reqId > 1 => getRequestsCumulativeEther(reqId) - getRequestsCumulativeEther(reqId - 1) >= MIN_WITHDRAWAL()
+
+// each etherLocked is less or equal to lockedEath *
+invariant lockedEathIsGraterThanCumulativeEther() 
+    forall uint256 reqId . reqId < finalizedRequestsCounter() && !isRequestClaimed(reqId) => getRequestsCumulativeEther(reqId) <= lockedEtherAmount()
+
+
 /**************************************************
  *               CVL FUNCS & DEFS                 *
  **************************************************/
@@ -140,15 +150,23 @@ rule cantWithdrawLessThanMinEth(method f, uint256 reqId1, uint256 reqId2) {
     assert reqId2 > reqId1 => getRequestsCumulativeEther(reqId2) - getRequestsCumulativeEther(reqId1) >= minWithdrawal;
 }
 
-invariant cantWithdrawLessThanMinWithdrawal() 
-    forall uint256 reqId . reqId < queueLength() && reqId > 1 => getRequestsCumulativeEther(reqId) - getRequestsCumulativeEther(reqId - 1) >= MIN_WITHDRAWAL()
+rule priceIndexFinalizedRequestsCounterCorelation(method f) {
+    env e;
+    calldataarg args;
 
-// sum all etherLocked is less or equal to lockedEath - not correct, EACH ONE AHOULD BE LESS OR EQUAL *
-invariant lockedEathIsGraterThanCumulativeEther() 
-    forall uint256 reqId . reqId < finalizedRequestsCounter() && !isRequestClaimed(reqId) => getRequestsCumulativeEther(reqId) <= lockedEtherAmount()
+    uint256 latestIndexBefore = getPriceIndex(getPricesLength() - 1);
+    uint256 finalizedRequestsCounterBefore = finalizedRequestsCounter();
+    uint256 pricesLenBefore = getPricesLength();
 
 
+    f(e, args);
 
+    uint256 latestIndexAfter = getPriceIndex(getPricesLength() - 1);
+    uint256 finalizedRequestsCounterAfter = finalizedRequestsCounter();
+    uint256 pricesLenAfter = getPricesLength();
+
+    assert pricesLenAfter > pricesLenBefore || latestIndexAfter != latestIndexBefore => finalizedRequestsCounterAfter > finalizedRequestsCounterBefore;
+}
 // // cumulativeEther is monotonicly increasing
 // rule cumulativeEtherMonotonic(uint256 requestId) {
 //     env e;
