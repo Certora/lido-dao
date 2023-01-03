@@ -1,0 +1,13 @@
+diff --git a/contracts/0.8.9/WithdrawalQueue.sol b/contracts/0.8.9/WithdrawalQueue.sol
+index 672b65d..141ef70 100644
+--- a/contracts/0.8.9/WithdrawalQueue.sol
++++ b/contracts/0.8.9/WithdrawalQueue.sol
+@@ -138,7 +138,7 @@ contract WithdrawalQueue {
+         _updatePriceHistory(_toUint128(_totalPooledEther), _toUint128(_totalShares), _lastIdToFinalize);
+ 
+         lockedEtherAmount = _toUint128(_etherToLock);
+-        finalizedRequestsCounter = _lastIdToFinalize + 1;
++        //finalizedRequestsCounter = _lastIdToFinalize + 1;
+     }
+ 
+     /**
