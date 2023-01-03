@@ -15,21 +15,37 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
     }
 
     function getRequestsCumulativeEther(uint256 requestId) public returns (uint128) {
+        if (requestId >= queue.length)
+        {
+            return 0;
+        }
         Request storage req = getRequestById(requestId);
         return req.cumulativeEther;
     }
 
     function getRequestsCumulativeShares(uint256 requestId) public returns (uint128) {
+        if (requestId >= queue.length)
+        {
+            return 0;
+        }
         Request storage req = getRequestById(requestId);
         return req.cumulativeShares;
     }
 
     function getRequestsRecipient(uint256 requestId) public returns (address) {
+        if (requestId >= queue.length)
+        {
+            return address(0);
+        }
         Request storage req = getRequestById(requestId);
         return req.recipient;
     }
 
     function isRequestClaimed(uint256 requestId) public returns (bool) {
+        if (requestId >= queue.length)
+        {
+            return false;
+        }
         Request storage req = getRequestById(requestId);
         return req.claimed;
     }
