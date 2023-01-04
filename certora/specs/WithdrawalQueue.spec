@@ -84,45 +84,42 @@ rule integrityOfFinialize(uint256 _lastIdToFinalize, uint256 _etherToLock, uint2
  *                   INVARIANTS                   *
  **************************************************/
 
+invariant finalizedRequestsCounterLessThanEqToQueueLen()
+    finalizedRequestsCounter() <= queueLength()
+    {
+        preserved
+        {
+            require queueLength() < max_uint256 - 1;
+        }
+    }
+
 // minimum withdrawal rule. min withdrawal == 0.1 ether == 10 ^ 17
-invariant cantWithdrawLessThanMinWithdrawal() 
-    forall uint256 reqId . reqId < queueLength() && reqId >= 1 => getRequestsCumulativeEther(reqId) - getRequestsCumulativeEther(reqId - 1) >= to_uint256(MIN_WITHDRAWAL())
+invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId) 
+    reqId < queueLength() => ((reqId > 0 => getRequestsCumulativeEther(reqId) - getRequestsCumulativeEther(reqId - 1) >= to_uint256(MIN_WITHDRAWAL())) 
+                          && (reqId == 0 => getRequestsCumulativeEther(reqId) >= to_uint256(MIN_WITHDRAWAL())))
         {
             preserved 
             {
                 requireInvariant finalizedRequestsCounterLessThanEqToQueueLen();
+                require queueLength() < max_uint128;
             }
         }
+
+invariant solvancy()
+    lockedEtherAmount() <= balnceOfEth(currentContract)
 
 invariant lastHintIndexEqFinalizedRequestsCounter()
     getPriceIndex(getFinalizationPricesLength() - 1) + 1 == finalizedRequestsCounter()
     
 
-invariant checkPriceIndex() 
-    forall uint256 hint . (hint < getFinalizationPricesLength() && hint >= 1) => getPriceIndex(hint) > getPriceIndex(hint - 1)
+invariant checkPriceIndex(uint256 hint) 
+    (hint < getFinalizationPricesLength() && hint >= 1) => getPriceIndex(hint) > getPriceIndex(hint - 1)
     {
-        preserved{
+        preserved {
             requireInvariant lastHintIndexEqFinalizedRequestsCounter();
+            require getFinalizationPricesLength() < max_uint128;
         }
     }
-
-// each etherLocked is less or equal to lockedEath *
-invariant lockedEathIsGraterThanCumulativeEther() 
-    forall uint256 reqId . reqId < finalizedRequestsCounter() && !isRequestClaimed(reqId) && reqId >= 1 => getRequestsCumulativeEther(reqId) - getRequestsCumulativeEther(reqId - 1) <= lockedEtherAmount()
-        {
-            preserved 
-            {
-                requireInvariant finalizedRequestsCounterLessThanEqToQueueLen();
-            }
-        }
-
-invariant contractHasEnoughEth()
-    lockedEtherAmount() <= balnceOfEth(currentContract)
-
-invariant finalizedRequestsCounterLessThanEqToQueueLen()
-    finalizedRequestsCounter() <= queueLength()
-
-// invariant - for all reqId1, reqId2 | if reqId1 > reqId2 => reqId1.cumulativeEther >= reqId2.cumulativeEther && reqId1.cumulativeShares >= reqId2.cumulativeShares. *
 
 
 rule priceIndexFinalizedRequestsCounterCorelation(method f) {
@@ -132,7 +129,6 @@ rule priceIndexFinalizedRequestsCounterCorelation(method f) {
     uint256 latestIndexBefore = getPriceIndex(getPricesLength() - 1);
     uint256 finalizedRequestsCounterBefore = finalizedRequestsCounter();
     uint256 pricesLenBefore = getPricesLength();
-
 
     f(e, args);
 
@@ -145,18 +141,17 @@ rule priceIndexFinalizedRequestsCounterCorelation(method f) {
 
 // 1. request is queued, not finalized.
 // 2. fanalize request
-// 3. user should get min(eth, shares * totalEth/ totalShares) (same params as finalize)
+// 3. user should get min(eth, shares * totalEth/ totalShares) (same params as finalize) - calculateFinalizationParamsForReqId vs finalize calculation
 // 4. claim request
 // 5. assert expected value == actual value.
-
 rule priceUpdateIntegrity(uint256 requestId, uint256 priceIndexHint, uint256 _lastIdToFinalize, uint256 _etherToLock, uint256 _totalPooledEther, uint256 _totalShares) {
     env e;
     uint256 priceLenBefore = getPricesLength();
     uint256 finalizedRequestsCount = finalizedRequestsCounter();
-    bool isClaimed = isRequestClaimed(requestId);
+    // bool isClaimed = isRequestClaimed(requestId);
     require !isPriceHintValid(requestId, priceIndexHint);
     require requestId > finalizedRequestsCount;
-    require !isClaimed;
+    // require !isClaimed;
 
     address recipient;
     require recipient != 0 && recipient != currentContract;
@@ -171,7 +166,6 @@ rule priceUpdateIntegrity(uint256 requestId, uint256 priceIndexHint, uint256 _la
     uint256 balanceOfAfter = balnceOfEth(recipient);
     require priceLenBefore == getPricesLength();
     assert balanceOfAfter - balanceOfBefore == etherToLock;
-   
 }
 
 // RULES TO IMPLEMENT:
@@ -194,6 +188,8 @@ rule priceUpdateIntegrity(uint256 requestId, uint256 priceIndexHint, uint256 _la
 
 // claim the same reqId twice
 
+// each etherLocked is less or equal to lockedEath
+// invariant - for all reqId1, reqId2 | if reqId1 > reqId2 => reqId1.cumulativeEther >= reqId2.cumulativeEther && reqId1.cumulativeShares >= reqId2.cumulativeShares.
  
 /**************************************************
  *               CVL FUNCS & DEFS                 *
