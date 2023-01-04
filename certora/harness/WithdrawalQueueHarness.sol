@@ -67,7 +67,7 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
         return _isPriceHintValid(_requestId, hint);
     }
 
-    function balnceOfEth(address user) public view returns(uint256)
+    function balanceOfEth(address user) public view returns(uint256)
     {
         return user.balance;
     }

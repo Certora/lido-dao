@@ -18,7 +18,7 @@ methods {
     getRequestsCumulativeShares(uint256) returns (uint128) envfree
     getRequestsRecipient(uint256) returns (address) envfree
     isRequestClaimed(uint256) returns (bool) envfree
-    balnceOfEth(address) returns(uint256) envfree
+    balanceOfEth(address) returns(uint256) envfree
     getPricesLength() returns (uint256) envfree
     MIN_WITHDRAWAL() returns (uint256) envfree
     getFinalizationPricesLength() returns (uint256) envfree
@@ -50,7 +50,12 @@ rule integrityOfClaim(uint256 requestId, uint256 priceIndexHint) {
 rule integrityOfEnqueue(address recipient, uint256 etherAmount, uint256 sharesAmount) {
     env e;
     require queueLength() < max_uint256 - 1;
-    uint256 lastRequestId = queueLength() - 1;
+    uint256 lastRequestId;
+    if (queueLength() > 0){
+        lastRequestId = queueLength() - 1;
+    } else {
+        lastRequestId = 0;
+    }
     uint128 EtherAmountBefore = getRequestsCumulativeEther(lastRequestId);
     uint128 SharesAmountBefore = getRequestsCumulativeShares(lastRequestId);
 
@@ -67,7 +72,7 @@ rule integrityOfEnqueue(address recipient, uint256 etherAmount, uint256 sharesAm
     assert !isClaimed;
 }
 
-rule integrityOfFinialize(uint256 _lastIdToFinalize, uint256 _etherToLock, uint256 _totalPooledEther, uint256 _totalShares) {
+rule integrityOfFinalize(uint256 _lastIdToFinalize, uint256 _etherToLock, uint256 _totalPooledEther, uint256 _totalShares) {
     env e;
     uint128 lockedEtherAmountBefore = lockedEtherAmount();
 
@@ -105,8 +110,8 @@ invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId)
             }
         }
 
-invariant solvancy()
-    lockedEtherAmount() <= balnceOfEth(currentContract)
+invariant solvency()
+    lockedEtherAmount() <= balanceOfEth(currentContract)
 
 invariant lastHintIndexEqFinalizedRequestsCounter()
     getPriceIndex(getFinalizationPricesLength() - 1) + 1 == finalizedRequestsCounter()
@@ -124,8 +129,12 @@ invariant checkPriceIndex(uint256 hint)
 rule priceIndexFinalizedRequestsCounterCorelation(method f) {
     env e;
     calldataarg args;
-
-    uint256 latestIndexBefore = getPriceIndex(getPricesLength() - 1);
+    uint256 latestIndexBefore;
+    if(getPricesLength() > 0){
+        latestIndexBefore = getPriceIndex(getPricesLength() - 1);
+    } else {
+        latestIndexBefore = 0;
+    }
     uint256 finalizedRequestsCounterBefore = finalizedRequestsCounter();
     uint256 pricesLenBefore = getPricesLength();
 
@@ -147,7 +156,7 @@ function requirements(uint256 requestId, uint256 priceIndexHint) {
 }
 
 // 1. request is queued, not finalized.
-// 2. fanalize request
+// 2. finalize request
 // 3. user should get min(eth, shares * totalEth/ totalShares) (same params as finalize) - calculateFinalizationParamsForReqId vs finalize calculation
 // 4. claim request
 // 5. assert expected value == actual value.
@@ -164,12 +173,12 @@ rule priceUpdateIntegrity(uint256 requestId, uint256 priceIndexHint, uint256 _la
 
     finalize(e, _lastIdToFinalize, _etherToLock, _totalPooledEther, _totalShares); 
 
-    uint256 balanceOfBefore = balnceOfEth(recipient);
+    uint256 balanceOfBefore = balanceOfEth(recipient);
     require isPriceHintValid(requestId, priceIndexHint);
 
     require recipient == claim(requestId, priceIndexHint);
 
-    uint256 balanceOfAfter = balnceOfEth(recipient);
+    uint256 balanceOfAfter = balanceOfEth(recipient);
     require priceLenBefore == getPricesLength();
     assert balanceOfAfter - balanceOfBefore == recipientExpectedEth;
 }
