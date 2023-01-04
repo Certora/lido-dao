@@ -111,7 +111,7 @@ invariant solvancy()
 invariant lastHintIndexEqFinalizedRequestsCounter()
     getPriceIndex(getFinalizationPricesLength() - 1) + 1 == finalizedRequestsCounter()
     
-
+// invariant to verify that priceIndex is monotonic increasing *
 invariant checkPriceIndex(uint256 hint) 
     (hint < getFinalizationPricesLength() && hint >= 1) => getPriceIndex(hint) > getPriceIndex(hint - 1)
     {
@@ -120,7 +120,6 @@ invariant checkPriceIndex(uint256 hint)
             require getFinalizationPricesLength() < max_uint128;
         }
     }
-
 
 rule priceIndexFinalizedRequestsCounterCorelation(method f) {
     env e;
@@ -139,6 +138,14 @@ rule priceIndexFinalizedRequestsCounterCorelation(method f) {
     assert pricesLenAfter > pricesLenBefore || latestIndexAfter != latestIndexBefore => finalizedRequestsCounterAfter > finalizedRequestsCounterBefore;
 }
 
+function requirements(uint256 requestId, uint256 priceIndexHint) {
+    require !isPriceHintValid(requestId, priceIndexHint);
+    require requestId > finalizedRequestsCounter();
+    require queueLength() < max_uint128;
+    require getPricesLength() < max_uint128;
+    requireInvariant finalizedRequestsCounterLessThanEqToQueueLen();
+}
+
 // 1. request is queued, not finalized.
 // 2. fanalize request
 // 3. user should get min(eth, shares * totalEth/ totalShares) (same params as finalize) - calculateFinalizationParamsForReqId vs finalize calculation
@@ -147,58 +154,31 @@ rule priceIndexFinalizedRequestsCounterCorelation(method f) {
 rule priceUpdateIntegrity(uint256 requestId, uint256 priceIndexHint, uint256 _lastIdToFinalize, uint256 _etherToLock, uint256 _totalPooledEther, uint256 _totalShares) {
     env e;
     uint256 priceLenBefore = getPricesLength();
-    uint256 finalizedRequestsCount = finalizedRequestsCounter();
-    // bool isClaimed = isRequestClaimed(requestId);
-    require !isPriceHintValid(requestId, priceIndexHint);
-    require requestId > finalizedRequestsCount;
-    // require !isClaimed;
-
+    requirements(requestId, priceIndexHint);
     address recipient;
     require recipient != 0 && recipient != currentContract;
 
-    uint256 etherToLock;
+    uint256 recipientExpectedEth;
     uint256 sharesToBurn;
-    etherToLock, sharesToBurn = calculateFinalizationParamsForReqId(requestId, _totalPooledEther, _totalShares);
+    recipientExpectedEth, sharesToBurn = calculateFinalizationParamsForReqId(requestId, _totalPooledEther, _totalShares);
+
     finalize(e, _lastIdToFinalize, _etherToLock, _totalPooledEther, _totalShares); 
+
     uint256 balanceOfBefore = balnceOfEth(recipient);
     require isPriceHintValid(requestId, priceIndexHint);
+
     require recipient == claim(requestId, priceIndexHint);
+
     uint256 balanceOfAfter = balnceOfEth(recipient);
     require priceLenBefore == getPricesLength();
-    assert balanceOfAfter - balanceOfBefore == etherToLock;
+    assert balanceOfAfter - balanceOfBefore == recipientExpectedEth;
 }
 
 // RULES TO IMPLEMENT:
 
 // integrityOfRestake
-
 // invariant - for all reqId1, reqId2 | if reqId1 > reqId2 => reqId1.cumulativeEther >= reqId2.cumulativeEther && reqId1.cumulativeShares >= reqId2.cumulativeShares. *
-
-// invariant for hintIndex -> monotonic increasing *
-// rule hintIndexMonotonicIncreasing() {
-    
-// }
-
-// finalizedRequestsCounter == lastHintIndex /+-1 - corelation if index inc then finalized inc
-
 // if requestID > finalizedRequestsCounter => isClaimed == false
-
-// invariant(uint256 reqId)
-//     reqId > finalizedRequestsCount() => !isClaimed(reqId)
-
 // claim the same reqId twice
-
 // each etherLocked is less or equal to lockedEath
 // invariant - for all reqId1, reqId2 | if reqId1 > reqId2 => reqId1.cumulativeEther >= reqId2.cumulativeEther && reqId1.cumulativeShares >= reqId2.cumulativeShares.
- 
-/**************************************************
- *               CVL FUNCS & DEFS                 *
- **************************************************/
-
-/**************************************************
- *               STATE TRANSITIONS                *
- **************************************************/
-
-/**************************************************
- *                 VALID STATES                   *
- **************************************************/
