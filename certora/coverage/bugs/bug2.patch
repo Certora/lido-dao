@@ -1,0 +1,13 @@
+diff --git a/contracts/0.8.9/WithdrawalQueue.sol b/contracts/0.8.9/WithdrawalQueue.sol
+index 672b65d..6cc2024 100644
+--- a/contracts/0.8.9/WithdrawalQueue.sol
++++ b/contracts/0.8.9/WithdrawalQueue.sol
+@@ -207,7 +207,7 @@ contract WithdrawalQueue {
+                 return i - 1;
+             }
+         }
+-        assert(false);
++        return 0;
+     }
+ 
+     function restake(uint256 _amount) external onlyOwner {

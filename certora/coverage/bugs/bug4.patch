@@ -1,0 +1,13 @@
+diff --git a/contracts/0.8.9/WithdrawalQueue.sol b/contracts/0.8.9/WithdrawalQueue.sol
+index 672b65d..284a409 100644
+--- a/contracts/0.8.9/WithdrawalQueue.sol
++++ b/contracts/0.8.9/WithdrawalQueue.sol
+@@ -153,7 +153,7 @@ contract WithdrawalQueue {
+         Request storage request = queue[_requestId];
+         require(!request.claimed, "REQUEST_ALREADY_CLAIMED");
+ 
+-        request.claimed = true;
++        // request.claimed = true;
+ 
+         Price memory price;
+ 

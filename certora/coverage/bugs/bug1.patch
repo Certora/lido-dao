@@ -1,0 +1,13 @@
+diff --git a/contracts/0.8.9/WithdrawalQueue.sol b/contracts/0.8.9/WithdrawalQueue.sol
+index 672b65d..d2a3002 100644
+--- a/contracts/0.8.9/WithdrawalQueue.sol
++++ b/contracts/0.8.9/WithdrawalQueue.sol
+@@ -172,7 +172,7 @@ contract WithdrawalQueue {
+             );
+         lockedEtherAmount -= etherToTransfer;
+ 
+-        _sendValue(request.recipient, etherToTransfer);
++        //_sendValue(request.recipient, etherToTransfer);
+ 
+         return request.recipient;
+     }
