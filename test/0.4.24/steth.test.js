@@ -1,5 +1,6 @@
 const { assert } = require('chai')
-const { assertBn, assertRevert, assertEvent, assertAmountOfEvents } = require('@aragon/contract-helpers-test/src/asserts')
+const { assertBn, assertEvent, assertAmountOfEvents } = require('@aragon/contract-helpers-test/src/asserts')
+const { assertRevert } = require('../helpers/assertThrow')
 const { ZERO_ADDRESS, bn } = require('@aragon/contract-helpers-test')
 
 const StETH = artifacts.require('StETHMock')
@@ -285,10 +286,12 @@ contract('StETH', ([_, __, user1, user2, user3, nobody]) => {
       assert(await stEth.isStopped())
 
       await assertRevert(stEth.transfer(user2, tokens(2), { from: user1 }), 'CONTRACT_IS_STOPPED')
-      await assertRevert(stEth.approve(user2, tokens(2), { from: user1 }), 'CONTRACT_IS_STOPPED')
+      //NB: can approve if stopped
+      await stEth.approve(user2, tokens(2), { from: user1 })
       await assertRevert(stEth.transferFrom(user2, user3, tokens(2), { from: user1 }), 'CONTRACT_IS_STOPPED')
-      await assertRevert(stEth.increaseAllowance(user2, tokens(2), { from: user1 }), 'CONTRACT_IS_STOPPED')
-      await assertRevert(stEth.decreaseAllowance(user2, tokens(2), { from: user1 }), 'CONTRACT_IS_STOPPED')
+      //NB: can change allowance if stopped
+      await stEth.increaseAllowance(user2, tokens(2), { from: user1 })
+      await stEth.decreaseAllowance(user2, tokens(2), { from: user1 })
 
       await stEth.resume({ from: user1 })
       assert.equal(await stEth.isStopped(), false)
@@ -499,6 +502,16 @@ contract('StETH', ([_, __, user1, user2, user3, nobody]) => {
 
         assertBn(await stEth.balanceOf(nobody), tokens(0))
       })
+
+      it('transferSharesFrom', async () => {
+        assertBn(await stEth.balanceOf(nobody), tokens(0))
+
+        const receipt = await stEth.transferSharesFrom(nobody, user1, tokens(0), { from: user2 })
+        assertEvent(receipt, 'Transfer', { expectedArgs: { from: nobody, to: user1, value: tokens(0) } })
+        assertEvent(receipt, 'TransferShares', { expectedArgs: { from: nobody, to: user1, sharesValue: tokens(0) } })
+
+        assertBn(await stEth.balanceOf(nobody), tokens(0))
+      })
     })
 
     context('with non-zero totalPooledEther (supply)', async () => {
@@ -562,11 +575,57 @@ contract('StETH', ([_, __, user1, user2, user3, nobody]) => {
         assertBn(await stEth.balanceOf(user1), tokens(70))
         assertBn(await stEth.balanceOf(nobody), tokens(30))
 
-        assertRevert(stEth.transferShares(nobody, tokens(75), { from: user1 }), 'TRANSFER_AMOUNT_EXCEEDS_BALANCE')
+        await assertRevert(stEth.transferShares(nobody, tokens(75), { from: user1 }), 'TRANSFER_AMOUNT_EXCEEDS_BALANCE')
 
         await stEth.setTotalPooledEther(tokens(120))
 
         receipt = await stEth.transferShares(nobody, tokens(70), { from: user1 })
+        assertAmountOfEvents(receipt, 'Transfer', { expectedAmount: 1 })
+        assertAmountOfEvents(receipt, 'TransferShares', { expectedAmount: 1 })
+        assertEvent(receipt, 'Transfer', { expectedArgs: { from: user1, to: nobody, value: tokens(84) } })
+        assertEvent(receipt, 'TransferShares', { expectedArgs: { from: user1, to: nobody, sharesValue: tokens(70) } })
+
+        assertBn(await stEth.balanceOf(user1), tokens(0))
+        assertBn(await stEth.balanceOf(nobody), tokens(120))
+      })
+
+      it('transferSharesFrom', async () => {
+        assertBn(await stEth.balanceOf(user1), tokens(100))
+        assertBn(await stEth.balanceOf(nobody), tokens(0))
+
+        let receipt = await stEth.transferSharesFrom(user1, nobody, tokens(0), { from: user2 })
+        assertAmountOfEvents(receipt, 'Transfer', { expectedAmount: 1 })
+        assertAmountOfEvents(receipt, 'TransferShares', { expectedAmount: 1 })
+        assertEvent(receipt, 'Transfer', { expectedArgs: { from: user1, to: nobody, value: tokens(0) } })
+        assertEvent(receipt, 'TransferShares', { expectedArgs: { from: user1, to: nobody, sharesValue: tokens(0) } })
+
+        assertBn(await stEth.balanceOf(user1), tokens(100))
+        assertBn(await stEth.balanceOf(nobody), tokens(0))
+
+        await assertRevert(
+          stEth.transferSharesFrom(user1, nobody, tokens(30), { from: user2 }),
+          `TRANSFER_AMOUNT_EXCEEDS_ALLOWANCE`
+        )
+        await stEth.approve(user2, tokens(30), { from: user1 })
+        receipt = await stEth.transferSharesFrom(user1, nobody, tokens(30), { from: user2 })
+        assertAmountOfEvents(receipt, 'Transfer', { expectedAmount: 1 })
+        assertAmountOfEvents(receipt, 'TransferShares', { expectedAmount: 1 })
+        assertEvent(receipt, 'Transfer', { expectedArgs: { from: user1, to: nobody, value: tokens(30) } })
+        assertEvent(receipt, 'TransferShares', { expectedArgs: { from: user1, to: nobody, sharesValue: tokens(30) } })
+
+        assertBn(await stEth.balanceOf(user1), tokens(70))
+        assertBn(await stEth.balanceOf(nobody), tokens(30))
+
+        await assertRevert(stEth.transferSharesFrom(user1, nobody, tokens(75), { from: user2 }), 'TRANSFER_AMOUNT_EXCEEDS_ALLOWANCE')
+        await stEth.approve(user2, tokens(75), { from: user1 })
+        await assertRevert(stEth.transferSharesFrom(user1, nobody, tokens(75), { from: user2 }), 'TRANSFER_AMOUNT_EXCEEDS_BALANCE')
+
+        await stEth.setTotalPooledEther(tokens(120))
+
+        await assertRevert(stEth.transferSharesFrom(user1, nobody, tokens(70), { from: user2 }), 'TRANSFER_AMOUNT_EXCEEDS_ALLOWANCE')
+
+        await stEth.approve(user2, tokens(84), { from: user1 })
+        receipt = await stEth.transferSharesFrom(user1, nobody, tokens(70), { from: user2 })
         assertAmountOfEvents(receipt, 'Transfer', { expectedAmount: 1 })
         assertAmountOfEvents(receipt, 'TransferShares', { expectedAmount: 1 })
         assertEvent(receipt, 'Transfer', { expectedArgs: { from: user1, to: nobody, value: tokens(84) } })

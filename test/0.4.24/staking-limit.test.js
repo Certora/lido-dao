@@ -1,5 +1,6 @@
 const { assert } = require('chai')
-const { assertBn, assertRevert } = require('@aragon/contract-helpers-test/src/asserts')
+const { assertBn } = require('@aragon/contract-helpers-test/src/asserts')
+const { assertRevert } = require('../helpers/assertThrow')
 const { bn, MAX_UINT256 } = require('@aragon/contract-helpers-test')
 const { toBN } = require('../helpers/utils')
 const { waitBlocks } = require('../helpers/blockchain')
@@ -107,18 +108,18 @@ contract('StakingLimits', ([account1]) => {
 
     maxStakeLimit = 5
     maxStakeLimitGrowthBlocks = 6
-    assertRevert(limits.setStakingLimit(slot, maxStakeLimit, maxStakeLimitGrowthBlocks), 'TOO_LARGE_LIMIT_INCREASE')
+    await assertRevert(limits.setStakingLimit(slot, maxStakeLimit, maxStakeLimitGrowthBlocks), 'TOO_LARGE_LIMIT_INCREASE')
   })
 
   it('stake limit reverts on large values', async () => {
     let maxStakeLimit = toBN(2).pow(toBN(96))
     let maxStakeLimitIncreasePerBlock = 1
     const slot = await limits.setStorageStakeLimitStruct(0, 0, 0, 0)
-    assertRevert(limits.setStakingLimit(slot, maxStakeLimit, maxStakeLimitIncreasePerBlock), 'TOO_LARGE_MAX_STAKE_LIMIT')
+    await assertRevert(limits.setStakingLimit(slot, maxStakeLimit, maxStakeLimitIncreasePerBlock), 'TOO_LARGE_MAX_STAKE_LIMIT')
 
     maxStakeLimit = toBN(2).mul(toBN(10).pow(toBN(18)))
     maxStakeLimitIncreasePerBlock = toBN(10)
-    assertRevert(limits.setStakingLimit(slot, maxStakeLimit, maxStakeLimitIncreasePerBlock), `TOO_SMALL_LIMIT_INCREASE`)
+    await assertRevert(limits.setStakingLimit(slot, maxStakeLimit, maxStakeLimitIncreasePerBlock), `TOO_SMALL_LIMIT_INCREASE`)
   })
 
   it('check update calculate stake limit with different blocks', async () => {
@@ -206,5 +207,34 @@ contract('StakingLimits', ([account1]) => {
     assertBn(decodedMaxStakeLimitGrowthBlocks, max32)
     assertBn(decodedPrevStakeLimit, max96)
     assertBn(decodedPrevStakeBlockNumber, max32)
+  })
+
+  it('constant gas for `calculateCurrentStakeLimit` regardless `block.number`', async () => {
+    const block = await web3.eth.getBlock('latest')
+
+    const maxStakeLimit = ETH(150000)
+    const maxStakeLimitGrowthBlocks = 12
+
+    const slot = await limits.setStorageStakeLimitStruct(
+      block.number,
+      ETH(0),
+      maxStakeLimitGrowthBlocks,
+      maxStakeLimit
+    )
+    // dry run to init the storage
+    await limits.emitCurrentStakeLimit(slot)
+
+    // reference call (the current limit is below max)
+    const referenceGas = (await limits.emitCurrentStakeLimit(slot)).receipt.gasUsed
+    const referenceBlock = (await web3.eth.getBlock('latest')).number
+
+    // spin up the loop to hit the max and impose saturation
+    for(i=0; i<maxStakeLimitGrowthBlocks+1; ++i) {
+      const currentGas = (await limits.emitCurrentStakeLimit(slot)).receipt.gasUsed
+      const currentBlock = (await web3.eth.getBlock('latest')).number
+
+      assertBn(currentGas, referenceGas)
+      assertBn(currentBlock, referenceBlock + i + 1)
+    }
   })
 })
