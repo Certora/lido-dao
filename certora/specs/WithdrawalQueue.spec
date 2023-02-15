@@ -1,7 +1,7 @@
 methods {
     // WithdrawalQueue
     initialize(address, address, address, address, address) // check if one can initialize more than once and who can initialize.
-    isInitialized() returns (bool) envfree
+    // isInitialized() returns (bool) envfree
     resume()
     pause(uint256)
     isPaused() returns (bool)
@@ -75,6 +75,87 @@ rule integrityOfClaimWithdrawal(uint256 requestId) {
     assert ethBalanceAfter > ethBalanceBefore => lockedEthBefore > lockedEthAfter && !isClaimedBefore && isClaimedAfter && isFinalized;
     // assert ethBalanceAfter > ethBalanceBefore => ethBalanceAfter - ethBalanceBefore == lockedEthBefore - lockedEthAfter == amountOfEthStatus //TODO
 }
+
+// rule finalizeSeperateVsFinalizeBatch(uint256 _lastIdToFinalize) {
+//     // finanlize two requests seperatly and compare with finalize both together (with lastStorage) and compare 
+// }
+
+// rule finalizeAndClaimSeperateVsBatch(uint256 _lastIdToFinalize) {
+//     // finanlize two requests seperatly and compare with finalize both together (with lastStorage) and compare 
+// }
+
+rule finalizeAloneVsFinalizeBatch(uint256 requestId1, uint256 requestId2) {
+    env e;
+    // e.msg.value == max_uint256;
+    storage init = lastStorage;
+    address owner = getRequestsStatusOwner(requestId1);
+
+    require owner != e.msg.sender;
+
+    require requestId1 != requestId2;
+    require requestId1 < getLastRequestId() && requestId2 < getLastRequestId();
+    require requestId1 > getLastFinalizedRequestId() && requestId2 > getLastFinalizedRequestId();
+
+    uint256 lockedEtherBefore = getLockedEtherAmount();
+
+    finalize(e, requestId1);
+    claimWithdrawal(e, requestId1);
+
+    uint256 userEthBalanceSeperate = balanceOfEth(owner);
+
+    finalize(e, requestId2) at init;
+    claimWithdrawal(e, requestId1);
+
+    uint256 userEthBalanceBatch = balanceOfEth(owner);
+
+    assert userEthBalanceSeperate == userEthBalanceBatch;
+}
+
+
+rule integrityOfFinalize(uint256 _lastIdToFinalize) {
+    env e;
+    uint256 lockedEtherAmountBefore = getLockedEtherAmount();
+
+    finalize(e, _lastIdToFinalize);
+
+    uint256 lockedEtherAmountAfter = getLockedEtherAmount();
+    uint256 finalizedRequestsCounterAfter = getLastFinalizedRequestId();
+
+    assert lockedEtherAmountAfter > lockedEtherAmountBefore + e.msg.value;
+    assert finalizedRequestsCounterAfter == _lastIdToFinalize + 1;
+}
+
+invariant finalizedRequestsCounterLessThanEqToQueueLen()
+    getLastFinalizedRequestId() <= getLastRequestId()
+    {
+        // preserved
+        // {
+        //     require queueLength() < max_uint256 - 1;
+        // }
+    }
+
+// minimum withdrawal rule. min withdrawal == 0.1 ether == 10 ^ 17
+invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId) 
+    reqId < getLastRequestId() => (
+                               (
+                                reqId > 0 => getRequestsCumulativeEther(reqId) - getRequestsCumulativeEther(reqId - 1) >= MIN_STETH_WITHDRAWAL_AMOUNT() &&
+                                getRequestsCumulativeEther(reqId) - getRequestsCumulativeEther(reqId - 1) <= MAX_STETH_WITHDRAWAL_AMOUNT()
+                               ) 
+                            && (
+                                reqId == 0 => (getRequestsCumulativeEther(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT()) && 
+                                getRequestsCumulativeEther(reqId) <= MAX_STETH_WITHDRAWAL_AMOUNT()
+                               )
+                            )
+        // {
+        //     preserved 
+        //     {
+        //         requireInvariant finalizedRequestsCounterLessThanEqToQueueLen();
+        //         require queueLength() < max_uint128;
+        //     }
+        // }
+
+invariant solvency()
+    getLockedEtherAmount() <= balanceOfEth(currentContract)
 
 // /**************************************************
 //  *                METHOD INTEGRITY                *
