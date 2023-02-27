@@ -59,7 +59,7 @@ definition isDeposit(method f) returns bool =
 definition isAddModule(method f) returns bool = 
     f.selector == addStakingModule(string,address,uint256,uint256,uint256).selector;
 
-// Staking module status:
+// Staking module status constants are based on the code StakingModuleStatus.
 definition ACTIVE() returns uint8 = 0; 
 definition PAUSED() returns uint8 = 1; 
 definition STOPPED() returns uint8 = 2; 

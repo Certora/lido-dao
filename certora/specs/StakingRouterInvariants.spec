@@ -10,17 +10,28 @@ invariant StakingModuleIdLELast(uint256 moduleId)
     filtered{f -> !isDeposit(f)}
 
 invariant StakingModuleIndexIsIdMinus1(uint256 moduleId)
-    getStakingModuleIndexById(moduleId)+1 == getStakingModuleIdById(moduleId)
+    (moduleId <= getStakingModulesCount() 
+        => 
+    (getStakingModuleIndexOneBased(moduleId)+1 == getStakingModuleIdById(moduleId)))
+     
+     &&
+    
+    (moduleId > getStakingModulesCount() 
+        => 
+    (getStakingModuleIdById(moduleId) == 0 && getStakingModuleIndexOneBased(moduleId) == 0))
     filtered{f -> !isDeposit(f)}
     {
         preserved{
             requireInvariant StakingModuleIdLELast(moduleId);
             requireInvariant modulesCountIsLastIndex();
+            requireInvariant StakingModuleIndexIsIdMinus1(getStakingModulesCount());
         }
     }
 
 invariant StakingModuleId(uint256 moduleId)
-    getStakingModuleIdById(moduleId) == moduleId
+    (moduleId <= getStakingModulesCount() => getStakingModuleIdById(moduleId) == moduleId)
+    &&
+    (moduleId > getStakingModulesCount() => getStakingModuleIdById(moduleId) == 0)
     filtered{f -> !isDeposit(f)}
     {
         preserved{
@@ -107,25 +118,3 @@ function safeAssumptions(uint256 moduleId) {
         requireInvariant StakingModuleTargetShareLEMAX(moduleId);
     }
 }
-
-/*
-invariant StakingModulesDistributionTotalFeeIsBounded()
-    getStakingRewardsDistributionTotalFee() <= TOTAL_BASIS_POINTS()
-    filtered{f -> !isDeposit(f) && isAddModule(f)}
-
-function getStakingRewardsDistributionTotalFee() returns uint256 {
-    uint256 modulesFee; uint256 treasuryFee; uint256 precision;
-    modulesFee, treasuryFee, precision = getStakingFeeAggregateDistribution();
-    return to_uint256(modulesFee + treasuryFee);
-}
-    
-preserved addStakingModule(
-            string name, 
-            address Address,
-            uint256 targetShare,
-            uint256 ModuleFee,
-            uint256 treasuryFee)
-            {
-                requireInvariant StakingModuleIdLELast(moduleId);
-            }
-*/

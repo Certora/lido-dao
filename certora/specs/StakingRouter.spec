@@ -211,6 +211,7 @@ rule cannotAddStakingModuleIfAlreadyRegistered(uint256 index) {
     assert stakingModuleAddress != getStakingModuleAddressByIndex(index);
 }
 
+// Checks the aggregated fee after the first call to addStakingModule
 rule aggregatedFeeLT100Percent_init() {
     env e;
 
@@ -328,6 +329,7 @@ rule cannotInitializeTwice() {
     assert lastReverted;
 }
 
+// This rule only checks that the last added one can be fetched (and doesn't revert).
 rule canAlwaysGetAddedStakingModule() {
     env e;
     calldataarg args;
