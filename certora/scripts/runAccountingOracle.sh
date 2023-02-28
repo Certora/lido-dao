@@ -23,8 +23,9 @@ LegacyOracle=solc4.24 \
 --staging yuvalbd/correct_param_count \
 --optimistic_loop \
 --send_only \
---settings -t=500,-mediumTimeout=50,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
+--settings -t=500,-mediumTimeout=50,-copyLoopUnroll=17,-optimisticUnboundedHashing=true \
+--hashing_length_bound 544 \
 --rule_sanity \
---msg "with rule_sanity"
-
-# --rule sanity shouldNotRevert \
+\
+--rule sanity \
+--msg "-copyLoopUnroll=17,-optimisticUnboundedHashing=true --hashing_length_bound 544"

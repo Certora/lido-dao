@@ -1,3 +1,13 @@
+using MockConsensusContract as ConsensusContract
+using AccountingOracle as AccountingOracleContract
+using StakingRouter as StakingRouterContract
+using LidoLocator as LidoLocatorContract
+using OracleReportSanityChecker as OracleReportSanityCheckerContract
+using MockLidoForAccountingOracle as LidoContract
+using MockWithdrawalQueueForAccountingOracle as WithdrawalQueueContract
+using StakingModuleMock as StakingModuleContract
+using LegacyOracle as LegacyOracleContract
+
 /**************************************************
  *                 Methods Declaration            *
  **************************************************/
@@ -29,7 +39,7 @@ methods {
     getBeaconSpec() returns (uint64, uint64, uint64, uint64) => DISPATCHER(true) // might be able to simplify, only used for one check
     getLastCompletedEpochId() returns (uint256) => DISPATCHER(true)
     handleConsensusLayerReport(uint256, uint256, uint256) => DISPATCHER(true)
-    getConsensusContract() returns (address) => NONDET //DISPATCHER(true)
+    getConsensusContract() returns (address) => NONDET //getConsensusContractCVL() //DISPATCHER(true)
     getAccountingOracle() returns (address) => NONDET //getAccountingOracleContract()
 
     // WithdrawalQueue = WithdrawalQueue.sol
@@ -52,6 +62,10 @@ function getAccountingOracleContract() returns address {
     return currentContract;
 }
 
+function getConsensusContractCVL() returns address {
+    return ConsensusContract;
+}
+
 // rule ideas:
 //  1. verify all the reverting scenarios of submitReportData()
 //  2. verify submitReportData() does not revert outside of the allowed reverting scenarios
@@ -67,6 +81,9 @@ rule sanity(method f)
 {
     env e;
     calldataarg args;
+
+    //require getConsensusContract() == getConsensusContractCVL();
+
     f(e,args);
     assert false;
 }
@@ -76,6 +93,12 @@ filtered{f -> f.selector == submitReportData((uint256,uint256,uint256,uint256,ui
 {
     env e;
     calldataarg args;
+
+    require e.msg.value == 0;
+    require e.msg.sender != 0;
+    require e.block.timestamp > 0;
+    require e.block.timestamp < 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+
     f@withrevert(e,args);
     assert (!lastReverted);
 }
