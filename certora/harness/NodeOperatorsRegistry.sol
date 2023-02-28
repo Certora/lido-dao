@@ -10,8 +10,6 @@ import {Packed64x4} from "../../contracts/0.4.24/lib/Packed64x4.sol";
 contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
     using Packed64x4 for Packed64x4.Packed;
 
-    //uint256[] public rewardDistributionShares;
-
     /// @dev DEPRECATED use addSigningKeys instead
     function addSigningKeysOperatorBH(uint256, uint256, bytes, bytes) external {}
 
@@ -32,8 +30,8 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
         _requireAuth(_canPerformNoParams(msg.sender, _role));
     }
 
-    function _canPerformNoParams(address, bytes32 ) private view returns (bool) {
-        return true;
+    function _canPerformNoParams(address sender, bytes32 ) private view returns (bool) {
+        return sender != 0;
     }
 
     function getRewardsDistributionShare(uint256 _totalRewardShares, uint256 _nodeOperatorId) 
@@ -102,5 +100,28 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
     function getNodeOperatorSigningStats_total(uint256 _nodeOperatorId) public view returns (uint64) {
         Packed64x4.Packed memory signingKeysStats = _loadOperatorSigningKeysStats(_nodeOperatorId);
         return signingKeysStats.get(TOTAL_KEYS_COUNT_OFFSET);
+    }
+
+    function getNodeOperatorTargetStats_target(uint256 _nodeOperatorId) public view returns (uint64) {
+        Packed64x4.Packed memory operatorTargetStats = _loadOperatorTargetValidatorsStats(_nodeOperatorId);
+        return operatorTargetStats.get(TARGET_VALIDATORS_COUNT_OFFSET);
+    }
+
+    function sumOfExitedKeys() public view returns (uint256 sumOfKeys) {
+        for (uint256 i; i < getNodeOperatorsCount();) {
+            sumOfKeys += getNodeOperatorSigningStats_exited(i);
+        }
+    }
+
+    function sumOfDepositedKeys() public view returns (uint256 sumOfKeys) {
+        for (uint256 i; i < getNodeOperatorsCount();) {
+            sumOfKeys += getNodeOperatorSigningStats_deposited(i);
+        }
+    }
+
+    function sumOfTotalKeys() public view returns (uint256 sumOfKeys) {
+        for (uint256 i; i < getNodeOperatorsCount();) {
+            sumOfKeys += getNodeOperatorSigningStats_total(i);
+        }
     }
 }

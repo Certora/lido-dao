@@ -99,6 +99,24 @@ filtered{f -> f.isView && !harnessGetters(f), g -> isAddModule(g)} {
 }
 
 /**************************************************
+ *          Status Definition Rules               *
+ **************************************************/
+rule activeStatusDefinition(uint256 moduleId) {
+    assert getStakingModuleIsActive(moduleId) <=> 
+        getStakingModuleStatus(moduleId) == ACTIVE();
+}
+
+rule pausedStatusDefinition(uint256 moduleId) {
+    assert getStakingModuleIsDepositsPaused(moduleId) <=> 
+        getStakingModuleStatus(moduleId) == PAUSED();
+}
+
+rule stoppedStatusDefinition(uint256 moduleId) {
+    assert getStakingModuleIsStopped(moduleId) <=> 
+        getStakingModuleStatus(moduleId) == STOPPED();
+}
+
+/**************************************************
  *          Status Transition Rules               *
  **************************************************/
 rule StatusChangedToActive(uint256 moduleId, method f)
@@ -159,7 +177,7 @@ filtered{f -> !f.isView && !isDeposit(f)} {
     => moduleId == otherModule;
 }
 
-rule canAddModuleIfNotActive() {
+rule canAddModuleIfNotActive(uint256 id) {
     storage initState = lastStorage;
 
     env e1; env e2;
@@ -168,7 +186,7 @@ rule canAddModuleIfNotActive() {
     uint256 targetShare;
     uint256 stakingModuleFee;
     uint256 treasuryFee;
-    uint256 id = getStakingModulesCount() + 1;
+    require id > getStakingModulesCount();
 
     addStakingModule(e1, name, stakingModuleAddress, targetShare, stakingModuleFee, treasuryFee);
 
@@ -274,7 +292,7 @@ rule aggregatedFeeLT100Percent_preserve() {
 rule feeDistributionDoesntRevertAfterAddingModule() {
     env e;
     calldataarg args;
-    require getStakingModulesCount() <=1;
+    require getStakingModulesCount() <= 1;
     safeAssumptions(1);
     getStakingFeeAggregateDistribution();
     
@@ -303,6 +321,10 @@ rule canAlwaysAddAnotherStakingModule() {
     // Assuming we don't reach the total cap of staking modules in the contract.
     require getStakingModulesCount() < 30;
 
+    // Without this require, the second call would revert, as it's impossible 
+    // to add a staking module whose address is already registered.
+    require Address1 != Address2;
+
     storage initState = lastStorage;
 
     addStakingModule(e, name1, Address1, targetShare1, ModuleFee1, TreasuryFee1);
@@ -329,7 +351,7 @@ rule cannotInitializeTwice() {
     assert lastReverted;
 }
 
-// This rule only checks that the last added one can be fetched (and doesn't revert).
+// This rule only checks that the last one added can be fetched (and doesn't revert).
 rule canAlwaysGetAddedStakingModule() {
     env e;
     calldataarg args;
@@ -348,8 +370,9 @@ rule getMaxDepositsCountReverts_init(uint256 id) {
 
     requireInvariant modulesCountIsLastIndex();
     // Post contructor state
+    uint256 maxDepositsValue;
     require getStakingModuleIndexOneBased(id) == 0;
-    getStakingModuleMaxDepositsCount@withrevert(e, id);
+    getStakingModuleMaxDepositsCount@withrevert(e, id, maxDepositsValue);
     assert lastReverted;
 }
 
@@ -357,15 +380,16 @@ rule getMaxDepositsCountReverts_preserve(method f, uint256 id)
 filtered{f -> !f.isView && !isDeposit(f)} {
     env e;
     calldataarg args;
+    uint256 maxDepositsValue;
 
     requireInvariant modulesCountIsLastIndex();
-    getStakingModuleMaxDepositsCount@withrevert(e, id);
+    getStakingModuleMaxDepositsCount@withrevert(e, id, maxDepositsValue);
     bool reverted_A = lastReverted;
     require reverted_A <=> (id > getStakingModulesCount() || id == 0);
 
     f(e, args);
 
-    getStakingModuleMaxDepositsCount@withrevert(e, id);
+    getStakingModuleMaxDepositsCount@withrevert(e, id, maxDepositsValue);
     bool reverted_B = lastReverted;
     assert reverted_B <=> (id > getStakingModulesCount() || id == 0);
 }
@@ -374,8 +398,9 @@ rule depositRevertsForInvalidModuleId(uint256 id) {
     env e;
     uint256 maxDepositsCount;
     bytes calldata; require calldata.length == 0;
+    uint256 maxDepositsValue;
 
-    getStakingModuleMaxDepositsCount@withrevert(e, id);
+    getStakingModuleMaxDepositsCount@withrevert(e, id, maxDepositsValue);
     require lastReverted;
 
     deposit@withrevert(e, maxDepositsCount, id, calldata);
