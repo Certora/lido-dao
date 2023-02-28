@@ -54,8 +54,17 @@ digraph G {
   "Math.sol" -> "HashConsensus.sol";
 
   "PositiveTokenRebaseLimiter.sol";
-  // "PositiveTokenRebaseLimiter.sol" -> "OracleReportSanityChecker.sol";
+  "PositiveTokenRebaseLimiter.sol" -> "OracleReportSanityChecker.sol";
   // "PositiveTokenRebaseLimiter.sol" -> "PositiveTokenRebaseLimiterMock.sol";
+
+  "OracleReportSanityChecker.sol";
+  
+  "IOracleReportSanityChecker.sol" -> "OracleReportSanityChecker.sol";
+  "IOracleReportSanityChecker.sol" -> "Lido.sol";
+  "IOracleReportSanityChecker.sol" -> "AccountingOracle.sol";
+  "IOracleReportSanityChecker.sol" -> "ValidatorsExitBusOracle.sol";
+  // "IOracleReportSanityChecker.sol" -> "ILidoLocator.sol";
+
 
   "UnstructuredStorage.sol" -> "StETH.sol";
   "UnstructuredStorage.sol" -> "StETHPermit.sol";
@@ -98,6 +107,7 @@ digraph G {
   "AccessControlEnumerable.sol" -> "WithdrawalQueueERC721.sol";
   "AccessControlEnumerable.sol" -> "BaseOracle.sol";
   "AccessControlEnumerable.sol" -> "HashConsensus.sol";
+  "AccessControlEnumerable.sol" -> "OracleReportSanityChecker.sol";
 
   "PausableUntil.sol" -> "WithdrawalQueue.sol";
   "PausableUntil.sol" -> "ValidatorsExitBusOracle.sol";
@@ -129,6 +139,7 @@ digraph G {
   "ILidoLocator.sol" -> "LidoLocator.sol";
   "ILidoLocator.sol" -> "AccountingOracle.sol";
   "ILidoLocator.sol" -> "ValidatorsExitBusOracle.sol";
+  "ILidoLocator.sol" -> "OracleReportSanityChecker.sol";
 
   "OracleDaemonConfig.sol"; // <---
   // "OracleDaemonConfig.sol" -> "LidoLocator.sol";
@@ -179,6 +190,7 @@ digraph G {
   "Math256.sol" -> "PositiveTokenRebaseLimiter.sol";
   "Math256.sol" -> "ValidatorsExitBusOracle.sol";
   "Math256.sol" -> "MinFirstAllocationStrategy.sol";
+  "Math256.sol" -> "OracleReportSanityChecker.sol";
 
   "MemUtils.sol" -> "BeaconChainDepositor.sol";
 
