@@ -180,26 +180,27 @@ invariant finalizedRequestsCounterLessThanEqToQueueLen()
 
 // minimum withdrawal rule. min withdrawal == 0.1 ether == 10 ^ 17
 invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId) 
-    reqId < getLastRequestId() => (
+    reqId <= getLastRequestId() => (
                                (
-                                reqId > 1 => (getRequestCumulativeStEth(reqId) - getRequestCumulativeStEth(reqId - 1) >= MIN_STETH_WITHDRAWAL_AMOUNT() &&
+                                reqId >= 1 => (getRequestCumulativeStEth(reqId) - getRequestCumulativeStEth(reqId - 1) >= MIN_STETH_WITHDRAWAL_AMOUNT() &&
                                 getRequestCumulativeStEth(reqId) - getRequestCumulativeStEth(reqId - 1) <= MAX_STETH_WITHDRAWAL_AMOUNT())
                                ) 
-                            && (
-                                reqId == 1 => ((getRequestCumulativeStEth(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT()) && 
-                                getRequestCumulativeStEth(reqId) <= MAX_STETH_WITHDRAWAL_AMOUNT())
-                               )
+                            // && (
+                            //     reqId == 1 => ((getRequestCumulativeStEth(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT()) && 
+                            //     getRequestCumulativeStEth(reqId) <= MAX_STETH_WITHDRAWAL_AMOUNT())
+                            //    )
                             )
         {
             preserved 
             {
                 requireInvariant cumulativeEtherGreaterThamMinWithdrawal(reqId);
+                require reqId > 1;
             }
         }
                             
 
 invariant cumulativeEtherGreaterThamMinWithdrawal(uint256 reqId)
-reqId < getLastRequestId() && reqId >= 1 => (getRequestCumulativeStEth(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT())
+reqId <= getLastRequestId() && reqId >= 1 => (getRequestCumulativeStEth(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT())
 
 
 invariant solvency()
