@@ -9,9 +9,11 @@ certoraRun \
 ./contracts/0.8.9/test_helpers/StakingModuleMock.sol \
 ./contracts/0.4.24/oracle/LegacyOracle.sol \
 \
-\
 --verify AccountingOracle:certora/specs/AccountingOracle.spec \
 \
+--link AccountingOracle:LOCATOR=LidoLocator \
+AccountingOracle:LIDO=MockLidoForAccountingOracle \
+AccountingOracle:LEGACY_ORACLE=LegacyOracle \
 \
 --solc_map AccountingOracle=solc8.9,LidoLocator=solc8.9,\
 OracleReportSanityChecker=solc8.9,MockWithdrawalQueueForAccountingOracle=solc8.9,\
@@ -28,4 +30,4 @@ LegacyOracle=solc4.24 \
 --rule_sanity \
 \
 --rule sanity \
---msg "-copyLoopUnroll=17,-optimisticUnboundedHashing=true --hashing_length_bound 544"
+--msg "-copyLoopUnroll=17,-optimisticUnboundedHashing=true --hashing_length_bound 544 no requires with linking"

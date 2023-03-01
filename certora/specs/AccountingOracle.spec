@@ -12,6 +12,10 @@ using LegacyOracle as LegacyOracleContract
  *                 Methods Declaration            *
  **************************************************/
 methods {
+    LIDO() returns (address) envfree
+    LOCATOR() returns (address) envfree
+    LEGACY_ORACLE() returns (address) envfree
+
     // IConsensusContract = MockConsensusContract.sol
     getChainConfig() returns (uint256, uint256, uint256) => DISPATCHER(true)
     getCurrentFrame() returns (uint256, uint256) => DISPATCHER(true)
@@ -81,6 +85,11 @@ rule sanity(method f)
 {
     env e;
     calldataarg args;
+
+    // when using linking the requires below are not needed
+    // require LOCATOR()       == LidoLocatorContract;
+    // require LIDO()          == LidoContract;
+    // require LEGACY_ORACLE() == LegacyOracleContract;
 
     //require getConsensusContract() == getConsensusContractCVL();
 
