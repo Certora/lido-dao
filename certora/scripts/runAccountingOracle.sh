@@ -29,5 +29,5 @@ LegacyOracle=solc4.24 \
 --hashing_length_bound 544 \
 --rule_sanity \
 \
---rule sanity \
---msg "-copyLoopUnroll=17,-optimisticUnboundedHashing=true --hashing_length_bound 544 no requires with linking"
+--rule onlyAdminOrSelfCanRevokeRole onlyAdminCanGrantRole \
+--msg "onlyAdminOrSelfCanRevokeRole, onlyAdminCanGrantRole"
