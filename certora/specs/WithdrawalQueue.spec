@@ -53,7 +53,46 @@ methods {
     getRequestCumulativeStEth(uint256) returns(uint256) envfree
     getRequestCumulativeShares(uint256) returns(uint256) envfree
     balanceOfEth(address) returns (uint256) envfree
+    getDiscountFactorByIndex(uint256) returns (uint256) envfree
 }
+
+definition E27_PRECISION_BASE() returns uint256 = 1000000000000000000000000000;
+
+function calculateDiscountFactor(uint256 stETHAmount, uint256 ethAmount) returns uint256 {
+    uint256 discountFactor;
+    discountFactor = ethAmount * E27_PRECISION_BASE() / stETHAmount;
+    return discountFactor;
+}
+
+rule newDiscountFactor(uint256 requestIdToFinalize) {
+    env e;
+    calldataarg args;
+
+    requireInvariant cantWithdrawLessThanMinWithdrawal(requestIdToFinalize);
+
+    uint256 amountOfEth = e.msg.value;
+    uint256 lastFinilizedReqId = getLastFinalizedRequestId();
+    uint256 amountOfStEth = getRequestCumulativeStEth(requestIdToFinalize) - getRequestCumulativeStEth(getLastFinalizedRequestId());
+
+    require amountOfStEth > 0;
+
+    uint256 actualDiscountFactor = calculateDiscountFactor(amountOfStEth, amountOfEth);
+
+    uint256 lastDiscountFactorBefore = getDiscountFactorByIndex(getLastCheckpointIndex());
+    uint256 checkpointIndexLenBefore = getLastCheckpointIndex();
+
+    require checkpointIndexLenBefore < max_uint256 - 1;
+
+    finalize(e, requestIdToFinalize);
+
+    uint256 lastDiscountFactorAfter = getDiscountFactorByIndex(getLastCheckpointIndex());
+    uint256 checkpointIndexLenAfter = getLastCheckpointIndex();
+
+    assert checkpointIndexLenAfter == checkpointIndexLenBefore + 1 <=> lastDiscountFactorAfter != lastDiscountFactorBefore;
+    assert lastDiscountFactorAfter != lastDiscountFactorBefore => lastDiscountFactorAfter == actualDiscountFactor;
+    // assert false;
+}
+
 
 /**************************************************
  *                METHOD INTEGRITY                *
@@ -100,6 +139,7 @@ rule integrityOfClaimWithdrawal(uint256 requestId) {
 rule integrityOfFinalize(uint256 _lastIdToFinalize) {
     env e;
     uint256 lockedEtherAmountBefore = getLockedEtherAmount();
+    uint256 lastFinalizedRequestIdBefore = getLastFinalizedRequestId();
 
     finalize(e, _lastIdToFinalize);
 
@@ -108,6 +148,7 @@ rule integrityOfFinalize(uint256 _lastIdToFinalize) {
 
     assert lockedEtherAmountAfter >= lockedEtherAmountBefore + e.msg.value;
     assert finalizedRequestsCounterAfter == _lastIdToFinalize;
+    assert lastFinalizedRequestIdBefore > _lastIdToFinalize;
 }
 
 
@@ -165,18 +206,38 @@ rule finalizeAloneVsFinalizeBatch(uint256 requestId1, uint256 requestId2, uint25
     assert userEthBalanceSeperate == userEthBalanceBatch;
 }
 
+rule priceIndexFinalizedRequestsCounterCorelation(method f) {
+    env e;
+    calldataarg args;
+    uint256 latestIndexBefore = getLastCheckpointIndex();
+    // if(getPricesLength() > 0){
+    //     latestIndexBefore = getPriceIndex(getPricesLength() - 1);
+    // } else {
+    //     latestIndexBefore = 0;
+    // }
+    uint256 finalizedRequestsCounterBefore = getLastFinalizedRequestId();
+    // uint256 pricesLenBefore = getPricesLength();
+
+    f(e, args);
+
+    uint256 latestIndexAfter = getLastCheckpointIndex();
+    uint256 finalizedRequestsCounterAfter = getLastFinalizedRequestId();
+    // uint256 pricesLenAfter = getPricesLength();
+
+    assert latestIndexAfter != latestIndexBefore => finalizedRequestsCounterAfter > finalizedRequestsCounterBefore;
+}
+
+// try to finalize more then ethBudget
+rule finalizeMoreThanETHBudget(uint256 requestIdToFinalize){
+    assert false;
+}
+
 /**************************************************
  *                   INVARIANTS                   *
  **************************************************/
 
-invariant finalizedRequestsCounterLessThanEqToQueueLen()
+invariant finalizedRequestsCounterisValid()
     getLastFinalizedRequestId() <= getLastRequestId()
-    {
-        // preserved
-        // {
-        //     require queueLength() < max_uint256 - 1;
-        // }
-    }
 
 // minimum withdrawal rule. min withdrawal == 0.1 ether == 10 ^ 17
 invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId) 
@@ -200,14 +261,10 @@ invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId)
                             
 
 invariant cumulativeEtherGreaterThamMinWithdrawal(uint256 reqId)
-reqId <= getLastRequestId() && reqId >= 1 => (getRequestCumulativeStEth(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT())
-
-
-invariant solvency()
-    getLockedEtherAmount() <= balanceOfEth(currentContract)
+    reqId <= getLastRequestId() && reqId >= 1 => (getRequestCumulativeStEth(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT())
 
 invariant cumulativeEthMonotonocInc(uint256 reqId)
-        reqId < getLastRequestId() => (reqId > 0 => getRequestCumulativeStEth(reqId) > getRequestCumulativeStEth(reqId - 1)) &&
+        reqId <= getLastRequestId() => (reqId > 0 => getRequestCumulativeStEth(reqId) > getRequestCumulativeStEth(reqId - 1)) &&
                                       (reqId > 0 => getRequestCumulativeShares(reqId) >= getRequestCumulativeShares(reqId - 1))
         {
             preserved 
@@ -222,25 +279,24 @@ invariant cumulativeEthMonotonocInc(uint256 reqId)
 // rule for share rate: get min and max share rate within finalized batch, claim -> compute effective share rate and assert it is within range.
 // hint monotonic increasing
 // claim withdrawal with the wrong hint
+// who can increase or decrease unfinilized requests number
+rule whoCanChangeUnfinalizedRequestsNumber(method f) {
+    env e;
+    calldataarg args;
+
+    uint256 unfinalizedRequestNumberBefore = unfinalizedRequestNumber();
+
+    f(e, args);
+
+    uint256 unfinalizedRequestNumberAfter = unfinalizedRequestNumber();
+
+    assert false;
+}
 
 
 // /**************************************************
 //  *                METHOD INTEGRITY                *
 //  **************************************************/
-
-// rule integrityOfClaim(uint256 requestId, uint256 priceIndexHint) {
-//     env e;
-
-//     uint256 finalizedRequestsCount = finalizedRequestsCounter();
-//     bool isClaimedBefore = isRequestClaimed(requestId);
-
-//     address recipient = claim(requestId, priceIndexHint);
-
-//     bool isClaimedAfter = isRequestClaimed(requestId);
-
-//     assert requestId < finalizedRequestsCount;
-//     assert isClaimedAfter && !isClaimedBefore;
-// }
 
 // rule integrityOfEnqueue(address recipient, uint256 etherAmount, uint256 sharesAmount) {
 //     env e;
@@ -267,46 +323,10 @@ invariant cumulativeEthMonotonocInc(uint256 reqId)
 //     assert !isClaimed;
 // }
 
-// rule integrityOfFinalize(uint256 _lastIdToFinalize, uint256 _etherToLock, uint256 _totalPooledEther, uint256 _totalShares) {
-//     env e;
-//     uint128 lockedEtherAmountBefore = lockedEtherAmount();
-
-//     finalize(e, _lastIdToFinalize, _etherToLock, _totalPooledEther, _totalShares);
-
-//     uint128 lockedEtherAmountAfter = lockedEtherAmount();
-//     uint256 finalizedRequestsCounterAfter = finalizedRequestsCounter();
-
-//     assert lockedEtherAmountAfter == lockedEtherAmountBefore + _etherToLock;
-//     assert finalizedRequestsCounterAfter == _lastIdToFinalize + 1;
-// }
 
 // /**************************************************
 //  *                   INVARIANTS                   *
 //  **************************************************/
-
-// invariant finalizedRequestsCounterLessThanEqToQueueLen()
-//     finalizedRequestsCounter() <= queueLength()
-//     {
-//         preserved
-//         {
-//             require queueLength() < max_uint256 - 1;
-//         }
-//     }
-
-// // minimum withdrawal rule. min withdrawal == 0.1 ether == 10 ^ 17
-// invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId) 
-//     reqId < queueLength() => ((reqId > 0 => getRequestsCumulativeEther(reqId) - getRequestsCumulativeEther(reqId - 1) >= to_uint256(MIN_WITHDRAWAL())) 
-//                           && (reqId == 0 => getRequestsCumulativeEther(reqId) >= to_uint256(MIN_WITHDRAWAL())))
-//         {
-//             preserved 
-//             {
-//                 requireInvariant finalizedRequestsCounterLessThanEqToQueueLen();
-//                 require queueLength() < max_uint128;
-//             }
-//         }
-
-// invariant solvency()
-//     lockedEtherAmount() <= balanceOfEth(currentContract)
 
 // invariant lastHintIndexEqFinalizedRequestsCounter()
 //     getPriceIndex(getFinalizationPricesLength() - 1) + 1 == finalizedRequestsCounter()
@@ -349,6 +369,10 @@ invariant cumulativeEthMonotonocInc(uint256 reqId)
 //     require getPricesLength() < max_uint128;
 //     requireInvariant finalizedRequestsCounterLessThanEqToQueueLen();
 // }
+
+// // irrelevant
+// invariant solvency()
+//     getLockedEtherAmount() <= balanceOfEth(currentContract)
 
 // // RULES TO IMPLEMENT:
 
