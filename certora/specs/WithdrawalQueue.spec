@@ -179,19 +179,12 @@ rule priceIndexFinalizedRequestsCounterCorelation(method f) {
     env e;
     calldataarg args;
     uint256 latestIndexBefore = getLastCheckpointIndex();
-    // if(getPricesLength() > 0){
-    //     latestIndexBefore = getPriceIndex(getPricesLength() - 1);
-    // } else {
-    //     latestIndexBefore = 0;
-    // }
     uint256 finalizedRequestsCounterBefore = getLastFinalizedRequestId();
-    // uint256 pricesLenBefore = getPricesLength();
 
     f(e, args);
 
     uint256 latestIndexAfter = getLastCheckpointIndex();
     uint256 finalizedRequestsCounterAfter = getLastFinalizedRequestId();
-    // uint256 pricesLenAfter = getPricesLength();
 
     assert latestIndexAfter != latestIndexBefore => finalizedRequestsCounterAfter > finalizedRequestsCounterBefore;
 }
