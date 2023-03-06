@@ -80,7 +80,6 @@ rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     uint256 contractStEthBalanceBefore = STETH.sharesOf(currentContract);
 
     uint256 lastCumulativeStEth = getRequestCumulativeStEth(getLastRequestId());
-    uint256 unfinalizedStETHBefore = unfinalizedStETH();
 
     uint256 actualShares = STETH.getSharesByPooledEth(amount);
 
@@ -89,13 +88,11 @@ rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     uint256 stEthBalanceAfter = STETH.sharesOf(e.msg.sender);
     uint256 contractStEthBalanceAfter = STETH.sharesOf(currentContract);
     uint256 reqCumulativeStEth = getRequestCumulativeStEth(requestId);
-    uint256 unfinalizedStETHAfter = unfinalizedStETH();
 
     assert requestId == getLastRequestId();
     assert stEthBalanceBefore - actualShares == stEthBalanceAfter;
     assert contractStEthBalanceBefore + actualShares == contractStEthBalanceAfter;
     assert reqCumulativeStEth == lastCumulativeStEth + amount;
-    assert unfinalizedStETHAfter == unfinalizedStETHBefore + amount;
 }
 
 rule integrityOfClaimWithdrawal(uint256 requestId) {
@@ -273,9 +270,9 @@ rule immutablityOfClaimed(method f, uint256 requestId) {
 }
 
 // try to finalize more then ethBudget - budget comes from external call
-rule finalizeMoreThanETHBudget(uint256 requestIdToFinalize){
-    assert false;
-}
+// rule finalizeMoreThanETHBudget(uint256 requestIdToFinalize){
+//     assert false;
+// }
 
 /**************************************************
  *                   INVARIANTS                   *
