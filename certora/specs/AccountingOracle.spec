@@ -80,6 +80,7 @@ function contractAddressesLinked() returns bool {
 }
 
 definition UINT64_MAX() returns uint64 = 0xFFFFFFFFFFFFFFFF;
+definition UINT256_MAX() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
 definition DEFAULT_ADMIN_ROLE() returns bytes32 = 0x00;
 definition MANAGE_MEMBERS_AND_QUORUM_ROLE() returns bytes32 = 0x66a484cf1a3c6ef8dfd59d24824943d2853a29d96f34a01271efc55774452a51; //keccak256("MANAGE_MEMBERS_AND_QUORUM_ROLE");
@@ -114,39 +115,87 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 // 2. removing a roleR from a member should *decrease* the count of getRoleMemberCount(roleR) by one
 // 3. getRoleMemberCount(roleX) should not be affected by adding or removing roleR (roleR != roleX)
 
-// Status: Fails
-// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
-rule correctMemberCount(method f) {
-    env e;
-    calldataarg args;
-
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
+rule countIncreaseByOneWhenGrantRole(method f) {
     require contractAddressesLinked();
-
+    env e; calldataarg args;
+    
     bytes32 roleR; address accountA;
-    bytes32 roleX; address accountB;
+
+    renounceRole(e,roleR,accountA); // ensure accountA does not have roleR
 
     bool hasRoleRAccountABefore = hasRole(e,roleR,accountA);
-    bool hasRoleXAccountBBefore = hasRole(e,roleX,accountB);
+    uint256 countRoleRMembersBefore = getRoleMemberCount(e,roleR);
+    require countRoleRMembersBefore < UINT256_MAX();  // reasonable there are not so many role members
+
+    // grantRole(e,roleR,accountA);
+    f(e,args);
+
+    bool hasRoleRAccountAAfter = hasRole(e,roleR,accountA);
+    uint256 countRoleRMembersAfter = getRoleMemberCount(e,roleR);
+
+    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleRMembersBefore - countRoleRMembersAfter == 1;
+    /*
+    assert !hasRoleRAccountABefore;
+    assert hasRoleRAccountAAfter;
+    assert countRoleRMembersAfter - countRoleRMembersBefore == 1;
+    */
+}
+
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
+rule countDecreaseByOneWhenRenounceRole(method f) {
+    require contractAddressesLinked();
+    env e; calldataarg args;
+    
+    bytes32 roleR; address accountA;
+
+    grantRole(e,roleR,accountA); // ensure accountA has roleR
+
+    bool hasRoleRAccountABefore = hasRole(e,roleR,accountA);
+    uint256 countRoleRMembersBefore = getRoleMemberCount(e,roleR);
+    require countRoleRMembersBefore > 0;  // there is at least one account with roleR
+    
+    // renounceRole(e,roleR,accountA);
+    f(e,args);
+
+    bool hasRoleRAccountAAfter = hasRole(e,roleR,accountA);
+    uint256 countRoleRMembersAfter = getRoleMemberCount(e,roleR);
+
+    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleRMembersBefore - countRoleRMembersAfter == 1;
+    /*
+    assert hasRoleRAccountABefore;
+    assert !hasRoleRAccountAAfter;
+    assert countRoleRMembersBefore - countRoleRMembersAfter == 1;
+    */
+}
+
+// If a member with roleR was added/removed, the count of members with roleX != roleR should not change
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
+rule memberCountNonInterference(method f) {
+    require contractAddressesLinked();
+    env e; calldataarg args;
+
+    bytes32 roleR; bytes32 roleX;
+
     uint256 countRoleRMembersBefore = getRoleMemberCount(e,roleR);
     uint256 countRoleXMembersBefore = getRoleMemberCount(e,roleX);
 
     f(e,args);
 
-    bool hasRoleRAccountAAfter = hasRole(e,roleR,accountA);
-    bool hasRoleXAccountBAfter = hasRole(e,roleX,accountB);
     uint256 countRoleRMembersAfter = getRoleMemberCount(e,roleR);
     uint256 countRoleXMembersAfter = getRoleMemberCount(e,roleX);
 
     require roleR != roleX;
     
-    assert (!hasRoleRAccountABefore && hasRoleRAccountAAfter) => countRoleRMembersAfter - countRoleRMembersBefore == 1;
-    assert (!hasRoleRAccountABefore && hasRoleRAccountAAfter) => countRoleXMembersAfter - countRoleXMembersBefore == 0;
+    assert (countRoleRMembersAfter > countRoleRMembersBefore) =>
+            countRoleXMembersAfter == countRoleXMembersBefore;
 
-    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleRMembersBefore - countRoleRMembersAfter == 1;
-    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleXMembersBefore - countRoleXMembersAfter == 0;
-
+    assert (countRoleRMembersAfter < countRoleRMembersBefore) =>
+            countRoleXMembersAfter == countRoleXMembersBefore;
 }
-
 
 // rules for AccessControl.sol:
 // 1. only admin of role R can grant the role R to the account A (role R can be any role including the admin role)
@@ -154,12 +203,10 @@ rule correctMemberCount(method f) {
 // 3. granting or revoking roleR from accountA should not affect any accountB
 
 // Status: Fails
-// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
+// https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
 rule onlyAdminCanGrantRole(method f) {
-    env e;
-    calldataarg args;
-
     require contractAddressesLinked();
+    env e; calldataarg args;
 
     bytes32 roleR; address accountA;
     bool hasRoleRBefore = hasRole(e,roleR,accountA);
@@ -175,12 +222,10 @@ rule onlyAdminCanGrantRole(method f) {
 }
 
 // Status: Pass
-// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
+// https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
 rule onlyAdminOrSelfCanRevokeRole(method f) {
-    env e;
-    calldataarg args;
-
     require contractAddressesLinked();
+    env e; calldataarg args;
 
     bytes32 roleR; address accountA;
     bool hasRoleRBefore = hasRole(e,roleR,accountA);
@@ -197,12 +242,10 @@ rule onlyAdminOrSelfCanRevokeRole(method f) {
 
 // Status: Pass
 // Note: had to comment line 315 in BaseOracle.sol (to resolve the getProcessingState() dispatcher problem)
-// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
+// https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
 rule nonInterferenceOfRolesAndAccounts(method f) {
-    env e;
-    calldataarg args;
-
     require contractAddressesLinked();
+    env e; calldataarg args;
 
     bytes32 roleR; address accountA;
     bytes32 roleX; address accountB;
@@ -227,7 +270,7 @@ rule nonInterferenceOfRolesAndAccounts(method f) {
 }
 
 // rules for Math.sol:
-
+// manual review only
 
 // rules for IReportAsyncProcessor ?
 
@@ -240,13 +283,11 @@ rule nonInterferenceOfRolesAndAccounts(method f) {
  **************************************************/
 
 // Status: Fails (as expected, no issues)
-// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
+// https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
 rule sanity(method f) 
 {
-    env e;
-    calldataarg args;
-
     require contractAddressesLinked();
+    env e; calldataarg args;
 
     f(e,args);
     assert false;

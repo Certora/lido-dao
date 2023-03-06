@@ -1,3 +1,13 @@
+if [[ "$1" ]]
+then
+    RULE="--rule $1"
+fi
+
+if [[ "$2" ]]
+then
+    MSG=": $2"
+fi
+
 certoraRun \
 ./contracts/0.8.9/oracle/AccountingOracle.sol \
 ./contracts/0.8.9/LidoLocator.sol \
@@ -28,7 +38,11 @@ LegacyOracle=solc4.24 \
 --settings -t=500,-mediumTimeout=50,-copyLoopUnroll=17,-optimisticUnboundedHashing=true \
 --hashing_length_bound 544 \
 --rule_sanity \
-\
---msg "all rules: require contractAddressesLinked, comment out AddressCannotBeSame in BaseOracle.sol"
+$RULE  \
+--msg "$RULE $MSG" \
+# \
+# --rule correctCountOnRenounceRole correctCountOnGrantRole memberCountNonInterference \
+# --msg "correctCountOnRenounceRole correctCountOnGrantRole with ensure, memberCountNonInterference"
+# --msg "all rules: require contractAddressesLinked, comment out AddressCannotBeSame in BaseOracle.sol"
 # --msg "all rules with require on contractAddressesLinked"
 # --msg "all rules, not commented AddressCannotBeSame" \
