@@ -80,6 +80,7 @@ rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     uint256 contractStEthBalanceBefore = STETH.sharesOf(currentContract);
 
     uint256 lastCumulativeStEth = getRequestCumulativeStEth(getLastRequestId());
+    uint256 unfinalizedStETHBefore = unfinalizedStETH();
 
     uint256 actualShares = STETH.getSharesByPooledEth(amount);
 
@@ -88,11 +89,13 @@ rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     uint256 stEthBalanceAfter = STETH.sharesOf(e.msg.sender);
     uint256 contractStEthBalanceAfter = STETH.sharesOf(currentContract);
     uint256 reqCumulativeStEth = getRequestCumulativeStEth(requestId);
+    uint256 unfinalizedStETHAfter = unfinalizedStETH();
 
     assert requestId == getLastRequestId();
     assert stEthBalanceBefore - actualShares == stEthBalanceAfter;
     assert contractStEthBalanceBefore + actualShares == contractStEthBalanceAfter;
     assert reqCumulativeStEth == lastCumulativeStEth + amount;
+    assert unfinalizedStETHAfter == unfinalizedStETHBefore + amount;
 }
 
 rule integrityOfClaimWithdrawal(uint256 requestId) {
@@ -236,6 +239,26 @@ rule preserveDiscountHistory(method f, uint256 index)
     assert index <= lastCheckPointIndexBefore => (discountFactorBefore == discountFactorAfter && fromRequestIdBefore == fromRequestIdAfter);
 }
 
+rule claimSameWithdrawalRequestTwise(uint256 requestId) {
+    env e;
+   
+    claimWithdrawal(e, requestId);
+
+    uint256 ethBalanceAfterFirst = balanceOfEth(e.msg.sender);
+    uint256 lockedEthAfterFirst = getLockedEtherAmount();
+    bool isClaimedAfterFirst = isRequestStatusClaimed(requestId);
+
+    claimWithdrawal(e, requestId);
+
+    uint256 ethBalanceAfterSecond = balanceOfEth(e.msg.sender);
+    uint256 lockedEthAfterSecond = getLockedEtherAmount();
+    bool isClaimedAfterSecond = isRequestStatusClaimed(requestId);
+
+    assert ethBalanceAfterFirst == ethBalanceAfterSecond;
+    assert lockedEthAfterFirst == lockedEthAfterSecond;
+    assert isClaimedAfterFirst && isClaimedAfterSecond;
+}
+
 rule immutablityOfClaimed(method f, uint256 requestId) {
     env e;
     calldataarg args;
@@ -301,7 +324,7 @@ invariant finalizedCounterClaimedFlagCorrelation(uint256 requestId)
 
 
 invariant claimedFinalizedFlagsCorrelation(uint256 requestId)
-    isRequestStatusClaimed(requestId) <=> isRequestStatusFinalized(requestId)
+    isRequestStatusClaimed(requestId) => isRequestStatusFinalized(requestId)
 
 
 // RULES TO IMPLEMENT:
@@ -309,14 +332,10 @@ invariant claimedFinalizedFlagsCorrelation(uint256 requestId)
 // rule for share rate: get min and max share rate within finalized batch, claim -> compute effective share rate and assert it is within range.
 // hint monotonic increasing
 // claim withdrawal with the wrong hint
-// who can increase or decrease unfinilized requests number
-// rule claimed cant be unclaimed
-// if requestID > finalizedRequestsCounter => isClaimed == false
-// claim the same reqId twice
 // each etherLocked is less or equal to lockedEath
 // whoCanClaimRequests
-
 // claim with the wrong hint
+
 rule whoCanChangeUnfinalizedRequestsNumber(method f) {
     env e;
     calldataarg args;
@@ -327,5 +346,5 @@ rule whoCanChangeUnfinalizedRequestsNumber(method f) {
 
     uint256 unfinalizedRequestNumberAfter = unfinalizedRequestNumber();
 
-    assert false;
+    assert unfinalizedRequestNumberBefore == unfinalizedRequestNumberAfter;
 }
