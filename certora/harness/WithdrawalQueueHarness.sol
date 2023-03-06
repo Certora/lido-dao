@@ -83,8 +83,13 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
         _claim(requestId,hintIndex, msg.sender);
     }
 
-    function getDiscountFactorByIndex(uint256 checkpointIndex) public returns (uint256) {
+    function getDiscountFactorByIndex(uint256 checkpointIndex) public returns (uint96) {
         DiscountCheckpoint storage lastCheckpoint = _getCheckpoints()[checkpointIndex];
         return lastCheckpoint.discountFactor;
+    }
+
+    function getFromRequestIdByIndex(uint256 checkpointIndex) public returns (uint160) {
+        DiscountCheckpoint storage lastCheckpoint = _getCheckpoints()[checkpointIndex];
+        return lastCheckpoint.fromRequestId;
     }
 }

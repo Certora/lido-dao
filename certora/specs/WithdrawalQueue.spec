@@ -236,7 +236,20 @@ rule preserveDiscountHistory(method f, uint256 index)
     assert index <= lastCheckPointIndexBefore => (discountFactorBefore == discountFactorAfter && fromRequestIdBefore == fromRequestIdAfter);
 }
 
-// try to finalize more then ethBudget
+rule immutablityOfClaimed(method f, uint256 requestId) {
+    env e;
+    calldataarg args;
+
+    bool isClaimedBefore = isRequestStatusClaimed(requestId);
+
+    f(e, args);
+
+    bool isClaimedAfter = isRequestStatusClaimed(requestId);
+
+    assert isClaimedBefore => isClaimedAfter;
+}
+
+// try to finalize more then ethBudget - budget comes from external call
 rule finalizeMoreThanETHBudget(uint256 requestIdToFinalize){
     assert false;
 }
@@ -283,6 +296,14 @@ invariant cumulativeEthMonotonocInc(uint256 reqId)
             }
         }
 
+invariant finalizedCounterClaimedFlagCorrelation(uint256 requestId)
+    requestId > getLastFinalizedRequestId() => !isRequestStatusClaimed(requestId) && !isRequestStatusFinalized(requestId)
+
+
+invariant claimedFinalizedFlagsCorrelation(uint256 requestId)
+    isRequestStatusClaimed(requestId) <=> isRequestStatusFinalized(requestId)
+
+
 // RULES TO IMPLEMENT:
 
 // rule for share rate: get min and max share rate within finalized batch, claim -> compute effective share rate and assert it is within range.
@@ -290,7 +311,9 @@ invariant cumulativeEthMonotonocInc(uint256 reqId)
 // claim withdrawal with the wrong hint
 // who can increase or decrease unfinilized requests number
 // rule claimed cant be unclaimed
-
+// if requestID > finalizedRequestsCounter => isClaimed == false
+// claim the same reqId twice
+// each etherLocked is less or equal to lockedEath
 // whoCanClaimRequests
 
 // claim with the wrong hint
@@ -306,61 +329,3 @@ rule whoCanChangeUnfinalizedRequestsNumber(method f) {
 
     assert false;
 }
-
-// rule finalizeSeperateVsFinalizeBatch(uint256 _lastIdToFinalize) {
-//     // finanlize two requests seperatly and compare with finalize both together (with lastStorage) and compare 
-// }
-
-// rule finalizeAndClaimSeperateVsBatch(uint256 _lastIdToFinalize) {
-//     // finanlize two requests seperatly and compare with finalize both together (with lastStorage) and compare 
-// }
-
-// /**************************************************
-//  *                   INVARIANTS                   *
-//  **************************************************/
-
-// invariant lastHintIndexEqFinalizedRequestsCounter()
-//     getPriceIndex(getFinalizationPricesLength() - 1) + 1 == finalizedRequestsCounter()
-    
-// // invariant to verify that priceIndex is monotonic increasing *
-// invariant checkPriceIndex(uint256 hint) 
-//     (hint < getFinalizationPricesLength() && hint >= 1) => getPriceIndex(hint) > getPriceIndex(hint - 1)
-//     {
-//         preserved {
-//             requireInvariant lastHintIndexEqFinalizedRequestsCounter();
-//             require getFinalizationPricesLength() < max_uint128;
-//         }
-//     }
-
-// rule priceIndexFinalizedRequestsCounterCorelation(method f) {
-//     env e;
-//     calldataarg args;
-//     uint256 latestIndexBefore;
-//     if(getPricesLength() > 0){
-//         latestIndexBefore = getPriceIndex(getPricesLength() - 1);
-//     } else {
-//         latestIndexBefore = 0;
-//     }
-//     uint256 finalizedRequestsCounterBefore = finalizedRequestsCounter();
-//     uint256 pricesLenBefore = getPricesLength();
-
-//     f(e, args);
-
-//     uint256 latestIndexAfter = getPriceIndex(getPricesLength() - 1);
-//     uint256 finalizedRequestsCounterAfter = finalizedRequestsCounter();
-//     uint256 pricesLenAfter = getPricesLength();
-
-//     assert pricesLenAfter > pricesLenBefore || latestIndexAfter != latestIndexBefore => finalizedRequestsCounterAfter > finalizedRequestsCounterBefore;
-// }
-
-
-// // irrelevant
-// invariant solvency()
-//     getLockedEtherAmount() <= balanceOfEth(currentContract)
-
-// // RULES TO IMPLEMENT:
-
-// // invariant - for all reqId1, reqId2 | if reqId1 > reqId2 => reqId1.cumulativeEther >= reqId2.cumulativeEther && reqId1.cumulativeShares >= reqId2.cumulativeShares. *
-// // if requestID > finalizedRequestsCounter => isClaimed == false
-// // claim the same reqId twice
-// // each etherLocked is less or equal to lockedEath
