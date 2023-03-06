@@ -29,5 +29,6 @@ LegacyOracle=solc4.24 \
 --hashing_length_bound 544 \
 --rule_sanity \
 \
---rule onlyAdminOrSelfCanRevokeRole onlyAdminCanGrantRole \
---msg "onlyAdminOrSelfCanRevokeRole, onlyAdminCanGrantRole"
+--msg "all rules: require contractAddressesLinked, comment out AddressCannotBeSame in BaseOracle.sol"
+# --msg "all rules with require on contractAddressesLinked"
+# --msg "all rules, not commented AddressCannotBeSame" \

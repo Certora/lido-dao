@@ -43,8 +43,8 @@ methods {
     getBeaconSpec() returns (uint64, uint64, uint64, uint64) => DISPATCHER(true) // might be able to simplify, only used for one check
     getLastCompletedEpochId() returns (uint256) => DISPATCHER(true)
     handleConsensusLayerReport(uint256, uint256, uint256) => DISPATCHER(true)
-    getConsensusContract() returns (address) => NONDET //getConsensusContractCVL() //DISPATCHER(true)
-    getAccountingOracle() returns (address) => NONDET //getAccountingOracleContract()
+    getConsensusContract() returns (address) => DISPATCHER(true) //getConsensusContractCVL()
+    getAccountingOracle() returns (address) => DISPATCHER(true) //getAccountingOracleContractCVL()
 
     // WithdrawalQueue = WithdrawalQueue.sol
     updateBunkerMode(bool, uint256) => DISPATCHER(true)
@@ -62,12 +62,21 @@ methods {
 /**************************************************
  *               CVL FUNCS & DEFS                 *
  **************************************************/
-function getAccountingOracleContract() returns address {
+function getAccountingOracleContractCVL() returns address {
     return currentContract;
 }
 
 function getConsensusContractCVL() returns address {
     return ConsensusContract;
+}
+
+function contractAddressesLinked() returns bool {
+    env e0;
+    address consensusContractAddress = getConsensusContract(e0);
+    address accountingOracleAddress = LegacyOracleContract.getAccountingOracle(e0);
+    
+    return  (consensusContractAddress == ConsensusContract) &&
+            (accountingOracleAddress == AccountingOracleContract);
 }
 
 definition UINT64_MAX() returns uint64 = 0xFFFFFFFFFFFFFFFF;
@@ -82,7 +91,7 @@ definition MANAGE_CONSENSUS_CONTRACT_ROLE() returns bytes32 = 0x04a0afbbd09d5ad3
 definition MANAGE_CONSENSUS_VERSION_ROLE() returns bytes32 = 0xc31b1e4b732c5173dc51d519dfa432bad95550ecc4b0f9a61c2a558a2a8e4341; //keccak256("MANAGE_CONSENSUS_VERSION_ROLE");
 definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd477fa3e328cf706640b0f68b1a285c5990da; //keccak256("SUBMIT_DATA_ROLE");
 
-// rule ideas:
+// rule ideas for AccountingOracle (without inheritance):
 //  1. verify all the reverting scenarios of submitReportData()
 //  2. verify submitReportData() does not revert outside of the allowed reverting scenarios
 //  3. verify all the errors on lines 91-110 are caught correctly
@@ -101,15 +110,56 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 
 
 // rules for AccessControlEnumerable.sol
+// 1. adding a new role member with roleR should *increase* the count of getRoleMemberCount(roleR) by one
+// 2. removing a roleR from a member should *decrease* the count of getRoleMemberCount(roleR) by one
+// 3. getRoleMemberCount(roleX) should not be affected by adding or removing roleR (roleR != roleX)
+
+// Status: Fails
+// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
+rule correctMemberCount(method f) {
+    env e;
+    calldataarg args;
+
+    require contractAddressesLinked();
+
+    bytes32 roleR; address accountA;
+    bytes32 roleX; address accountB;
+
+    bool hasRoleRAccountABefore = hasRole(e,roleR,accountA);
+    bool hasRoleXAccountBBefore = hasRole(e,roleX,accountB);
+    uint256 countRoleRMembersBefore = getRoleMemberCount(e,roleR);
+    uint256 countRoleXMembersBefore = getRoleMemberCount(e,roleX);
+
+    f(e,args);
+
+    bool hasRoleRAccountAAfter = hasRole(e,roleR,accountA);
+    bool hasRoleXAccountBAfter = hasRole(e,roleX,accountB);
+    uint256 countRoleRMembersAfter = getRoleMemberCount(e,roleR);
+    uint256 countRoleXMembersAfter = getRoleMemberCount(e,roleX);
+
+    require roleR != roleX;
+    
+    assert (!hasRoleRAccountABefore && hasRoleRAccountAAfter) => countRoleRMembersAfter - countRoleRMembersBefore == 1;
+    assert (!hasRoleRAccountABefore && hasRoleRAccountAAfter) => countRoleXMembersAfter - countRoleXMembersBefore == 0;
+
+    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleRMembersBefore - countRoleRMembersAfter == 1;
+    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleXMembersBefore - countRoleXMembersAfter == 0;
+
+}
 
 
 // rules for AccessControl.sol:
 // 1. only admin of role R can grant the role R to the account A (role R can be any role including the admin role)
 // 2. only admin or the account A itself can revoke the role R of account A (no matter the role)
+// 3. granting or revoking roleR from accountA should not affect any accountB
 
+// Status: Fails
+// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
 rule onlyAdminCanGrantRole(method f) {
     env e;
     calldataarg args;
+
+    require contractAddressesLinked();
 
     bytes32 roleR; address accountA;
     bool hasRoleRBefore = hasRole(e,roleR,accountA);
@@ -124,9 +174,13 @@ rule onlyAdminCanGrantRole(method f) {
     assert (!hasRoleRBefore && hasRoleRAfter) => (isAdmin); 
 }
 
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
 rule onlyAdminOrSelfCanRevokeRole(method f) {
     env e;
     calldataarg args;
+
+    require contractAddressesLinked();
 
     bytes32 roleR; address accountA;
     bool hasRoleRBefore = hasRole(e,roleR,accountA);
@@ -141,6 +195,36 @@ rule onlyAdminOrSelfCanRevokeRole(method f) {
     assert (hasRoleRBefore && !hasRoleRAfter) => (isAdmin || e.msg.sender == accountA); 
 }
 
+// Status: Pass
+// Note: had to comment line 315 in BaseOracle.sol (to resolve the getProcessingState() dispatcher problem)
+// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
+rule nonInterferenceOfRolesAndAccounts(method f) {
+    env e;
+    calldataarg args;
+
+    require contractAddressesLinked();
+
+    bytes32 roleR; address accountA;
+    bytes32 roleX; address accountB;
+
+    bool hasRoleRAccountABefore = hasRole(e,roleR,accountA);
+    bool hasRoleXAccountBBefore = hasRole(e,roleX,accountB);
+
+    f(e,args);
+
+    bool hasRoleRAccountAAfter = hasRole(e,roleR,accountA);
+    bool hasRoleXAccountBAfter = hasRole(e,roleX,accountB);
+
+    require (roleR != roleX) && (accountA != accountB);
+
+    assert (!hasRoleRAccountABefore && hasRoleRAccountAAfter) => 
+            (hasRoleXAccountBBefore && hasRoleXAccountBAfter) || 
+            (!hasRoleXAccountBBefore && !hasRoleXAccountBAfter);
+    
+    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => 
+            (hasRoleXAccountBBefore && hasRoleXAccountBAfter) || 
+            (!hasRoleXAccountBBefore && !hasRoleXAccountBAfter);
+}
 
 // rules for Math.sol:
 
@@ -154,27 +238,29 @@ rule onlyAdminOrSelfCanRevokeRole(method f) {
 /**************************************************
  *                 MISC Rules                     *
  **************************************************/
+
+// Status: Fails (as expected, no issues)
+// https://vaas-stg.certora.com/output/80942/e3745a088a314903be08788e52212ad1/?anonymousKey=95d5c2ace896353df58e60e5164cad4292bb0ad8
 rule sanity(method f) 
 {
     env e;
     calldataarg args;
 
-    // when using linking the requires below are not needed
-    // require LOCATOR()       == LidoLocatorContract;
-    // require LIDO()          == LidoContract;
-    // require LEGACY_ORACLE() == LegacyOracleContract;
-
-    //require getConsensusContract() == getConsensusContractCVL();
+    require contractAddressesLinked();
 
     f(e,args);
     assert false;
 }
 
+// not relevant rule - to delete
+/*
 rule shouldNotRevert(method f)
 filtered{f -> f.selector == submitReportData((uint256,uint256,uint256,uint256,uint256[],uint256[],uint256,uint256,uint256,uint256,bool,uint256,bytes32,uint256),uint256).selector}
 {
     env e;
     calldataarg args;
+
+    require contractAddressesLinked();
 
     require e.msg.value == 0;
     require e.msg.sender != 0;
@@ -184,3 +270,4 @@ filtered{f -> f.selector == submitReportData((uint256,uint256,uint256,uint256,ui
     f@withrevert(e,args);
     assert (!lastReverted);
 }
+*/

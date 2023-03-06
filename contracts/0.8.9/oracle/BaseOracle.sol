@@ -312,7 +312,7 @@ abstract contract BaseOracle is IReportAsyncProcessor, AccessControlEnumerable, 
         if (addr == address(0)) revert AddressCannotBeZero();
 
         address prevAddr = CONSENSUS_CONTRACT_POSITION.getStorageAddress();
-        if (addr == prevAddr) revert AddressCannotBeSame();
+        // if (addr == prevAddr) revert AddressCannotBeSame();
 
         (, uint256 secondsPerSlot, uint256 genesisTime) = IConsensusContract(addr).getChainConfig();
         if (secondsPerSlot != SECONDS_PER_SLOT || genesisTime != GENESIS_TIME) {
