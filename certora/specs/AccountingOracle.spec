@@ -96,12 +96,41 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 //  1. verify all the reverting scenarios of submitReportData()
 //  2. verify submitReportData() does not revert outside of the allowed reverting scenarios
 //  3. verify all the errors on lines 91-110 are caught correctly
-//  4. 
+//  4. cannot call submitReportData() twice in the same e.block.timestamp
+
+rule cannotSubmitSameReportDataTwice(method f) 
+    filtered { f -> f.selector == submitReportData((uint256,uint256,uint256,uint256,uint256[],uint256[],uint256,uint256,uint256,uint256,bool,uint256,bytes32,uint256),uint256).selector ||
+                    f.selector == submitReportExtraDataList(bytes).selector ||
+                    f.selector == submitReportExtraDataEmpty().selector }
+{    
+    require contractAddressesLinked();
+    env e; calldataarg args; calldataarg args2;
+
+    f(e,args);
+    f@withrevert(e,args2);
+
+    assert lastReverted;
+}
+
+rule cannotInitializeTwice(method f) 
+    filtered { f -> f.selector == initialize(address,address,uint256).selector ||
+                    f.selector == initializeWithoutMigration(address,address,uint256,uint256).selector ||  
+                    f.selector == setConsensusVersion(uint256).selector }
+{    
+    require contractAddressesLinked();
+    env e; calldataarg args;
+
+    f(e,args);
+    f@withrevert(e,args);
+
+    assert lastReverted;
+}
 
 // rules for BaseOracle.sol:
 
 
 // rules for HashConsensus.sol:
+
 
 
 // rules for Versioned:
