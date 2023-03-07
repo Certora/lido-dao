@@ -107,21 +107,32 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
         return operatorTargetStats.get(TARGET_VALIDATORS_COUNT_OFFSET);
     }
 
+    function getNodeOperatorTargetStats_max(uint256 _nodeOperatorId) public view returns (uint64) {
+        Packed64x4.Packed memory operatorTargetStats = _loadOperatorTargetValidatorsStats(_nodeOperatorId);
+        return operatorTargetStats.get(MAX_VALIDATORS_COUNT_OFFSET);
+    }
+
     function sumOfExitedKeys() public view returns (uint256 sumOfKeys) {
-        for (uint256 i; i < getNodeOperatorsCount();) {
+        for (uint256 i; i < getNodeOperatorsCount(); ++i) {
             sumOfKeys += getNodeOperatorSigningStats_exited(i);
         }
     }
 
     function sumOfDepositedKeys() public view returns (uint256 sumOfKeys) {
-        for (uint256 i; i < getNodeOperatorsCount();) {
+        for (uint256 i; i < getNodeOperatorsCount(); ++i) {
             sumOfKeys += getNodeOperatorSigningStats_deposited(i);
         }
     }
 
     function sumOfTotalKeys() public view returns (uint256 sumOfKeys) {
-        for (uint256 i; i < getNodeOperatorsCount();) {
+        for (uint256 i; i < getNodeOperatorsCount(); ++i) {
             sumOfKeys += getNodeOperatorSigningStats_total(i);
+        }
+    }
+
+    function sumOfMaxKeys() public view returns (uint256 sumOfKeys) {
+        for (uint256 i; i < getNodeOperatorsCount(); ++i) {
+            sumOfKeys += getNodeOperatorTargetStats_max(i);
         }
     }
 }

@@ -62,10 +62,10 @@ contract BeaconChainDepositorHarness is BeaconChainDepositor {
         bytes32 publicKeyRoot = _publicKeyRoot[_publicKey];
         bytes32 signatureRoot = _signatureRoot[_signature];
 
-        return keccak256(
+        return sha256(
             abi.encodePacked(
-                keccak256(abi.encodePacked(publicKeyRoot, _withdrawalCredentials)),
-                keccak256(abi.encodePacked(DEPOSIT_SIZE_IN_GWEI_LE64, bytes24(0), signatureRoot))
+                sha256(abi.encodePacked(publicKeyRoot, _withdrawalCredentials)),
+                sha256(abi.encodePacked(DEPOSIT_SIZE_IN_GWEI_LE64, bytes24(0), signatureRoot))
             )
         );
     }

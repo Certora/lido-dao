@@ -8,9 +8,11 @@ certoraRun \
 \
 --solc_map Burner=solc8.9,NodeOperatorsRegistryHarness=solc4.24,LidoMockStEth=solc4.24 \
 --loop_iter 2 \
---staging yuvalbd/correct_param_count \
+--staging master \
 --optimistic_loop \
 --send_only \
 --rule_sanity \
---settings -t=300,-mediumTimeout=30,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
+--settings -t=500,-mediumTimeout=30,-depth=12,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
+--settings -solvers=[cvc5,z3] \
 --msg "NodeOperatorsRegistry"
+# --staging yuvalbd/correct_param_count

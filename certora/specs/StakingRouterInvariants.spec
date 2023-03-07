@@ -1,6 +1,7 @@
 import "./StakingRouterBase.spec"
 import "./NodeRegistryMethods.spec"
 
+
 invariant modulesCountIsLastIndex()
     getLastStakingModuleId() == getStakingModulesCount()
     filtered{f -> !isDeposit(f)}
@@ -10,13 +11,13 @@ invariant StakingModuleIdLELast(uint256 moduleId)
     filtered{f -> !isDeposit(f)}
 
 invariant StakingModuleIndexIsIdMinus1(uint256 moduleId)
-    (moduleId <= getStakingModulesCount() 
+    ((moduleId <= getStakingModulesCount() && moduleId > 0)
         => 
-    (getStakingModuleIndexOneBased(moduleId)+1 == getStakingModuleIdById(moduleId)))
+    (getStakingModuleIndexOneBased(moduleId)+1 == getStakingModuleIdById(moduleId))
      
      &&
     
-    (moduleId > getStakingModulesCount() 
+    (moduleId > getStakingModulesCount() || moduleId == 0)
         => 
     (getStakingModuleIdById(moduleId) == 0 && getStakingModuleIndexOneBased(moduleId) == 0))
     filtered{f -> !isDeposit(f)}
@@ -116,5 +117,6 @@ function safeAssumptions(uint256 moduleId) {
         requireInvariant StakingModuleAddressIsNeverZero(moduleId);
         requireInvariant StakingModuleTotalFeeLEMAX(moduleId);
         requireInvariant StakingModuleTargetShareLEMAX(moduleId);
+        requireInvariant StakingModuleAddressIsUnique(moduleId, getStakingModulesCount());
     }
 }

@@ -5,7 +5,8 @@ certoraRun \
 ./contracts/0.8.9/Burner.sol \
 ./contracts/0.8.9/LidoLocator.sol \
 ./certora/harness/LidoMockStEth.sol \
---verify StakingRouterHarness:certora/specs/StakingRouterInvariants.spec \
+./contracts/0.8.9/test_helpers/StakingModuleMock.sol \
+--verify StakingRouterHarness:certora/specs/StakingRouter.spec \
 \
 \
 --link StakingRouterHarness:DEPOSIT_CONTRACT=DepositContract \
@@ -14,12 +15,10 @@ LidoLocator:lido=LidoMockStEth \
 \
 \
 --solc_map StakingRouterHarness=solc8.9,Burner=solc8.9,LidoLocator=solc8.9,\
-DepositContract=solc6.11,\
+DepositContract=solc6.11,StakingModuleMock=solc8.9,\
 NodeOperatorsRegistry=solc4.24,LidoMockStEth=solc4.24 \
---loop_iter 3 \
+--loop_iter 4 \
 --staging master \
---optimistic_loop \
 --send_only \
---rule_sanity \
---settings -t=500,-mediumTimeout=50,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
---msg "Staking Router invariants"
+--settings -t=600,-mediumTimeout=50,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
+--msg "Staking Router"

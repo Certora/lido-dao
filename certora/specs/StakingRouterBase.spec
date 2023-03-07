@@ -12,8 +12,11 @@ methods {
     updateStuckValidatorsCount(bytes, bytes) => DISPATCHER(true)
     updateExitedValidatorsCount(bytes, bytes) => DISPATCHER(true) 
     updateRefundedValidatorsCount(uint256, uint256) => DISPATCHER(true)
-    // Will be set back to dispatcher once the implementation of loadKeys is replaced.
-    obtainDepositData(uint256, bytes) returns (uint256, bytes, bytes) => NONDET // DISPATCHER(true)
+    /// Prevent any call to StEth
+    obtainDepositData(uint256,bytes) => NONDET
+    _distributeRewards() => NONDET
+    _computeDepositDataRootCertora(bytes,bytes,bytes) => NONDET
+    ///
     onWithdrawalCredentialsChanged() => DISPATCHER(true)
     unsafeUpdateValidatorsCount(uint256,uint256,uint256) => DISPATCHER(true)
     getNodeOperatorsCount() returns (uint256) => DISPATCHER(true)
@@ -21,32 +24,30 @@ methods {
     getNodeOperatorIsActive(uint256) returns (bool) => DISPATCHER(true)
     getNodeOperatorIds(uint256, uint256) returns (uint256[]) => DISPATCHER(true)
 
-    // Lido
-    //getDepositableEther() returns (uint256) => DISPATCHER(true)
-
     // StakingRouter
-     getStakingModulesCount() returns (uint256) envfree
-     getStakingModuleStatus(uint256) returns (uint8) envfree
-     getStakingModuleIsStopped(uint256) returns (bool) envfree
-     getStakingModuleIsDepositsPaused(uint256) returns (bool) envfree
-     getStakingModuleIsActive(uint256) returns (bool) envfree
-     getStakingFeeAggregateDistribution() returns (uint96,uint96,uint256) envfree
-     getStakingModuleMaxDepositsCount(uint256, uint256) returns (uint256)
-     FEE_PRECISION_POINTS() returns (uint256) envfree
-     TOTAL_BASIS_POINTS() returns (uint256) envfree
+    getStakingModulesCount() returns (uint256) envfree
+    getStakingModuleStatus(uint256) returns (uint8) envfree
+    getStakingModuleIsStopped(uint256) returns (bool) envfree
+    getStakingModuleIsDepositsPaused(uint256) returns (bool) envfree
+    getStakingModuleIsActive(uint256) returns (bool) envfree
+    getStakingFeeAggregateDistribution() returns (uint96,uint96,uint256) envfree
+    getStakingModuleMaxDepositsCount(uint256, uint256) returns (uint256)
+    getStakingModuleSummary(uint256) returns (uint256, uint256, uint256) envfree
+    FEE_PRECISION_POINTS() returns (uint256) envfree
+    TOTAL_BASIS_POINTS() returns (uint256) envfree
 
-     // StakingRouter harness getters
-     getStakingModuleAddressByIndex(uint256) returns (address) envfree
-     getStakingModuleAddressById(uint256) returns (address) envfree
-     getStakingModuleExitedValidatorsById(uint256) returns (uint256) envfree
-     getStakingModuleIdById(uint256) returns (uint256) envfree
-     getStakingModuleIndexById(uint256) returns (uint256) envfree
-     getLastStakingModuleId() returns (uint24) envfree
-     getStakingModuleFeeById(uint256) returns (uint16) envfree
-     getStakingModuleTreasuryFeeById(uint256) returns (uint16) envfree
-     getStakingModuleTargetShareById(uint256) returns (uint16) envfree
-     getStakingModuleNameLengthByIndex(uint256) returns (uint256) envfree
-     getStakingModuleIndexOneBased(uint256) returns (uint256) envfree
+    // StakingRouter harness getters
+    getStakingModuleAddressByIndex(uint256) returns (address) envfree
+    getStakingModuleAddressById(uint256) returns (address) envfree
+    getStakingModuleExitedValidatorsById(uint256) returns (uint256) envfree
+    getStakingModuleIdById(uint256) returns (uint256) envfree
+    getStakingModuleIndexById(uint256) returns (uint256) envfree
+    getLastStakingModuleId() returns (uint24) envfree
+    getStakingModuleFeeById(uint256) returns (uint16) envfree
+    getStakingModuleTreasuryFeeById(uint256) returns (uint16) envfree
+    getStakingModuleTargetShareById(uint256) returns (uint16) envfree
+    getStakingModuleNameLengthByIndex(uint256) returns (uint256) envfree
+    getStakingModuleIndexOneBased(uint256) returns (uint256) envfree
 }
 
 /**************************************************

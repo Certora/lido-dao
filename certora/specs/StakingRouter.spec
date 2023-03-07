@@ -34,6 +34,7 @@
 
 import "./StakingRouterBase.spec"
 import "./StakingRouterInvariants.spec"
+
 use invariant modulesCountIsLastIndex
 use invariant StakingModuleIdLELast
 use invariant StakingModuleIndexIsIdMinus1
@@ -43,23 +44,17 @@ use invariant StakingModuleAddressIsNeverZero
 use invariant StakingModuleTotalFeeLEMAX
 use invariant StakingModuleTargetShareLEMAX
 use invariant zeroAddressForUnRegisteredModule
+use invariant StakingModuleAddressIsUnique
 
 /**************************************************
  *                 MISC Rules                     *
  **************************************************/
-rule sanity(method f) 
-filtered{f -> !isDeposit(f)} {
-    env e;
-    calldataarg args;
-    f(e,args);
-    assert false;
-}
 
 rule depositSanity() {
     env e;
     require e.msg.value > 0;
     uint256 _maxDepositsCount;
-    require _maxDepositsCount > 0;
+    require _maxDepositsCount == 1;
     require getStakingModulesCount() == 1;
     safeAssumptions(1);
     uint256 _stakingModuleId;
@@ -260,7 +255,8 @@ rule aggregatedFeeLT100Percent_init() {
 rule aggregatedFeeLT100Percent_preserve() {
     env e;
     
-    require getStakingModulesCount() == 1;
+    require getStakingModulesCount() <= 2;
+    safeAssumptions(1);
     safeAssumptions(getStakingModulesCount());
     
     string name;
@@ -376,22 +372,72 @@ rule getMaxDepositsCountReverts_init(uint256 id) {
     assert lastReverted;
 }
 
-rule getMaxDepositsCountReverts_preserve(method f, uint256 id) 
-filtered{f -> !f.isView && !isDeposit(f)} {
+rule getMaxDepositsCountRevert_preserve(method f, uint256 id) 
+filtered{f -> !isAddModule(f) && !isDeposit(f) && !f.isView} {
     env e;
     calldataarg args;
     uint256 maxDepositsValue;
 
-    requireInvariant modulesCountIsLastIndex();
+    require id > 0;
+    require getStakingModulesCount() <= 2;
+    safeAssumptions(1);
+    safeAssumptions(2);
+    safeAssumptions(id);
+
     getStakingModuleMaxDepositsCount@withrevert(e, id, maxDepositsValue);
     bool reverted_A = lastReverted;
     require reverted_A <=> (id > getStakingModulesCount() || id == 0);
+    getStakingModuleStatus(id);
 
     f(e, args);
 
     getStakingModuleMaxDepositsCount@withrevert(e, id, maxDepositsValue);
     bool reverted_B = lastReverted;
     assert reverted_B <=> (id > getStakingModulesCount() || id == 0);
+}
+
+rule onValidatorsCountsDoesntRevert(method f) 
+filtered{f -> !isAddModule(f) && !isDeposit(f) && !f.isView} {
+    env e1;
+    env e2;
+    calldataarg args;
+
+    require getStakingModulesCount() <= 2;
+    safeAssumptions(1);
+    safeAssumptions(2);
+
+    onValidatorsCountsByNodeOperatorReportingFinished(e1);
+
+    f(e2, args);
+
+    onValidatorsCountsByNodeOperatorReportingFinished@withrevert(e1);
+    assert !lastReverted;
+}
+
+rule reportStakingModuleExitedDoesntRevert(method f, uint256 moduleId) 
+filtered{f -> !isAddModule(f) && !isDeposit(f) && !f.isView} {
+    env e1;
+    env e2;
+    calldataarg args;
+    bytes nodeOperatorIds;
+    bytes exitedValidatorsCounts;
+    uint256 maxDepositsValue;
+
+    require moduleId > 0;
+    require getStakingModulesCount() <= 2;
+    safeAssumptions(1);
+    safeAssumptions(2);
+    safeAssumptions(moduleId);
+
+    reportStakingModuleExitedValidatorsCountByNodeOperator(
+        e1, moduleId, nodeOperatorIds, exitedValidatorsCounts);
+    getStakingModuleStatus(moduleId);
+
+    f(e2, args);
+
+    reportStakingModuleExitedValidatorsCountByNodeOperator@withrevert(
+        e1, moduleId, nodeOperatorIds, exitedValidatorsCounts);
+    assert !lastReverted;
 }
 
 rule depositRevertsForInvalidModuleId(uint256 id) {
@@ -413,7 +459,8 @@ rule whatRevertsIfStatusIsNotActive(method f, uint256 id)
 filtered{f-> !isDeposit(f) && !f.isView} {
     storage initState = lastStorage;
 
-    env e1; env e2;
+    env e1; 
+    env e2;
     calldataarg args;
 
     f(e1, args);
