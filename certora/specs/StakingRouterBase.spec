@@ -32,7 +32,7 @@ methods {
     getStakingModuleIsActive(uint256) returns (bool) envfree
     getStakingFeeAggregateDistribution() returns (uint96,uint96,uint256) envfree
     getStakingModuleMaxDepositsCount(uint256, uint256) returns (uint256)
-    getStakingModuleSummary(uint256) returns (uint256, uint256, uint256) envfree
+    getStakingModuleSummary(uint256) returns ((uint256, uint256, uint256)) envfree
     FEE_PRECISION_POINTS() returns (uint256) envfree
     TOTAL_BASIS_POINTS() returns (uint256) envfree
 

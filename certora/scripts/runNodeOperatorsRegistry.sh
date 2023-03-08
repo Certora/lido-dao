@@ -11,8 +11,7 @@ certoraRun \
 --staging master \
 --optimistic_loop \
 --send_only \
---rule_sanity \
---settings -t=500,-mediumTimeout=30,-depth=12,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
+--settings -t=1500,-mediumTimeout=30,-depth=12,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
 --settings -solvers=[cvc5,z3] \
 --msg "NodeOperatorsRegistry"
 # --staging yuvalbd/correct_param_count

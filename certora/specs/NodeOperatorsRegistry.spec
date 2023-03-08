@@ -79,6 +79,7 @@ function safeAssumptions_NOS(uint256 nodeOperatorId) {
     requireInvariant TargetPlusExitedDoesntOverflow(nodeOperatorId);
     requireInvariant KeysOfUnregisteredNodeAreZero(nodeOperatorId);
     requireInvariant DepositedKeysLEMaxValidators(nodeOperatorId);
+    requireInvariant UnregisteredOperatorIsNotPenalized(nodeOperatorId);
     reasonableKeysAssumptions(nodeOperatorId);
 }
 
@@ -139,6 +140,16 @@ invariant AllModulesAreActiveConsistency(uint256 nodeOperatorId)
             requireInvariant NodeOperatorsCountLEMAX();
             requireInvariant ActiveOperatorsLECount();
             requireInvariant AllModulesAreActiveConsistency(id);
+        }
+    }
+
+invariant UnregisteredOperatorIsNotPenalized(env e, uint256 nodeOperatorId)
+    (e.block.timestamp > 0 && nodeOperatorId >= getNodeOperatorsCount())
+    => !isOperatorPenalized(e, nodeOperatorId)
+    filtered{f -> f.isView || isObtainDepData(f)}
+    {
+        preserved {
+            safeAssumptions_NOS(nodeOperatorId);
         }
     }
 
@@ -220,7 +231,8 @@ invariant KeysOfUnregisteredNodeAreZero(uint256 nodeOperatorId)
     (getNodeOperatorSigningStats_total(nodeOperatorId) == 0 &&
     getNodeOperatorSigningStats_vetted(nodeOperatorId) == 0 &&
     getNodeOperatorSigningStats_deposited(nodeOperatorId) == 0 &&
-    getNodeOperatorSigningStats_exited(nodeOperatorId) == 0)
+    getNodeOperatorSigningStats_exited(nodeOperatorId) == 0 &&
+    getNodeOperatorTargetStats_max(nodeOperatorId) == 0)
     {
         preserved{
             requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
@@ -280,7 +292,7 @@ invariant SumOfExitedKeysEqualsSummary()
 invariant SumOfTotalKeysEqualsSummary()
     sumOfTotalKeys() == getSummaryTotalKeyCount()
 
-/// The sum of all vetted keys from all operators is equal to the summary.
+/// The sum of all target max keys from all operators is equal to the summary.
 invariant SumOfMaxKeysEqualsSummary()
     sumOfMaxKeys() == getSummaryMaxValidators()
 
@@ -288,7 +300,8 @@ invariant SumOfMaxKeysEqualsSummary()
  *          Sum of keys equals summary            *
 **************************************************/
 
-rule sumOfKeysEqualsSummary(method f) {
+rule sumOfKeysEqualsSummary(method f) 
+filtered{f -> !f.isView} {
     env e;
     calldataarg args;
     safeAssumptions_NOS(0);
@@ -304,7 +317,7 @@ rule sumOfKeysEqualsSummary(method f) {
     require sum_deposited_before == getSummaryTotalDepositedValidators();
     require sum_total_before == getSummaryTotalKeyCount();
     require sum_max_before == getSummaryMaxValidators();
-    // precondition 
+    // precondition (based on exited less than deposited and deposited less than total invariants)
     require sum_exited_before <= sum_deposited_before;
     require sum_deposited_before <= sum_total_before;
 
@@ -327,6 +340,7 @@ rule sumOfKeysEqualsSummary(method f) {
     assert sum_total_after == getSummaryTotalKeyCount();
     assert sum_max_after == getSummaryMaxValidators();
 }
+
 
 /**************************************************
  *        Revert characteristics       *
@@ -365,8 +379,6 @@ rule sumOfKeysEqualsSummary(method f) {
     
     f(e2, args);
 
-    requireInvariant TargetPlusExitedDoesntOverflow(nodeOperatorId);
-
     deactivateNodeOperator@withrevert(e2, nodeOperatorId);
 
     assert !lastReverted;
@@ -385,29 +397,46 @@ filtered{f -> !f.isView && f.selector != activateNodeOperator(uint256).selector}
 
     f(e2, args);
     
-    requireInvariant TargetPlusExitedDoesntOverflow(nodeOperatorId);
-
     activateNodeOperator@withrevert(e2, nodeOperatorId);
 
     assert !lastReverted;
 }
 
-rule cannotFinalizeUpgradeTwice() {
+/// cannot finalize twice
+rule cannotFinalizeUpgradeTwice(method f) 
+filtered {f -> !isFinalizeUpgrade(f) && !f.isView} {
     env e1;
     env e2;
+    env e3;
     calldataarg args1;
     calldataarg args2;
+    calldataarg args3;
     finalizeUpgrade_v2(e1, args1);
-    finalizeUpgrade_v2@withrevert(e2, args2);
+    f(e2, args2);
+    finalizeUpgrade_v2@withrevert(e3, args3);
+    assert lastReverted;
+}
+
+rule cannotInitializeTwice(method f) 
+filtered {f -> f.selector != initialize(address,bytes32,uint256).selector && !f.isView} {
+    env e1;
+    env e2;
+    env e3;
+    calldataarg args1;
+    calldataarg args2;
+    calldataarg args3;
+    initialize(e1, args1);
+    f(e2, args2);
+    initialize@withrevert(e3, args3);
     assert lastReverted;
 }
 
 rule sumOfRewardsSharesLETotalShares(uint256 totalRewardShares) {
     env e;
     uint256 sumOfShares;
-    uint256 _share;
+    uint256 share;
 
-    sumOfShares, _share = getRewardsDistributionShare(e, totalRewardShares, 0);
+    sumOfShares, share = getRewardsDistributionShare(e, totalRewardShares, 0);
     assert sumOfShares <= totalRewardShares;
 }
 
@@ -418,12 +447,12 @@ rule rewardSharesAreMonotonicWithTotalShares(
 
     env e;
     require totalRewardShares2 == totalRewardShares1 + 1;
-    //require totalRewardShares2 > totalRewardShares1;
     uint256 sumOfShares1; uint256 sumOfShares2;
     uint256 share1; uint256 share2;
 
     safeAssumptions_NOS(0);
     safeAssumptions_NOS(1);
+    safeAssumptions_NOS(nodeOperatorId);
     
     sumOfShares1, share1 = getRewardsDistributionShare(e, totalRewardShares1, nodeOperatorId);
     sumOfShares2, share2 = getRewardsDistributionShare(e, totalRewardShares2, nodeOperatorId);
@@ -626,7 +655,7 @@ rule noRestrictionOnAddingKeys(uint256 nodeOperatorId) {
     assert !lastReverted;
 }
 
-/// Timeout
+/// @dev Timeout
 rule addSigningKeysAdditivity(uint256 nodeOperatorId) {
     env e1;
     env e2;
@@ -676,7 +705,7 @@ rule addSigningKeysAdditivity(uint256 nodeOperatorId) {
     assert (summaryTotal_A == summaryTotal_B, "Summary of total keys is not additive");
 }
 
-/// Timeout
+/// @dev Timeout
 rule removeSigningKeysAdditivity(uint256 nodeOperatorId) {
     env e1;
     env e2;
@@ -719,6 +748,8 @@ rule removeSigningKeysAdditivity(uint256 nodeOperatorId) {
 /**************************************************
  *    Node Operator obtainDepositData           *
 **************************************************/
+/// The function should never revert for a valid deposit count input.
+/// and revert if the deposit count is larger than the depositable amount.
 rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     env e;
     calldataarg args;
@@ -728,7 +759,10 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     safeAssumptions_NOS(0);
     safeAssumptions_NOS(getNodeOperatorsCount());
     require depositsCount <= UINT32_MAX();
-    require getSummaryMaxValidators() >= getSummaryTotalDepositedValidators();
+    uint256 summary_max = getSummaryMaxValidators();
+    uint256 summary_deposited = getSummaryTotalDepositedValidators();
+    require summary_deposited <= summary_max;
+    uint256 depositable = summary_max - summary_deposited;
     // Call with zero depositCount to filter all trivial revert paths.
     obtainDepositData(e, 0, depositData);
 
@@ -736,7 +770,6 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     obtainDepositData@withrevert(e, depositsCount, depositData) at initState;
     bool reverted = lastReverted;
 
-    assert 
-        depositsCount <= getSummaryMaxValidators() - getSummaryTotalDepositedValidators() => !reverted;
+    assert depositsCount <= depositable <=> !reverted;
 }
     

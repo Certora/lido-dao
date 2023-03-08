@@ -34,6 +34,20 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
         return sender != 0;
     }
 
+    function updateExitedValidatorsCount(uint256 nodeOperatorId, uint64 validatorsCount) external {
+        _auth(STAKING_ROUTER_ROLE);
+        uint256 totalNodeOperatorsCount = getNodeOperatorsCount();
+        _requireValidRange(nodeOperatorId < totalNodeOperatorsCount);
+        _updateExitedValidatorsCount(nodeOperatorId, validatorsCount, false);
+    }
+
+    function updateStuckValidatorsCount(uint256 nodeOperatorId, uint64 validatorsCount) external {
+        _auth(STAKING_ROUTER_ROLE);
+        uint256 totalNodeOperatorsCount = getNodeOperatorsCount();
+        _requireValidRange(nodeOperatorId < totalNodeOperatorsCount);
+        _updateStuckValidatorsCount(nodeOperatorId, validatorsCount);
+    }
+
     function getRewardsDistributionShare(uint256 _totalRewardShares, uint256 _nodeOperatorId) 
     public view returns (uint256 sumOfShares, uint256 shareOfId) {
         (, uint256[] memory shares, ) = getRewardsDistribution(_totalRewardShares);
