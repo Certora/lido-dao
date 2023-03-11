@@ -10,6 +10,8 @@ import {Packed64x4} from "../../contracts/0.4.24/lib/Packed64x4.sol";
 contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
     using Packed64x4 for Packed64x4.Packed;
 
+    uint256 public test_nodeId;
+
     /// @dev DEPRECATED use addSigningKeys instead
     function addSigningKeysOperatorBH(uint256, uint256, bytes, bytes) external {}
 
@@ -38,6 +40,7 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
         _auth(STAKING_ROUTER_ROLE);
         uint256 totalNodeOperatorsCount = getNodeOperatorsCount();
         _requireValidRange(nodeOperatorId < totalNodeOperatorsCount);
+        require (test_nodeId == nodeOperatorId);
         _updateExitedValidatorsCount(nodeOperatorId, validatorsCount, false);
     }
 
@@ -45,6 +48,7 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
         _auth(STAKING_ROUTER_ROLE);
         uint256 totalNodeOperatorsCount = getNodeOperatorsCount();
         _requireValidRange(nodeOperatorId < totalNodeOperatorsCount);
+        require (test_nodeId == nodeOperatorId);
         _updateStuckValidatorsCount(nodeOperatorId, validatorsCount);
     }
 

@@ -1,5 +1,5 @@
 --- ../contracts/0.8.9/StakingRouter.sol	2023-02-21 19:22:19.765997500 +0200
-+++ 	2023-02-22 09:45:59.772086200 +0200
++++ 	2023-03-09 14:32:06.302583800 +0200
 @@ -4,18 +4,18 @@
  /* See contracts/COMPILERS.md */
  pragma solidity 0.8.9;
@@ -94,7 +94,7 @@
  
      /// @dev computes the deposit_root_hash required by official Beacon Deposit contract
 --- ../contracts/0.4.24/nos/NodeOperatorsRegistry.sol	2023-02-21 19:22:19.750923800 +0200
-+++ 	2023-02-22 20:39:55.224205000 +0200
++++ 	2023-03-11 19:08:16.430514700 +0200
 @@ -9,13 +9,13 @@
  import {SafeMath64} from "@aragon/os/contracts/lib/math/SafeMath64.sol";
  import {UnstructuredStorage} from "@aragon/os/contracts/common/UnstructuredStorage.sol";
@@ -110,7 +110,7 @@
 +import {MinFirstAllocationStrategy} from "../../contracts/common/lib/MinFirstAllocationStrategy.sol";
 +import {ILidoLocator} from "../../contracts/common/interfaces/ILidoLocator.sol";
 +import {IBurner} from "../../contracts/common/interfaces/IBurner.sol";
-+import {SigningKeys} from "./SigningKeys.sol";
++import {SigningKeys} from "../../contracts/0.4.24/lib/SigningKeys.sol";
 +import {Packed64x4} from "../../contracts/0.4.24/lib/Packed64x4.sol";
 +import {Versioned} from "../../contracts/0.4.24/utils/Versioned.sol";
  

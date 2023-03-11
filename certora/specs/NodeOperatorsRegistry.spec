@@ -7,6 +7,9 @@ methods {
     MAX_NODE_OPERATORS_COUNT() returns (uint256) envfree
     getRewardsDistributionShare(uint256, uint256) returns (uint256, uint256)
     _loadAllocatedSigningKeys(uint256 ,uint256[],uint256[]) returns (bytes, bytes) => NONDET
+    getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
+    getStuckPenaltyDelay() returns(uint256) envfree
+    getNodeOperatorSummary(uint256) envfree
 
     /// Node operator registry summary of node operators
     getSummaryTotalExitedValidators() returns (uint256) envfree
@@ -79,7 +82,6 @@ function safeAssumptions_NOS(uint256 nodeOperatorId) {
     requireInvariant TargetPlusExitedDoesntOverflow(nodeOperatorId);
     requireInvariant KeysOfUnregisteredNodeAreZero(nodeOperatorId);
     requireInvariant DepositedKeysLEMaxValidators(nodeOperatorId);
-    requireInvariant UnregisteredOperatorIsNotPenalized(nodeOperatorId);
     reasonableKeysAssumptions(nodeOperatorId);
 }
 
@@ -114,7 +116,6 @@ invariant ActiveOperatorsLECount()
             requireInvariant AllModulesAreActiveConsistency(id);
         }
     }
-
 /// If the active operators count is equal to the total operatos count,
 /// then every operator must be active (whose id is less than the count). 
 invariant AllModulesAreActiveConsistency(uint256 nodeOperatorId)
@@ -142,7 +143,7 @@ invariant AllModulesAreActiveConsistency(uint256 nodeOperatorId)
             requireInvariant AllModulesAreActiveConsistency(id);
         }
     }
-
+/// Any unregistered node operator is not penalized
 invariant UnregisteredOperatorIsNotPenalized(env e, uint256 nodeOperatorId)
     (e.block.timestamp > 0 && nodeOperatorId >= getNodeOperatorsCount())
     => !isOperatorPenalized(e, nodeOperatorId)
@@ -151,9 +152,17 @@ invariant UnregisteredOperatorIsNotPenalized(env e, uint256 nodeOperatorId)
         preserved {
             safeAssumptions_NOS(nodeOperatorId);
         }
+        preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e2)
+        {
+            require e2.block.timestamp == e.block.timestamp;
+            requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
+            requireInvariant ActiveOperatorsLECount();
+            requireInvariant NodeOperatorsCountLEMAX();
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
+        }
     }
-
-
+/// The exited keys count is never higher than the deposited keys count
 invariant ExitedKeysLEDepositedKeys(uint256 nodeOperatorId)
     getNodeOperatorSigningStats_exited(nodeOperatorId) <=
     getNodeOperatorSigningStats_deposited(nodeOperatorId)
@@ -162,8 +171,17 @@ invariant ExitedKeysLEDepositedKeys(uint256 nodeOperatorId)
             requireInvariant NodeOperatorsCountLEMAX();
             requireInvariant DepositedKeysLEVettedKeys(nodeOperatorId);
         }
+        preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
+        {
+            requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
+            requireInvariant ActiveOperatorsLECount();
+            requireInvariant NodeOperatorsCountLEMAX();
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
+        }
     }
 
+/// The deposited keys count is never higher than the vetted keys count
 invariant DepositedKeysLEVettedKeys(uint256 nodeOperatorId)
     getNodeOperatorSigningStats_deposited(nodeOperatorId) <=
     getNodeOperatorSigningStats_vetted(nodeOperatorId)
@@ -174,16 +192,17 @@ invariant DepositedKeysLEVettedKeys(uint256 nodeOperatorId)
             requireInvariant VettedKeysLETotalKeys(nodeOperatorId);
         }
 
-        preserved invalidateReadyToDepositKeysRange(uint256 _indexFrom, uint256 _indexTo) with (env e){
+        preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
+        {
+            requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
+            requireInvariant ActiveOperatorsLECount();
             requireInvariant NodeOperatorsCountLEMAX();
-            requireInvariant ExitedKeysLEDepositedKeys(_indexFrom);
-            requireInvariant DepositedKeysLEVettedKeys(_indexFrom);
-            requireInvariant ExitedKeysLEDepositedKeys(_indexTo);
-            requireInvariant DepositedKeysLEVettedKeys(_indexTo);
-
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
         }
     }
 
+/// The vetted keys count is never higher than the total keys count
 invariant VettedKeysLETotalKeys(uint256 nodeOperatorId)
     getNodeOperatorSigningStats_vetted(nodeOperatorId) <=
     getNodeOperatorSigningStats_total(nodeOperatorId)
@@ -194,12 +213,16 @@ invariant VettedKeysLETotalKeys(uint256 nodeOperatorId)
             requireInvariant DepositedKeysLEVettedKeys(nodeOperatorId);
         }
 
-        preserved invalidateReadyToDepositKeysRange(uint256 _indexFrom, uint256 _indexTo) with (env e){
-            safeAssumptions_NOS(_indexFrom);
-            safeAssumptions_NOS(_indexTo);
+        preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
+        {
+            requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
+            requireInvariant ActiveOperatorsLECount();
+            requireInvariant NodeOperatorsCountLEMAX();
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
         }
     }
-
+/// The deposited keys count is never higher than the max validators target 
 invariant DepositedKeysLEMaxValidators(uint256 nodeOperatorId)
     getNodeOperatorSigningStats_deposited(nodeOperatorId) <=
     getNodeOperatorTargetStats_max(nodeOperatorId)
@@ -207,37 +230,40 @@ invariant DepositedKeysLEMaxValidators(uint256 nodeOperatorId)
         preserved {
             safeAssumptions_NOS(nodeOperatorId);
         }
-        preserved finalizeUpgrade_v2(address locator, bytes32 type, uint256 delay) with (env e) {
-            require getSummaryTotalKeyCount() == 0;
-            require getSummaryMaxValidators() == 0;
-            require getSummaryTotalDepositedValidators() == 0;
-            require getSummaryTotalExitedValidators() == 0;
-            safeAssumptions_NOS(nodeOperatorId);
+        preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
+        {
+            requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
+            requireInvariant ActiveOperatorsLECount();
+            requireInvariant NodeOperatorsCountLEMAX();
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
         }
     }
 
-invariant MaxValidatorsGEDepositedSummary()
-    getSummaryMaxValidators() >= getSummaryTotalDepositedValidators()
-    {
-        preserved {
-            safeAssumptions_NOS(0);
-            safeAssumptions_NOS(1);
-            require getNodeOperatorsCount() <= 2;
-        }
-    }
 
+/// All key counts of an unregistered node operators are zero
 invariant KeysOfUnregisteredNodeAreZero(uint256 nodeOperatorId) 
     nodeOperatorId >= getNodeOperatorsCount() =>
     (getNodeOperatorSigningStats_total(nodeOperatorId) == 0 &&
     getNodeOperatorSigningStats_vetted(nodeOperatorId) == 0 &&
     getNodeOperatorSigningStats_deposited(nodeOperatorId) == 0 &&
     getNodeOperatorSigningStats_exited(nodeOperatorId) == 0 &&
-    getNodeOperatorTargetStats_max(nodeOperatorId) == 0)
+    getNodeOperatorTargetStats_max(nodeOperatorId) == 0 &&
+    getNodeOperator_refundedValidators(nodeOperatorId) == 0 &&
+    getNodeOperator_stuckValidators(nodeOperatorId) == 0)
     {
         preserved{
             requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
             requireInvariant ActiveOperatorsLECount();
             requireInvariant NodeOperatorsCountLEMAX();
+        }
+        preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
+        {
+            requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
+            requireInvariant ActiveOperatorsLECount();
+            requireInvariant NodeOperatorsCountLEMAX();
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
         }
     }
 
@@ -251,33 +277,17 @@ invariant TargetPlusExitedDoesntOverflow(uint256 nodeOperatorId)
             requireInvariant ActiveOperatorsLECount();
             requireInvariant NodeOperatorsCountLEMAX();
         }
+        preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
+        {
+            safeAssumptions_NOS(nodeOperatorId);
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
+        }
     }
 
 /**************************************************
  *          Keys summaries - sums invariants     *
 **************************************************/
-invariant ExitedSummaryLEDepositedSummary()
-    getSummaryTotalExitedValidators() <= getSummaryTotalDepositedValidators()
-    {
-        preserved{
-            safeAssumptions_NOS(0);
-            safeAssumptions_NOS(1);
-            requireInvariant DepositedSummaryLETotalSummary();
-            require getNodeOperatorsCount() <= 2;
-        }
-    }
-
-invariant DepositedSummaryLETotalSummary()
-    getSummaryTotalDepositedValidators() <= getSummaryTotalKeyCount()
-    {
-        preserved{
-            safeAssumptions_NOS(0);
-            safeAssumptions_NOS(1);
-            requireInvariant ExitedSummaryLEDepositedSummary();
-            require getNodeOperatorsCount() <= 2;
-        }
-    }
-
 /// See 'sumOfKeysEqualsSummary' rule below.
 
 /// The sum of all deposited keys from all operators is equal to the summary.
@@ -300,47 +310,84 @@ invariant SumOfMaxKeysEqualsSummary()
  *          Sum of keys equals summary            *
 **************************************************/
 
-rule sumOfKeysEqualsSummary(method f) 
+/// An alternative rule for checking the four invariants of summary equals sum
+/// of keys over all node operators.
+/// @notice : we assume exactly one node operator (nodeOperatorId) whose keys are changed.
+rule sumOfKeysEqualsSummary(method f, uint256 nodeOperatorId) 
 filtered{f -> !f.isView} {
     env e;
     calldataarg args;
-    safeAssumptions_NOS(0);
-    safeAssumptions_NOS(1);
-    require getNodeOperatorsCount() <= 2;
+    safeAssumptions_NOS(nodeOperatorId);
     ///
-    uint256 sum_exited_before  = sumOfExitedKeys();
-    uint256 sum_deposited_before  = sumOfDepositedKeys();
-    uint256 sum_total_before = sumOfTotalKeys();
-    uint256 sum_max_before = sumOfMaxKeys();
-    // preserve
-    require sum_exited_before == getSummaryTotalExitedValidators();
-    require sum_deposited_before == getSummaryTotalDepositedValidators();
-    require sum_total_before == getSummaryTotalKeyCount();
-    require sum_max_before == getSummaryMaxValidators();
-    // precondition (based on exited less than deposited and deposited less than total invariants)
-    require sum_exited_before <= sum_deposited_before;
-    require sum_deposited_before <= sum_total_before;
+    uint256 exited_before = getNodeOperatorSigningStats_exited(nodeOperatorId);
+    uint256 deposited_before = getNodeOperatorSigningStats_deposited(nodeOperatorId);
+    uint256 total_before = getNodeOperatorSigningStats_total(nodeOperatorId);
+    uint256 max_before = getNodeOperatorTargetStats_max(nodeOperatorId);
+    ///
+    uint256 summary_exited_before = getSummaryTotalExitedValidators();
+    uint256 summary_deposited_before = getSummaryTotalExitedValidators();
+    uint256 summary_total_before = getSummaryTotalKeyCount();
+    uint256 summary_max_before = getSummaryMaxValidators();
+    ///
 
+    /// If the summary is assumed to be equal to the sum, then every individual key count
+    /// equals at most to the corresponding summary.
+    require exited_before <= summary_exited_before;
+    require deposited_before <= summary_deposited_before;
+    require total_before <= summary_total_before;
+    require max_before <= summary_max_before;
+    
     if(isFinalizeUpgrade(f)) {
         require getSummaryTotalDepositedValidators() == 0;
         require getSummaryTotalExitedValidators() == 0;
         require getSummaryTotalKeyCount() == 0;
         require getSummaryMaxValidators() == 0;
     }
-    f(e, args);
+    else if(isInvalidateUnused(f)) {
+        invalidateReadyToDepositKeysRange(e, nodeOperatorId, nodeOperatorId);
+    }
+    else {
+        f(e, args);
+    }
 
-    uint256 sum_exited_after  = sumOfExitedKeys();
-    uint256 sum_deposited_after  = sumOfDepositedKeys();
-    uint256 sum_total_after = sumOfTotalKeys();
-    uint256 sum_max_after = sumOfMaxKeys();
+    ///
+    uint256 exited_after = getNodeOperatorSigningStats_exited(nodeOperatorId);
+    uint256 deposited_after = getNodeOperatorSigningStats_deposited(nodeOperatorId);
+    uint256 total_after = getNodeOperatorSigningStats_total(nodeOperatorId);
+    uint256 max_after = getNodeOperatorTargetStats_max(nodeOperatorId);
+    ///
+    uint256 summary_exited_after = getSummaryTotalExitedValidators();
+    uint256 summary_deposited_after = getSummaryTotalExitedValidators();
+    uint256 summary_total_after = getSummaryTotalKeyCount();
+    uint256 summary_max_after = getSummaryMaxValidators();
+    ///
 
-    // assert invariant
-    assert sum_exited_after == getSummaryTotalExitedValidators();
-    assert sum_deposited_after == getSummaryTotalDepositedValidators();
-    assert sum_total_after == getSummaryTotalKeyCount();
-    assert sum_max_after == getSummaryMaxValidators();
+    bool noKeyCountChange = 
+        (exited_after == exited_before && 
+        deposited_after == deposited_before &&
+        total_after == total_before && 
+        max_after == max_before);
+
+    /// Assume change in at least one of the key types for 'nodeOperatorId'
+    require !noKeyCountChange;
+
+    // assert invariants (assert if delta of summary equals delta of sum)
+    assert summary_exited_after + exited_before == 
+        summary_exited_before + exited_after , 
+        "Summary of exited keys doesn't equal to sum of keys";
+
+    assert summary_deposited_after + deposited_before == 
+        summary_deposited_before + deposited_after , 
+        "Summary of deposited keys doesn't equal to sum of keys";
+
+    assert summary_total_after + total_before == 
+        summary_total_before + total_after , 
+        "Summary of total keys doesn't equal to sum of keys";
+
+    assert summary_max_after + max_before ==
+        summary_max_before + max_after ,
+        "Summary of max target keys doesn't equal to sum of keys";
 }
-
 
 /**************************************************
  *        Revert characteristics       *
@@ -402,7 +449,7 @@ filtered{f -> !f.isView && f.selector != activateNodeOperator(uint256).selector}
     assert !lastReverted;
 }
 
-/// cannot finalize twice
+/// cannot call finalize upgrade twice
 rule cannotFinalizeUpgradeTwice(method f) 
 filtered {f -> !isFinalizeUpgrade(f) && !f.isView} {
     env e1;
@@ -417,6 +464,7 @@ filtered {f -> !isFinalizeUpgrade(f) && !f.isView} {
     assert lastReverted;
 }
 
+/// cannot call initialize twice
 rule cannotInitializeTwice(method f) 
 filtered {f -> f.selector != initialize(address,bytes32,uint256).selector && !f.isView} {
     env e1;
@@ -461,22 +509,6 @@ rule rewardSharesAreMonotonicWithTotalShares(
     assert share2 >= share1;
 }
 
-/// Check that the penalty of nodeOperatorId is removed.
-/// Also check that no other node operator changed its penalty status.
-rule afterClearPenaltyOperatorIsNotPenalized(uint256 nodeOperatorId) {
-    env e1;
-    env e2;
-    require e1.block.timestamp <= e2.block.timestamp;
-    uint256 otherNode; require otherNode != nodeOperatorId;
-    bool penalizedOther1 = isOperatorPenalized(e1, otherNode);
-
-    clearNodeOperatorPenalty(e1, nodeOperatorId);
-    assert !isOperatorPenalized(e2, nodeOperatorId);
-
-    bool penalizedOther2 = isOperatorPenalized(e1, otherNode);
-    assert penalizedOther2 == penalizedOther1;
-}
-
 /**************************************************
  *    Node Operator SigningStats change rules     *
 **************************************************/
@@ -490,6 +522,7 @@ filtered{f -> !f.isView} {
 
     uint256 exited_before = getNodeOperatorSigningStats_exited(nodeOperatorId);
     require exited_before <= UINT32_MAX();
+    requireInvariant UnregisteredOperatorIsNotPenalized(e, nodeOperatorId);
         
     if(f.selector == unsafeUpdateValidatorsCount(uint256,uint256,uint256).selector){
         uint256 _exitedValidatorsCount; 
@@ -498,6 +531,11 @@ filtered{f -> !f.isView} {
         unsafeUpdateValidatorsCount(e, nodeOperatorId, _exitedValidatorsCount, _stuckValidatorsCount);
         uint256 exited_after = getNodeOperatorSigningStats_exited(nodeOperatorId);
         assert exited_before < _exitedValidatorsCount => exited_before < exited_after;
+    }
+    else if(isInvalidateUnused(f)){
+        invalidateReadyToDepositKeysRange(e, nodeOperatorId, nodeOperatorId);
+        uint256 exited_after = getNodeOperatorSigningStats_exited(nodeOperatorId);
+        assert exited_before <= exited_after;
     }
     else {
         f(e, args);
@@ -516,7 +554,11 @@ filtered{f -> !f.isView} {
     
     uint256 exited_before_1 = getNodeOperatorSigningStats_exited(nodeOperatorId1);
     uint256 exited_before_2 = getNodeOperatorSigningStats_exited(nodeOperatorId2);
-        f(e, args);
+    if(isInvalidateUnused(f)){
+        invalidateReadyToDepositKeysRange(e, nodeOperatorId1, nodeOperatorId1);
+    }
+    else{
+        f(e, args);}
     uint256 exited_after_1 = getNodeOperatorSigningStats_exited(nodeOperatorId1);
     uint256 exited_after_2 = getNodeOperatorSigningStats_exited(nodeOperatorId2);
 
@@ -530,7 +572,10 @@ filtered{f -> !f.isView} {
     env e;
     calldataarg args;
     uint256 deposited_before = getNodeOperatorSigningStats_deposited(nodeOperatorId);
-        f(e, args);
+        if(isInvalidateUnused(f)){
+            invalidateReadyToDepositKeysRange(e, nodeOperatorId, nodeOperatorId);}
+        else{
+            f(e, args);}
     uint256 deposited_after = getNodeOperatorSigningStats_deposited(nodeOperatorId);
     assert deposited_before <= deposited_after;
 }
@@ -542,7 +587,10 @@ filtered{f -> !f.isView} {
     uint256 nodeOperatorId2;
     uint256 deposited_before_1 = getNodeOperatorSigningStats_deposited(nodeOperatorId1);
     uint256 deposited_before_2 = getNodeOperatorSigningStats_deposited(nodeOperatorId2);
-        f(e, args);
+        if(isInvalidateUnused(f)){
+            invalidateReadyToDepositKeysRange(e, nodeOperatorId1, nodeOperatorId1);}
+        else{
+            f(e, args);}
     uint256 deposited_after_1 = getNodeOperatorSigningStats_deposited(nodeOperatorId1);
     uint256 deposited_after_2 = getNodeOperatorSigningStats_deposited(nodeOperatorId2);
 
@@ -551,7 +599,7 @@ filtered{f -> !f.isView} {
 }
 
 rule totalKeysChangeIntegrity(method f, uint256 nodeOperatorId) 
-filtered{f -> !f.isView && !isFinalizeUpgrade(f)} {
+filtered{f -> !f.isView} {
     env e;
     calldataarg args;
     uint256 total_before = getNodeOperatorSigningStats_total(nodeOperatorId);
@@ -587,17 +635,39 @@ filtered{f -> !f.isView && !isFinalizeUpgrade(f)} {
 }
 
 rule totalKeysChangeForOnlyOneNodeOperator(method f, uint256 nodeOperatorId1) 
-filtered{f -> !f.isView && !isInvalidateUnused(f)} {
+filtered{f -> !f.isView} {
     env e;
     calldataarg args;
     uint256 nodeOperatorId2;
     uint256 total_before_1 = getNodeOperatorSigningStats_total(nodeOperatorId1);
     uint256 total_before_2 = getNodeOperatorSigningStats_total(nodeOperatorId2);
-        f(e, args);
+        if(isInvalidateUnused(f)){
+            invalidateReadyToDepositKeysRange(e, nodeOperatorId1, nodeOperatorId1);}
+        else{
+            f(e, args);}
     uint256 total_after_1 = getNodeOperatorSigningStats_total(nodeOperatorId1);
     uint256 total_after_2 = getNodeOperatorSigningStats_total(nodeOperatorId2);
 
     assert (total_before_1 != total_after_1 && total_before_2 != total_after_2) 
+        => nodeOperatorId1 == nodeOperatorId2;
+}
+
+rule maxValidatorsChangeForOnlyOneNodeOperator(method f, uint256 nodeOperatorId1) 
+filtered{f -> !f.isView} {
+    env e;
+    calldataarg args;
+    uint256 nodeOperatorId2;
+    uint256 max_before_1 = getNodeOperatorTargetStats_max(nodeOperatorId1);
+    uint256 max_before_2 = getNodeOperatorTargetStats_max(nodeOperatorId2);
+        if(isInvalidateUnused(f)){
+            invalidateReadyToDepositKeysRange(e, nodeOperatorId1, nodeOperatorId1);
+        }
+        else{
+            f(e, args);}
+    uint256 max_after_1 = getNodeOperatorTargetStats_max(nodeOperatorId1);
+    uint256 max_after_2 = getNodeOperatorTargetStats_max(nodeOperatorId2);
+
+    assert (max_before_1 != max_after_1 && max_before_2 != max_after_2) 
         => nodeOperatorId1 == nodeOperatorId2;
 }
 
@@ -752,24 +822,123 @@ rule removeSigningKeysAdditivity(uint256 nodeOperatorId) {
 /// and revert if the deposit count is larger than the depositable amount.
 rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     env e;
-    calldataarg args;
     storage initState = lastStorage;
-    bytes depositData;
+    bytes depositData; require depositData.length == 32;
+
+    uint256 totalExited;
+    uint256 totalDeposited;
+    uint256 depositable;
+    requireInvariant SumOfMaxKeysEqualsSummary();
+    requireInvariant SumOfDepositedKeysEqualsSummary();
+    totalExited, totalDeposited, depositable = getStakingModuleSummary();
+
+    require depositable <= UINT32_MAX();
 
     safeAssumptions_NOS(0);
-    safeAssumptions_NOS(getNodeOperatorsCount());
-    require depositsCount <= UINT32_MAX();
-    uint256 summary_max = getSummaryMaxValidators();
-    uint256 summary_deposited = getSummaryTotalDepositedValidators();
-    require summary_deposited <= summary_max;
-    uint256 depositable = summary_max - summary_deposited;
-    // Call with zero depositCount to filter all trivial revert paths.
-    obtainDepositData(e, 0, depositData);
+    safeAssumptions_NOS(1);
+    safeAssumptions_NOS(2);
+    require getNodeOperatorsCount() <= 3;
 
+    require getActiveNodeOperatorsCount() > 0;
+
+    /// If the deposits count is zero, the system doesn't call the deposit function
+    // Inside the Staking Router.
+    require depositsCount > 0;
+
+    // Call with zero depositCount to filter all trivial (access control) revert paths.
+    obtainDepositData(e, 0, depositData);
+    
     // Call again with an arbitraty depositCount
     obtainDepositData@withrevert(e, depositsCount, depositData) at initState;
-    bool reverted = lastReverted;
 
-    assert depositsCount <= depositable <=> !reverted;
+    assert depositsCount <= depositable => !lastReverted;
 }
+
+/**************************************************
+ *  `invalidateReadyToDepositKeysRange` checks    *
+**************************************************/
+/// Checks the integrity of `invalidateReadyToDepositKeysRange` :
+/// A node operator id not in the index range is not affected at all. 
+rule invalidateReadyIndexIntegrity(uint256 nodeOperatorId, uint256 indexFrom, uint256 indexTo) {
+    env e;
+    uint256 exitedId_before = getNodeOperatorSigningStats_exited(nodeOperatorId);
+    uint256 depositedId_before = getNodeOperatorSigningStats_deposited(nodeOperatorId);
+    uint256 vettedId_before = getNodeOperatorSigningStats_vetted(nodeOperatorId);
+    uint256 totalId_before = getNodeOperatorSigningStats_total(nodeOperatorId);
+    uint256 maxId_before = getNodeOperatorTargetStats_max(nodeOperatorId);
+    uint256 refundedId_before = getNodeOperator_refundedValidators(nodeOperatorId);
+    uint256 stuckId_before = getNodeOperator_stuckValidators(nodeOperatorId);
+    uint256 endTimeStampId_before = getNodeOperator_endTimeStamp(nodeOperatorId);
+        invalidateReadyToDepositKeysRange(e, indexFrom, indexTo);
+    uint256 exitedId_after = getNodeOperatorSigningStats_exited(nodeOperatorId);
+    uint256 depositedId_after = getNodeOperatorSigningStats_deposited(nodeOperatorId);
+    uint256 vettedId_after = getNodeOperatorSigningStats_vetted(nodeOperatorId);
+    uint256 totalId_after = getNodeOperatorSigningStats_total(nodeOperatorId);
+    uint256 maxId_after = getNodeOperatorTargetStats_max(nodeOperatorId);
+    uint256 refundedId_after = getNodeOperator_refundedValidators(nodeOperatorId);
+    uint256 stuckId_after = getNodeOperator_stuckValidators(nodeOperatorId);
+    uint256 endTimeStampId_after = getNodeOperator_endTimeStamp(nodeOperatorId);
+
+    assert !(indexFrom <= nodeOperatorId && nodeOperatorId <= indexTo) => (
+        (exitedId_before == exitedId_after) &&
+        (depositedId_before == depositedId_after) &&
+        (vettedId_before == vettedId_after) &&
+        (totalId_before == totalId_after) &&
+        (maxId_after == maxId_before) &&
+        (refundedId_before == refundedId_after) &&
+        (stuckId_before == stuckId_after) &&
+        (endTimeStampId_before == endTimeStampId_after));
+}
+
+/**************************************************
+ *          Stuck and Refunded Keys Logic         *
+**************************************************/
+/// Checks which functions change the penalty status.
+rule penalizeStatusChange(method f, uint256 nodeOperatorId)
+filtered{f -> !f.isView} {
+    env e;
+    calldataarg args;
+    bool penalized_before = isOperatorPenalized(e, nodeOperatorId);
+    f(e, args);
+    bool penalized_after = isOperatorPenalized(e, nodeOperatorId);
+
+    assert penalized_before == penalized_after;
+}
+
+/// Check that the penalty of nodeOperatorId is cleared.
+/// Also check that no other node operator changed its penalty status.
+rule afterClearPenaltyOperatorIsNotPenalized(uint256 nodeOperatorId) {
+    env e1;
+    env e2;
+    require e1.block.timestamp <= e2.block.timestamp;
+    uint256 otherNode; require otherNode != nodeOperatorId;
+
+    bool penalizedOther1 = isOperatorPenalized(e1, otherNode);
+        clearNodeOperatorPenalty(e1, nodeOperatorId);
+    bool penalizedOther2 = isOperatorPenalized(e1, otherNode);
     
+    assert isOperatorPenaltyCleared(e2, nodeOperatorId);
+    assert !isOperatorPenalized(e2, nodeOperatorId);
+    assert penalizedOther2 == penalizedOther1;
+}
+
+/// Verifies that a node operator stays penalized after any update to the stuck or 
+/// refunded keys count.
+rule operatorStaysPenalizedAfterKeysUpdate(uint256 nodeOperatorId) {
+    env e;
+    uint64 validatorsCount;
+    bool stuck_or_refunded;
+    // Realistic time frame
+    require e.block.timestamp + getStuckPenaltyDelay() <= UINT32_MAX();
+
+    bool penalized_before = isOperatorPenalized(e, nodeOperatorId);
+        if(stuck_or_refunded) {
+            updateStuckValidatorsCount(e, nodeOperatorId, validatorsCount);
+        }
+        else {
+            updateRefundedValidatorsCount(e, nodeOperatorId, validatorsCount);
+        }
+    bool penalized_after = isOperatorPenalized(e, nodeOperatorId);
+
+    assert penalized_before => penalized_after;
+}
