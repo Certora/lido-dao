@@ -1,7 +1,7 @@
 using MockConsensusContract as ConsensusContract
 using AccountingOracle as AccountingOracleContract
 using StakingRouter as StakingRouterContract
-using LidoLocator as LidoLocatorContract
+// using LidoLocator as LidoLocatorContract
 using OracleReportSanityChecker as OracleReportSanityCheckerContract
 using MockLidoForAccountingOracle as LidoContract
 using MockWithdrawalQueueForAccountingOracle as WithdrawalQueueContract
@@ -9,7 +9,7 @@ using StakingModuleMock as StakingModuleContract
 using LegacyOracle as LegacyOracleContract
 
 /**************************************************
- *                 Methods Declaration            *
+ *               Methods Declaration              *
  **************************************************/
 methods {
     LIDO() returns (address) envfree
@@ -60,7 +60,7 @@ methods {
 }
 
 /**************************************************
- *               CVL FUNCS & DEFS                 *
+ *                CVL FUNCS & DEFS                *
  **************************************************/
 function getAccountingOracleContractCVL() returns address {
     return currentContract;
@@ -70,6 +70,7 @@ function getConsensusContractCVL() returns address {
     return ConsensusContract;
 }
 
+// this function if required to be TRUE, ensures correct contract linking
 function contractAddressesLinked() returns bool {
     env e0;
     address consensusContractAddress = getConsensusContract(e0);
@@ -93,12 +94,18 @@ definition MANAGE_CONSENSUS_VERSION_ROLE() returns bytes32 = 0xc31b1e4b732c5173d
 definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd477fa3e328cf706640b0f68b1a285c5990da; //keccak256("SUBMIT_DATA_ROLE");
 
 // rule ideas for AccountingOracle (without inheritance):
+// ------------------------------------------------------------------------------------------
 //  1. verify all the reverting scenarios of submitReportData()
 //  2. verify submitReportData() does not revert outside of the allowed reverting scenarios
 //  3. verify all the errors on lines 91-110 are caught correctly
 //  4. cannot call submitReportData() twice in the same e.block.timestamp
+//  5. If ReportData.extraDataFormat is not EXTRA_DATA_FORMAT_EMPTY=0 or EXTRA_DATA_FORMAT_LIST=1 => revert
+//  6. if the oracle report contains no extra data => ReportData.extraDataHash == 0
+//  7. if the oracle report contains no extra data => ReportData.extraDataItemsCount == 0
 
-rule cannotSubmitSameReportDataTwice(method f) 
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/465e52d9e9344e8da1eba714a476c786/?anonymousKey=172d2e2c028297570752855bd2f2ae823fb649ee
+rule cannotSubmitReportDataTwiceAtSameTimestamp(method f) 
     filtered { f -> f.selector == submitReportData((uint256,uint256,uint256,uint256,uint256[],uint256[],uint256,uint256,uint256,uint256,bool,uint256,bytes32,uint256),uint256).selector ||
                     f.selector == submitReportExtraDataList(bytes).selector ||
                     f.selector == submitReportExtraDataEmpty().selector }
@@ -106,22 +113,24 @@ rule cannotSubmitSameReportDataTwice(method f)
     require contractAddressesLinked();
     env e; calldataarg args; calldataarg args2;
 
-    f(e,args);
-    f@withrevert(e,args2);
+    f(e,args);              // successfully submit a report at time == e.block.timestamp
+    f@withrevert(e,args2);  // same e.block.timestamp, any calldataarg
 
     assert lastReverted;
 }
 
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/e04fba855b5641f682cb05edb5362213/?anonymousKey=163260b76cb1479de139f7b547b37bea891bfccb
 rule cannotInitializeTwice(method f) 
     filtered { f -> f.selector == initialize(address,address,uint256).selector ||
-                    f.selector == initializeWithoutMigration(address,address,uint256,uint256).selector ||  
-                    f.selector == setConsensusVersion(uint256).selector }
+                    f.selector == initializeWithoutMigration(address,address,uint256,uint256).selector }
 {    
     require contractAddressesLinked();
     env e; calldataarg args;
+    env e2; calldataarg args2;
 
     f(e,args);
-    f@withrevert(e,args);
+    f@withrevert(e2,args2);
 
     assert lastReverted;
 }
@@ -129,7 +138,86 @@ rule cannotInitializeTwice(method f)
 // rules for BaseOracle.sol:
 
 
-// rules for HashConsensus.sol:
+// rules for IReportAsyncProcessor.sol imported from HashConsensus.sol:
+// ------------------------------------------------------------------------------------------
+// 1. cannot submit a report using submitConsensusReport() for the
+//    slot returned from getLastProcessingRefSlot() and any slot preceding it.
+// 2. cannot submit a report if its "ReportData.consensusVersion" !=  getConsensusVersion()
+// 3. Only Consensus contract can submit a report, i.e., call submitConsensusReport()
+
+
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/21cba2b81811458ea98ea5a12987aa4a/?anonymousKey=785d93a962710a832ff9f4ba0555d07554d2976b
+rule cannotSubmitConsensusReportOlderThanLastProcessingRefSlot(method f) 
+    filtered { f -> f.selector == submitConsensusReport(bytes32,uint256,uint256).selector }
+{    
+    require contractAddressesLinked();
+    env e; calldataarg args;
+    env e1; calldataarg args1;
+    env e2; calldataarg args2;
+    require e.block.timestamp < e1.block.timestamp;  // time flow
+    require e1.block.timestamp < e2.block.timestamp; // time flow
+
+    submitReportData(e,args); // first submits a report successfully for processing
+
+    f(e1,args1); // then submits a consensus report successfully (still not processed)
+
+    bytes32 hash; uint256 refSlot; uint256 processingDeadlineTime; bool processingStarted;
+
+    hash, refSlot, processingDeadlineTime, processingStarted = getConsensusReport(e2);
+    uint256 lastProcessingRefSlot = getLastProcessingRefSlot(e2);
+
+    f@withrevert(e2,args2); // finally try to submit a new consensus report
+
+    // assert lastReverted; // FAIL --> checked that the above call is NOT always reverting
+    assert (refSlot < lastProcessingRefSlot) => lastReverted;
+}
+
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/08a41c3001fc4e40a3da21df35906a4b/?anonymousKey=dcf7e94b4d40b0e2986cf2e2b3f9d4995d347953
+rule cannotSubmitReportDataIfUsingDifferentConsensusVersion() {
+    require contractAddressesLinked();
+    env e; calldataarg args;
+
+    uint256 currentConsensusVersion = getConsensusVersion(e);
+
+    // struct ReportData
+    uint256 consensusVersion; uint256 refSlot;
+    // uint256 numValidators; uint256 clBalanceGwei;
+    // uint256[] stakingModuleIdsWithNewlyExitedValidators; uint256[] numExitedValidatorsByStakingModule;
+    // uint256 withdrawalVaultBalance; uint256 elRewardsVaultBalance;
+    uint256 lastFinalizableWithdrawalRequestId; uint256 simulatedShareRate; bool isBunkerMode;
+    uint256 extraDataFormat; bytes32 extraDataHash; uint256 extraDataItemsCount;
+
+    uint256 contractVersion;
+
+    helperCreateAndSubmitReportData@withrevert( e,
+                                                consensusVersion,
+                                                refSlot,
+                                                lastFinalizableWithdrawalRequestId,
+                                                simulatedShareRate,
+                                                isBunkerMode,
+                                                extraDataFormat,
+                                                extraDataHash,
+                                                extraDataItemsCount,
+                                                contractVersion );
+
+    assert (consensusVersion != currentConsensusVersion) => lastReverted;
+}
+
+
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/12dc1ba7763b43a09054482acefef5e1/?anonymousKey=e3f6b40b6a126e42a5784249629cb5fc700c3cc2
+rule onlyConsensusContractCanSubmitConsensusReport(method f) 
+    filtered { f -> f.selector == submitConsensusReport(bytes32,uint256,uint256).selector }
+{    
+    require contractAddressesLinked();
+    env e; calldataarg args;
+
+    f@withrevert(e,args);
+
+    assert (e.msg.sender != ConsensusContract) => lastReverted;
+}
 
 
 
@@ -140,6 +228,7 @@ rule cannotInitializeTwice(method f)
 
 
 // rules for AccessControlEnumerable.sol
+// ------------------------------------------------------------------------------------------
 // 1. adding a new role member with roleR should *increase* the count of getRoleMemberCount(roleR) by one
 // 2. removing a roleR from a member should *decrease* the count of getRoleMemberCount(roleR) by one
 // 3. getRoleMemberCount(roleX) should not be affected by adding or removing roleR (roleR != roleX)
@@ -227,6 +316,7 @@ rule memberCountNonInterference(method f) {
 }
 
 // rules for AccessControl.sol:
+// ------------------------------------------------------------------------------------------
 // 1. only admin of role R can grant the role R to the account A (role R can be any role including the admin role)
 // 2. only admin or the account A itself can revoke the role R of account A (no matter the role)
 // 3. granting or revoking roleR from accountA should not affect any accountB
@@ -301,14 +391,12 @@ rule nonInterferenceOfRolesAndAccounts(method f) {
 // rules for Math.sol:
 // manual review only
 
-// rules for IReportAsyncProcessor ?
-
 // other ideas/considerations:
 // only accountingOracle calls withdrawalQueue.updateBunkerMode?
 
 
 /**************************************************
- *                 MISC Rules                     *
+ *                   MISC Rules                   *
  **************************************************/
 
 // Status: Fails (as expected, no issues)
