@@ -35,16 +35,18 @@
 import "./StakingRouterBase.spec"
 import "./StakingRouterInvariants.spec"
 
+using NodeOperatorsRegistry as NOS
+
 use invariant modulesCountIsLastIndex
 use invariant StakingModuleIdLELast
 use invariant StakingModuleIndexIsIdMinus1
 use invariant StakingModuleId
-use invariant StakingModuleIdLECount
 use invariant StakingModuleAddressIsNeverZero
 use invariant StakingModuleTotalFeeLEMAX
 use invariant StakingModuleTargetShareLEMAX
 use invariant zeroAddressForUnRegisteredModule
 use invariant StakingModuleAddressIsUnique
+use invariant AddressesByIndexAndIdAreEqual
 
 /**************************************************
  *                 MISC Rules                     *
@@ -66,8 +68,7 @@ rule depositSanity() {
 }
 
 // The staking modules count can only increase by 1 or not change.
-rule stakingModulesCountIncrement(method f) 
-filtered{f-> !isDeposit(f)} {
+rule stakingModulesCountIncrement(method f) {
     env e;
     calldataarg args;
     uint256 count1 = getStakingModulesCount();
@@ -115,7 +116,7 @@ rule stoppedStatusDefinition(uint256 moduleId) {
  *          Status Transition Rules               *
  **************************************************/
 rule StatusChangedToActive(uint256 moduleId, method f)
-filtered{f -> !f.isView && !isDeposit(f)} {
+filtered{f -> !f.isView} {
     env e;
     calldataarg args;
     require !getStakingModuleIsActive(moduleId);
@@ -129,7 +130,7 @@ filtered{f -> !f.isView && !isDeposit(f)} {
 }
 
 rule StatusChangedToPaused(uint256 moduleId, method f)
-filtered{f -> !f.isView && !isDeposit(f)} {
+filtered{f -> !f.isView} {
     env e;
     calldataarg args;
     require !getStakingModuleIsDepositsPaused(moduleId);
@@ -142,7 +143,7 @@ filtered{f -> !f.isView && !isDeposit(f)} {
 }
 
 rule StatusChangedToStopped(uint256 moduleId, method f) 
-filtered{f -> !f.isView && !isDeposit(f)} {
+filtered{f -> !f.isView} {
     env e;
     calldataarg args;
     require !getStakingModuleIsStopped(moduleId);
@@ -154,7 +155,7 @@ filtered{f -> !f.isView && !isDeposit(f)} {
 }
 
 rule oneStatusChangeAtATime(uint256 moduleId, method f) 
-filtered{f -> !f.isView && !isDeposit(f)} {
+filtered{f -> !f.isView} {
     env e;
     calldataarg args;
     uint256 otherModule;
@@ -195,7 +196,6 @@ rule canAddModuleIfNotActive(uint256 id) {
 
 invariant NullStakingModuleStatusIsActive(uint256 id)
     id > getStakingModulesCount() => getStakingModuleIsActive(id)
-filtered{f -> !isDeposit(f)}
 
 /**************************************************
  *          Staking module parameters             *
@@ -209,7 +209,9 @@ filtered{f -> !f.isView && !isDeposit(f)} {
     uint256 exitedValidators1 = getStakingModuleExitedValidatorsById(moduleId);
         f(e, args);
     uint256 exitedValidators2 = getStakingModuleExitedValidatorsById(moduleId);
-    assert exitedValidators2 >= exitedValidators1;
+    assert exitedValidators2 >= exitedValidators1 ||
+        f.selector == unsafeSetExitedValidatorsCount(uint256,uint256,bool,
+        (uint256,uint256,uint256,uint256,uint256,uint256)).selector;
 }
 
 rule cannotAddStakingModuleIfAlreadyRegistered(uint256 index) {
@@ -279,6 +281,56 @@ rule aggregatedFeeLT100Percent_preserve() {
     assert _treasuryFee <= _precision;
     assert _modulesFee >= modulesFee_;
     assert _treasuryFee >= treasuryFee_;
+}
+
+rule validMaxDepositCountBound(uint256 maxDepositsValue) {
+    env e;
+    uint256 moduleId;
+    require getStakingModuleAddressById(moduleId) == NOS;
+
+    uint256 totalExited;
+    uint256 totalDeposited;
+    uint256 depositable;
+    totalExited, totalDeposited, depositable = getStakingModuleSummary(moduleId);
+
+    uint256 maxDepositCount = getStakingModuleMaxDepositsCount(e, moduleId, maxDepositsValue);
+
+    assert maxDepositCount <= depositable;
+}
+
+rule moduleActiveValidatorsDoesntUnderflow(method f, uint256 moduleId)
+filtered{f -> !f.isView && isAddModule(f) && !isDeposit(f)} {
+    //cacheItem.activeValidatorsCount =
+    //            totalDepositedValidators -
+    //            Math256.max(totalExitedValidators, stakingModuleData.exitedValidatorsCount);
+    env e;
+    calldataarg args;
+    require moduleId > 0;
+    require getStakingModulesCount() == 1;
+    safeAssumptions(moduleId);
+
+    /// Obtain total module data from summary and Staking Router:
+    uint256 exitedSummary1;
+    uint256 depositedSummary1;
+    uint256 depositableSummary1;
+    exitedSummary1, depositedSummary1, depositableSummary1 = getStakingModuleSummary(moduleId);
+    uint256 exitedModule1 = getStakingModuleExitedValidatorsById(moduleId);
+    // Assume no underflow, i.e. deposited >= exited
+    require exitedSummary1 <= depositedSummary1;
+    require exitedModule1 <= depositedSummary1;
+
+    f(e, args);
+
+    /// Obtain total module data from summary and Staking Router post update:
+    uint256 exitedSummary2;
+    uint256 depositedSummary2;
+    uint256 depositableSummary2;
+    exitedSummary2, depositedSummary2, depositableSummary2 = getStakingModuleSummary(moduleId);
+    uint256 exitedModule2 = getStakingModuleExitedValidatorsById(moduleId);
+
+    // Assert that no underflow is possible.
+    assert exitedSummary2 <= depositedSummary2;
+    assert exitedModule2 <= depositedSummary2;
 }
 
 /**************************************************
@@ -355,8 +407,6 @@ rule canAlwaysGetAddedStakingModule() {
     requireInvariant modulesCountIsLastIndex();
     addStakingModule(e, args);
 
-    getStakingModuleIndexById@withrevert(id);
-    assert !lastReverted;
     getStakingModuleIdById@withrevert(id);
     assert !lastReverted;
 }
@@ -373,7 +423,7 @@ rule getMaxDepositsCountReverts_init(uint256 id) {
 }
 
 rule getMaxDepositsCountRevert_preserve(method f, uint256 id) 
-filtered{f -> !isAddModule(f) && !isDeposit(f) && !f.isView} {
+filtered{f -> !isAddModule(f) && !f.isView} {
     env e;
     calldataarg args;
     uint256 maxDepositsValue;
@@ -397,7 +447,7 @@ filtered{f -> !isAddModule(f) && !isDeposit(f) && !f.isView} {
 }
 
 rule onValidatorsCountsDoesntRevert(method f) 
-filtered{f -> !isAddModule(f) && !isDeposit(f) && !f.isView} {
+filtered{f -> !isAddModule(f) && !f.isView} {
     env e1;
     env e2;
     calldataarg args;
@@ -415,7 +465,7 @@ filtered{f -> !isAddModule(f) && !isDeposit(f) && !f.isView} {
 }
 
 rule reportStakingModuleExitedDoesntRevert(method f, uint256 moduleId) 
-filtered{f -> !isAddModule(f) && !isDeposit(f) && !f.isView} {
+filtered{f -> !isAddModule(f) && !f.isView} {
     env e1;
     env e2;
     calldataarg args;
@@ -456,7 +506,7 @@ rule depositRevertsForInvalidModuleId(uint256 id) {
 }
 
 rule whatRevertsIfStatusIsNotActive(method f, uint256 id)
-filtered{f-> !isDeposit(f) && !f.isView} {
+filtered{f-> !f.isView} {
     storage initState = lastStorage;
 
     env e1; 

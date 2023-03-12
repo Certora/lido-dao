@@ -21,6 +21,9 @@ contract StakingRouterHarness is StakingRouter {
         }
 
     function getStakingModuleAddressById(uint256 _stakingModuleId) public view returns (address) {
+        if(_stakingModuleId > getLastStakingModuleId()){
+            return address(0);
+        }
         return _getStakingModuleAddressById(_stakingModuleId);
     }
 
@@ -29,26 +32,41 @@ contract StakingRouterHarness is StakingRouter {
     }
 
     function getStakingModuleExitedValidatorsById(uint256 _stakingModuleId) public view returns (uint256) {
+        if(_stakingModuleId > getLastStakingModuleId()){
+            return 0;
+        }
         StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
         return stakingModule.exitedValidatorsCount;
     }
 
     function getStakingModuleIdById(uint256 _stakingModuleId) public view returns (uint256) {
+        if(_stakingModuleId > getLastStakingModuleId()){
+            return 0;
+        }
         StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
         return stakingModule.id;
     }
 
     function getStakingModuleFeeById(uint256 _stakingModuleId) public view returns (uint16) {
+        if(_stakingModuleId > getLastStakingModuleId()){
+            return 0;
+        }
         StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
         return stakingModule.stakingModuleFee;
     }
     
     function getStakingModuleTreasuryFeeById(uint256 _stakingModuleId) public view returns (uint16) {
+        if(_stakingModuleId > getLastStakingModuleId()){
+            return 0;
+        }
         StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
         return stakingModule.treasuryFee;
     }
 
     function getStakingModuleTargetShareById(uint256 _stakingModuleId) public view returns (uint16) {
+        if(_stakingModuleId > getLastStakingModuleId()){
+            return 0;
+        }
         StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
         return stakingModule.targetShare;
     }
@@ -56,10 +74,6 @@ contract StakingRouterHarness is StakingRouter {
     function getStakingModuleNameLengthByIndex(uint256 index) public view returns (uint256) {
         StakingModule storage stakingModule = _getStakingModuleByIndex(index);
         return bytes(stakingModule.name).length;
-    }
-
-    function getStakingModuleIndexById(uint256 _stakingModuleId) public view returns (uint256) {
-        return _getStakingModuleIndexById(_stakingModuleId);
     }
 
     function getStakingModuleIndexOneBased(uint256 _stakingModuleId) public view returns (uint256) {

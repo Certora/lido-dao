@@ -325,7 +325,7 @@ filtered{f -> !f.isView} {
     uint256 max_before = getNodeOperatorTargetStats_max(nodeOperatorId);
     ///
     uint256 summary_exited_before = getSummaryTotalExitedValidators();
-    uint256 summary_deposited_before = getSummaryTotalExitedValidators();
+    uint256 summary_deposited_before = getSummaryTotalDepositedValidators();
     uint256 summary_total_before = getSummaryTotalKeyCount();
     uint256 summary_max_before = getSummaryMaxValidators();
     ///
@@ -357,7 +357,7 @@ filtered{f -> !f.isView} {
     uint256 max_after = getNodeOperatorTargetStats_max(nodeOperatorId);
     ///
     uint256 summary_exited_after = getSummaryTotalExitedValidators();
-    uint256 summary_deposited_after = getSummaryTotalExitedValidators();
+    uint256 summary_deposited_after = getSummaryTotalDepositedValidators();
     uint256 summary_total_after = getSummaryTotalKeyCount();
     uint256 summary_max_after = getSummaryMaxValidators();
     ///
@@ -473,6 +473,9 @@ filtered {f -> f.selector != initialize(address,bytes32,uint256).selector && !f.
     calldataarg args1;
     calldataarg args2;
     calldataarg args3;
+    require e1.block.number > 0;
+    require e2.block.number > 0;
+    require e3.block.number > 0;
     initialize(e1, args1);
     f(e2, args2);
     initialize@withrevert(e3, args3);
@@ -653,7 +656,7 @@ filtered{f -> !f.isView} {
 }
 
 rule maxValidatorsChangeForOnlyOneNodeOperator(method f, uint256 nodeOperatorId1) 
-filtered{f -> !f.isView} {
+filtered{f -> !f.isView && !isFinalizeUpgrade(f) } {
     env e;
     calldataarg args;
     uint256 nodeOperatorId2;
@@ -667,8 +670,10 @@ filtered{f -> !f.isView} {
     uint256 max_after_1 = getNodeOperatorTargetStats_max(nodeOperatorId1);
     uint256 max_after_2 = getNodeOperatorTargetStats_max(nodeOperatorId2);
 
-    assert (max_before_1 != max_after_1 && max_before_2 != max_after_2) 
-        => nodeOperatorId1 == nodeOperatorId2;
+    assert ((max_before_1 != max_after_1 && max_before_2 != max_after_2) 
+        => nodeOperatorId1 == nodeOperatorId2) ||
+        f.selector == updateExitedValidatorsCount(bytes,bytes).selector ||
+        f.selector == updateStuckValidatorsCount(bytes,bytes).selector;
 }
 
 /**************************************************

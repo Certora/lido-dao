@@ -12,7 +12,7 @@ methods {
     updateStuckValidatorsCount(bytes, bytes) => DISPATCHER(true)
     updateExitedValidatorsCount(bytes, bytes) => DISPATCHER(true) 
     updateRefundedValidatorsCount(uint256, uint256) => DISPATCHER(true)
-    /// Prevent any call to StEth
+    /// Staking Router module deposit external functions:
     obtainDepositData(uint256,bytes) => NONDET
     _distributeRewards() => NONDET
     _computeDepositDataRootCertora(bytes,bytes,bytes) => NONDET
@@ -41,7 +41,6 @@ methods {
     getStakingModuleAddressById(uint256) returns (address) envfree
     getStakingModuleExitedValidatorsById(uint256) returns (uint256) envfree
     getStakingModuleIdById(uint256) returns (uint256) envfree
-    getStakingModuleIndexById(uint256) returns (uint256) envfree
     getLastStakingModuleId() returns (uint24) envfree
     getStakingModuleFeeById(uint256) returns (uint16) envfree
     getStakingModuleTreasuryFeeById(uint256) returns (uint16) envfree
@@ -70,7 +69,6 @@ definition harnessGetters(method f) returns bool =
     f.selector == getStakingModuleAddressById(uint256).selector ||
     f.selector == getStakingModuleExitedValidatorsById(uint256).selector ||
     f.selector == getStakingModuleIdById(uint256).selector ||
-    f.selector == getStakingModuleIndexById(uint256).selector ||
     f.selector == getLastStakingModuleId().selector ||
     f.selector == getStakingModuleFeeById(uint256).selector ||
     f.selector == getStakingModuleTreasuryFeeById(uint256).selector  ||
