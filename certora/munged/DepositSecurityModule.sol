@@ -435,7 +435,7 @@ contract DepositSecurityModule {
 
         _verifySignatures(depositRoot, blockNumber, blockHash, stakingModuleId, nonce, sortedGuardianSignatures);
 
-        LIDO.deposit(maxDepositsPerBlock, stakingModuleId, depositCalldata);
+        // LIDO.deposit(maxDepositsPerBlock, stakingModuleId, depositCalldata);
     }
 
     function _verifySignatures(
