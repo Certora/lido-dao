@@ -20,54 +20,55 @@ contract StakingRouterHarness is StakingRouter {
             initialize(admin, lido, withdrawalCredentials);
         }
 
-    function getStakingModuleAddressById(uint256 _stakingModuleId) public view returns (address) {
-        if(_stakingModuleId > getLastStakingModuleId()){
-            return address(0);
-        }
-        return _getStakingModuleAddressById(_stakingModuleId);
-    }
-
     function getStakingModuleAddressByIndex(uint256 _stakingModuleIndex) public view returns (address) {
         return _getStakingModuleAddressByIndex(_stakingModuleIndex);
     }
 
+    function getStakingModuleAddressById(uint256 _stakingModuleId) public view returns (address) {
+        if(_stakingModuleId == 0){
+            return address(0);
+        }
+        StakingModule storage stakingModule = _getStakingModuleByIndex(_stakingModuleId-1);
+        return stakingModule.stakingModuleAddress;
+    }
+
     function getStakingModuleExitedValidatorsById(uint256 _stakingModuleId) public view returns (uint256) {
-        if(_stakingModuleId > getLastStakingModuleId()){
+        if(_stakingModuleId == 0){
             return 0;
         }
-        StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
+        StakingModule storage stakingModule = _getStakingModuleByIndex(_stakingModuleId-1);
         return stakingModule.exitedValidatorsCount;
     }
 
     function getStakingModuleIdById(uint256 _stakingModuleId) public view returns (uint256) {
-        if(_stakingModuleId > getLastStakingModuleId()){
+        if(_stakingModuleId == 0){
             return 0;
         }
-        StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
+        StakingModule storage stakingModule = _getStakingModuleByIndex(_stakingModuleId-1);
         return stakingModule.id;
     }
 
     function getStakingModuleFeeById(uint256 _stakingModuleId) public view returns (uint16) {
-        if(_stakingModuleId > getLastStakingModuleId()){
+        if(_stakingModuleId == 0){
             return 0;
         }
-        StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
+        StakingModule storage stakingModule = _getStakingModuleByIndex(_stakingModuleId-1);
         return stakingModule.stakingModuleFee;
     }
     
     function getStakingModuleTreasuryFeeById(uint256 _stakingModuleId) public view returns (uint16) {
-        if(_stakingModuleId > getLastStakingModuleId()){
+        if(_stakingModuleId == 0){
             return 0;
         }
-        StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
+        StakingModule storage stakingModule = _getStakingModuleByIndex(_stakingModuleId-1);
         return stakingModule.treasuryFee;
     }
 
     function getStakingModuleTargetShareById(uint256 _stakingModuleId) public view returns (uint16) {
-        if(_stakingModuleId > getLastStakingModuleId()){
+        if(_stakingModuleId == 0){
             return 0;
         }
-        StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
+        StakingModule storage stakingModule = _getStakingModuleByIndex(_stakingModuleId-1);
         return stakingModule.targetShare;
     }
 

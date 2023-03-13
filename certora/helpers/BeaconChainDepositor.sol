@@ -39,8 +39,8 @@ contract BeaconChainDepositorHarness is BeaconChainDepositor {
             require(_publicKeyMap[_publicKeysBatch][i].length == PUBLIC_KEY_LENGTH);
             require(_signatureMap[_signaturesBatch][i].length == SIGNATURE_LENGTH);
             
-            bytes32 deposit_data_root = 
-            _computeDepositDataRootCertora(_withdrawalCredentials, _publicKeyMap[_publicKeysBatch][i], _signatureMap[_signaturesBatch][i]);
+            //bytes32 deposit_data_root = 
+            //_computeDepositDataRootCertora(_withdrawalCredentials, _publicKeyMap[_publicKeysBatch][i], _signatureMap[_signaturesBatch][i]);
             
             uint amount = msg.value / 1 gwei;
             // Compute deposit data root (`DepositData` hash tree root)
@@ -56,8 +56,8 @@ contract BeaconChainDepositorHarness is BeaconChainDepositor {
             //require(node == deposit_data_root, "DepositContract: reconstructed DepositData does not match supplied deposit_data_root");
             payable(address(DEPOSIT_CONTRACT)).transfer(DEPOSIT_SIZE);
             //DEPOSIT_CONTRACT.deposit{value: DEPOSIT_SIZE}(
-            //    _publicKeysBatch, _withdrawalCredentials, _signatureMap[_signaturesBatch][i],
-            //    _computeDepositDataRootCertora(_withdrawalCredentials, _publicKeyMap[_publicKeysBatch][i], _signatureMap[_signaturesBatch][i])
+            //    //_publicKeysBatch, _withdrawalCredentials, _signatureMap[_signaturesBatch][i],
+            //    //_computeDepositDataRootCertora(_withdrawalCredentials, _publicKeyMap[_publicKeysBatch][i], _signatureMap[_signaturesBatch][i])
             //);
             
             unchecked {
