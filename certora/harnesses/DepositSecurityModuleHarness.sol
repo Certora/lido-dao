@@ -52,4 +52,13 @@ contract DepositSecurityModuleHarness is DepositSecurityModule {
             sortedGuardianSignatures
         );
     }
+
+    function getHashedAddress(
+        uint256 blockNumber,
+        uint256 stakingModuleId,
+        Signature memory sig
+    ) external returns (address) {
+        bytes32 msgHash = keccak256(abi.encodePacked(PAUSE_MESSAGE_PREFIX, blockNumber, stakingModuleId));
+        return ECDSA.recover(msgHash, sig.r, sig.vs);
+    }
 }

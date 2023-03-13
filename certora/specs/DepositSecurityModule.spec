@@ -1,6 +1,7 @@
 using LidoLocator as Locator
 using DepositSecurityModuleHarness as DSM
 using StakingRouter as StkRouter
+using ECDSA as SigContact
 
 methods {
     // StakingRouter.sol
@@ -54,90 +55,37 @@ methods {
     getMaxDeposits() returns(uint256) envfree
     getMinDepositBlockDistance() returns(uint256) envfree
     getGuardianQuorum() returns(uint256) envfree
+    isGuardian(address) returns(bool) envfree
+    getHashedAddress(uint256,uint256,(bytes32,bytes32)) returns(address) envfree
 }
 
+/**************************************************
+ *                   DEFINITIONS                  *
+ **************************************************/
 
 definition excludeMethods(method f) returns bool =
     f.selector != depositBufferedEtherCall(uint256, bytes32, bytes32, uint256, uint256, bytes).selector;
 
 
-rule sanity(env e, method f) {
-    calldataarg args;
-    f(e, args);
-    assert false;
+
+/**************************************************
+ *                    FUNCTIONS                   *
+ **************************************************/
+
+function pauseHelper(method f, env e, uint256 blockNumber, uint256 stakingModuleId, DSM.Signature sig) {
+    if (f.selector == pauseDeposits(uint256,uint256,(bytes32,bytes32)).selector){ 
+        pauseDeposits(e, blockNumber, stakingModuleId, sig);
+    } else {
+        calldataarg args;
+        f(e, args);
+    }
 }
 
 
-//-----PROPERTIES-----
-// uniqueness of guardianIndicesOneBased()
-// STATUS - in progress (https://vaas-stg.certora.com/output/3106/3e9c46d0258d481ea256c5199219b266/?anonymousKey=8edf10f52fe75e0b85aa327ab469ec44dca32b0a )
-invariant complexUniqueness(env e, address guardian1, address guardian2)
-    ((guardianIndicesOneBased(guardian1) != 0 && guardianIndicesOneBased(guardian2) != 0)
-        => (guardian1 != guardian2 
-                <=> guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2)))
-    &&
-    ((guardianIndicesOneBased(guardian1) != 0 && guardianIndicesOneBased(guardian2) == 0)
-        => guardian1 != guardian2)
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-            requireInvariant indexLengthCheck(guardian1);
-            requireInvariant indexLengthCheck(guardian2);
-        }
-    }
 
-// STATUS - in progress (https://vaas-stg.certora.com/output/3106/3ac29048c01b4ed796abb2f6a5439925/?anonymousKey=76904c7e8f0901ce58e4b7e1f878d10d6c2f03ae)
-invariant simpleUniqueness(env e, address guardian1, address guardian2)
-    guardian1 != guardian2 <=> guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2)
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-            requireInvariant indexLengthCheck(guardian1);
-            requireInvariant indexLengthCheck(guardian2);
-        }
-    }
-
-
-// https://vaas-stg.certora.com/output/3106/e55d99c0f86f440383ea6473ad684065/?anonymousKey=dea9f5835bb2d23c86d7b1dea3f03876ae3cc62f
-invariant uniqueness(env e)
-    (forall address guardian1. forall address guardian2. guardian1 != guardian2
-        => (guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2) 
-            || guardianIndicesOneBased(guardian1) == 0)) 
-    && 
-    (forall int256 i. i < getGuardiansLength() 
-        => to_mathint(guardianIndicesOneBased(getGuardian(to_uint256(i)))) == (to_uint256(i) + 1))
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-        }
-    }
-
-
-// correlation invariant for guardians and guardianIndicesOneBased: if a guardian, guardianIndicesOneBased should be > 0
-// STATUS - in progress (https://vaas-stg.certora.com/output/3106/b7dfaf2e26be490bbc9c6abfc091a3a1/?anonymousKey=86d7cb8e44b732a0f701aac95b33a83bac2821c1)
-// need uniqueness of guardianIndicesOneBased()
-invariant correlation(env e, address guardian)
-    guardianIndicesOneBased(guardian) > 0 
-        <=> (getGuardian(guardianIndicesOneBased(guardian) - 1) == guardian && guardian != 0)
-    filtered { f -> excludeMethods(f)  }
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-        }
-    }
-    
-
-
-// STATUS - in progress (need correlation: https://vaas-stg.certora.com/output/3106/96f7160907bd4484b13ca890e6fa8b1a/?anonymousKey=13f35dc6c082604b4c5a760429e1407652e81b3e)
-// guardianIndicesOneBased[addr] < guardians.length  (invariant from line 306)
-invariant indexLengthCheck(address guardian)
-    getGuardianIndex(guardian) < getGuardiansLength()
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-        }
-    }
-
+/**************************************************
+ *                    VERIFIED                    *
+ **************************************************/
 
 // onlyOwner can change owner, pauseIntentValidityPeriodBlocks, maxDepositsPerBlock, minDepositBlockDistance, quorum; add/remove guardians, unpause deposits
 // STATUS - verified
@@ -225,25 +173,172 @@ rule onlyOwnerCanChangeUnpause(env e, method f) {
 }
 
 
-// if stakingModuleId is paused, can unpause:
-//  - scenaro like: pauseDeposits() -> unpauseDeposits() doesn't revert (will need to eliminate many other revert scenarios)
-//  - require that it's just paused -> unpauseDeposits() doesn't revert (will need to eliminate many other revert scenarios)
+// STATUS - verified
+// if stakingModuleId is paused, can unpause
+rule canUnpauseScenario(env e, env e2) {
+    uint256 blockNumber;
+    uint256 stakingModuleId;
+    DSM.Signature sig;
+
+    pauseDeposits(e, blockNumber, stakingModuleId, sig);
+
+    unpauseDeposits@withrevert(e2, stakingModuleId);
+
+    assert (getOwner() == e2.msg.sender
+                && e2.msg.value == 0)
+            => !lastReverted, "Remember, with great power comes great responsibility.";
+}
+
+
+// STATUS - verified
+// impossible to stop from here
+rule cantStop(env e, method f) {
+    uint256 stakingModuleId;
+    uint8 stakingModuleStatusBefore = StkRouter.getStakingModuleStatus(stakingModuleId);
+
+    calldataarg args;
+    f(e, args);
+
+    assert stakingModuleStatusBefore != 2 => StkRouter.getStakingModuleStatus(stakingModuleId) != 2, "Remember, with great power comes great responsibility.";
+}
+
+
+// STATUS - verified
+// If stakingModuleId is paused, canDeposit() returns false
+rule cannotDepositDuringPauseBool(env e) {
+    uint256 stakingModuleId;
+
+    uint8 stakingModuleStatus = StkRouter.getStakingModuleStatus(stakingModuleId);
+
+    bool canDepos = canDeposit(e, stakingModuleId);
+
+    assert stakingModuleStatus == 1 => !canDepos, "Remember, with great power comes great responsibility.";
+}
+
+
+// STATUS - verified
+// If stakingModuleId is paused, depositBufferedEther() reverts
+rule cannotDepositDuringPauseRevert(env e) {
+    uint256 blockNumber;
+    bytes32 blockHash;
+    bytes32 depositRoot;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    bytes depositCalldata;
+
+    uint8 stakingModuleStatus = StkRouter.getStakingModuleStatus(stakingModuleId);
+
+    depositBufferedEtherCall@withrevert(e,
+        blockNumber,
+        blockHash,
+        depositRoot,
+        stakingModuleId,
+        nonce,
+        depositCalldata
+    );
+
+    assert stakingModuleStatus == 1 => lastReverted, "Remember, with great power comes great responsibility.";
+}
+
+
+
+/**************************************************
+ *                   IN PROGRESS                  *
+ **************************************************/
+
+// correlation invariant for guardians and guardianIndicesOneBased: if a guardian, guardianIndicesOneBased should be > 0
+// STATUS - in progress (https://vaas-stg.certora.com/output/3106/b7dfaf2e26be490bbc9c6abfc091a3a1/?anonymousKey=86d7cb8e44b732a0f701aac95b33a83bac2821c1)
+// need uniqueness of guardianIndicesOneBased()
+invariant correlation(env e, address guardian)
+    guardianIndicesOneBased(guardian) > 0 
+        <=> (getGuardian(guardianIndicesOneBased(guardian) - 1) == guardian && guardian != 0)
+    filtered { f -> excludeMethods(f)  }
+    {
+        preserved {
+            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
+        }
+    }
+    
+
+
+// STATUS - in progress (need uniqueness: https://vaas-stg.certora.com/output/3106/96f7160907bd4484b13ca890e6fa8b1a/?anonymousKey=13f35dc6c082604b4c5a760429e1407652e81b3e)
+// guardianIndicesOneBased[addr] < guardians.length  (invariant from line 306)
+invariant indexLengthCheck(address guardian)
+    getGuardianIndex(guardian) < getGuardiansLength()
+    {
+        preserved {
+            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
+        }
+    }
+
+// uniqueness of guardianIndicesOneBased()
+// STATUS - in progress (https://vaas-stg.certora.com/output/3106/3e9c46d0258d481ea256c5199219b266/?anonymousKey=8edf10f52fe75e0b85aa327ab469ec44dca32b0a )
+invariant complexUniqueness(env e, address guardian1, address guardian2)
+    ((guardianIndicesOneBased(guardian1) != 0 && guardianIndicesOneBased(guardian2) != 0)
+        => (guardian1 != guardian2 
+                <=> guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2)))
+    &&
+    ((guardianIndicesOneBased(guardian1) != 0 && guardianIndicesOneBased(guardian2) == 0)
+        => guardian1 != guardian2)
+    {
+        preserved {
+            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
+            requireInvariant indexLengthCheck(guardian1);
+            requireInvariant indexLengthCheck(guardian2);
+        }
+    }
+
+// STATUS - in progress: (https://vaas-stg.certora.com/output/3106/3ac29048c01b4ed796abb2f6a5439925/?anonymousKey=76904c7e8f0901ce58e4b7e1f878d10d6c2f03ae)
+invariant simpleUniqueness(env e, address guardian1, address guardian2)
+    guardian1 != guardian2 <=> guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2)
+    {
+        preserved {
+            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
+            requireInvariant indexLengthCheck(guardian1);
+            requireInvariant indexLengthCheck(guardian2);
+        }
+    }
+
+
+// STATUS - in progress: https://vaas-stg.certora.com/output/3106/e55d99c0f86f440383ea6473ad684065/?anonymousKey=dea9f5835bb2d23c86d7b1dea3f03876ae3cc62f
+invariant uniqueness(env e)
+    (forall address guardian1. forall address guardian2. guardian1 != guardian2
+        => (guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2) 
+            || guardianIndicesOneBased(guardian1) == 0)) 
+    && 
+    (forall int256 i. i < getGuardiansLength() 
+        => to_mathint(guardianIndicesOneBased(getGuardian(to_uint256(i)))) == (to_uint256(i) + 1))
+    {
+        preserved {
+            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
+        }
+    }
+
 
 // only guardian can pause deposits
+// STATUS - in progress: https://vaas-stg.certora.com/output/3106/7f9fb82c59374a3d8a8c0c31b98ec44c/?anonymousKey=e8037a9854892fd6131b4f61605eea484994cdd3
+// There can be 2 issues:
+// 1. Hashing doesn't work properly.
+// 2. need correlation invariant becuase array and mapping aren't synced. However, pauseDeposits() uses mapping indexes, while I use array
+rule onlyGuardianCanPause(env e, method f) {
+    uint256 blockNumber;
+    uint256 stakingModuleId;
+    DSM.Signature sig;
 
-// Hristo said that they are worried about DoS and integrity becuase there are many modules in their system, but do we have any good properties to check? most of them seems very straightforward, like below
-// cooperation between DepositSecurityModule and StakingRouter :
-// - if stakingModuleId is paused 
-//      - canDeposit() returns false
-//      - depositBufferedEther() reverts
-// affect of deposit on Lido.sol - need it?
+    require StkRouter.getStakingModuleStatus(stakingModuleId) == 0;
+
+    pauseHelper(f, e, blockNumber, stakingModuleId, sig);
+
+    assert StkRouter.getStakingModuleStatus(stakingModuleId) == 1 
+            => 
+            ((isGuardian(e.msg.sender)
+                    || isGuardian(getHashedAddress(blockNumber, stakingModuleId, sig)))
+                && f.selector == pauseDeposits(uint256,uint256,(bytes32,bytes32)).selector), "Remember, with great power comes great responsibility.";
+}
 
 
-
-
-// can't deposit with the same input twice
 // STATUS - violated - possible deposit twice. is it intended? 
-// (maybe it's violated becuase of unresolved call: https://vaas-stg.certora.com/output/3106/333fc9f51bf749c4ab27d7d23ebb5dec/?anonymousKey=176deebf3170bcb66cdf1ebe90e089581609fec7. Looks like the issue with a dispatcher becuase deposit() was summarized)
+// can't deposit with the same input twice
 rule cannotdepositTwice(env e, method f) {
     uint256 blockNumber;
     bytes32 blockHash;
@@ -276,6 +371,3 @@ rule cannotdepositTwice(env e, method f) {
 
 //-----IDEAS-----
 // checking signatures (Merkle tree (kind of)) in _verifySignatures(). do we have an example?
-
-
-

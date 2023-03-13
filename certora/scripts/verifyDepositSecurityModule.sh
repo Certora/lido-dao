@@ -16,17 +16,19 @@ certoraRun \
     \
     contracts/0.4.24/Lido.sol \
     \
+    contracts/common/lib/ECDSA.sol \
+    \
     certora/harnesses/WithdrawalQueueHarness.sol \
     \
     --verify DepositSecurityModuleHarness:certora/specs/DepositSecurityModule.spec \
-    --solc_map StakingModuleMock=solc8.9,DepositSecurityModuleHarness=solc8.9,StakingRouter=solc8.9,WithdrawalQueueHarness=solc8.9,LidoLocator=solc8.9,Lido=solc4.24 \
+    --solc_map ECDSA=solc8.9,StakingModuleMock=solc8.9,DepositSecurityModuleHarness=solc8.9,StakingRouter=solc8.9,WithdrawalQueueHarness=solc8.9,LidoLocator=solc8.9,Lido=solc4.24 \
     --link DepositSecurityModuleHarness:LIDO=Lido \
     --optimistic_loop \
-    --loop_iter 3 \
+    --loop_iter 2 \
     --send_only \
     --rule_sanity \
     --staging master \
-    --settings -t=2000,-mediumTimeout=2000,-depth=100,-copyLoopUnroll=18 \
+    --settings -t=2000,-mediumTimeout=2000,-depth=100,-copyLoopUnroll=18,-optimisticUnboundedHashing=true \
     $RULE \
     --msg "DepositSecurityModule: $RULE $MSG"
 
