@@ -16,6 +16,9 @@ methods {
     LOCATOR() returns (address) envfree
     LEGACY_ORACLE() returns (address) envfree
 
+    EXTRA_DATA_FORMAT_EMPTY() returns (uint256) envfree
+    EXTRA_DATA_FORMAT_LIST() returns (uint256) envfree
+
     // IConsensusContract = MockConsensusContract.sol
     getChainConfig() returns (uint256, uint256, uint256) => DISPATCHER(true)
     getCurrentFrame() returns (uint256, uint256) => DISPATCHER(true)
@@ -135,6 +138,41 @@ rule cannotInitializeTwice(method f)
     assert lastReverted;
 }
 
+// Status: Fails
+// https://vaas-stg.certora.com/output/80942/bed7f7fc001d4235904921d64f8dcfd6/?anonymousKey=3e2d71bdddf8a8a4bd9b6e9243a9dec145efa879
+// https://vaas-stg.certora.com/output/80942/99c90fcbee6a4d85bfd271c3d59e6a7a/?anonymousKey=266d57342359ced7a3aeaebbbdc12cb3210938bd
+rule correctRevertsOfSubmitReportData() {
+    require contractAddressesLinked();
+    env e; calldataarg args;
+
+    uint256 currentConsensusVersion = getConsensusVersion(e);
+
+    // struct ReportData
+    uint256 consensusVersion; uint256 refSlot;
+    // uint256 numValidators; uint256 clBalanceGwei;
+    // uint256[] stakingModuleIdsWithNewlyExitedValidators; uint256[] numExitedValidatorsByStakingModule;
+    // uint256 withdrawalVaultBalance; uint256 elRewardsVaultBalance;
+    uint256 lastFinalizableWithdrawalRequestId; uint256 simulatedShareRate; bool isBunkerMode;
+    uint256 extraDataFormat; bytes32 extraDataHash; uint256 extraDataItemsCount;
+
+    uint256 contractVersion;
+
+    helperCreateAndSubmitReportData@withrevert( e,
+                                                consensusVersion,
+                                                refSlot,
+                                                lastFinalizableWithdrawalRequestId,
+                                                simulatedShareRate,
+                                                isBunkerMode,
+                                                extraDataFormat,
+                                                extraDataHash,
+                                                extraDataItemsCount,
+                                                contractVersion );
+
+    assert (extraDataFormat != EXTRA_DATA_FORMAT_EMPTY() && extraDataFormat != EXTRA_DATA_FORMAT_LIST()) => lastReverted;
+    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataHash != 0) => lastReverted;
+    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataItemsCount != 0) => lastReverted;
+}
+
 // rules for BaseOracle.sol:
 
 
@@ -144,7 +182,6 @@ rule cannotInitializeTwice(method f)
 //    slot returned from getLastProcessingRefSlot() and any slot preceding it.
 // 2. cannot submit a report if its "ReportData.consensusVersion" !=  getConsensusVersion()
 // 3. Only Consensus contract can submit a report, i.e., call submitConsensusReport()
-
 
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/21cba2b81811458ea98ea5a12987aa4a/?anonymousKey=785d93a962710a832ff9f4ba0555d07554d2976b
@@ -205,7 +242,6 @@ rule cannotSubmitReportDataIfUsingDifferentConsensusVersion() {
     assert (consensusVersion != currentConsensusVersion) => lastReverted;
 }
 
-
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/12dc1ba7763b43a09054482acefef5e1/?anonymousKey=e3f6b40b6a126e42a5784249629cb5fc700c3cc2
 rule onlyConsensusContractCanSubmitConsensusReport(method f) 
@@ -218,7 +254,6 @@ rule onlyConsensusContractCanSubmitConsensusReport(method f)
 
     assert (e.msg.sender != ConsensusContract) => lastReverted;
 }
-
 
 
 // rules for Versioned:
@@ -387,12 +422,6 @@ rule nonInterferenceOfRolesAndAccounts(method f) {
             (hasRoleXAccountBBefore && hasRoleXAccountBAfter) || 
             (!hasRoleXAccountBBefore && !hasRoleXAccountBAfter);
 }
-
-// rules for Math.sol:
-// manual review only
-
-// other ideas/considerations:
-// only accountingOracle calls withdrawalQueue.updateBunkerMode?
 
 
 /**************************************************
