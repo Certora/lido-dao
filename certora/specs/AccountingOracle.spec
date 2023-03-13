@@ -138,9 +138,8 @@ rule cannotInitializeTwice(method f)
     assert lastReverted;
 }
 
-// Status: Fails
-// https://vaas-stg.certora.com/output/80942/bed7f7fc001d4235904921d64f8dcfd6/?anonymousKey=3e2d71bdddf8a8a4bd9b6e9243a9dec145efa879
-// https://vaas-stg.certora.com/output/80942/99c90fcbee6a4d85bfd271c3d59e6a7a/?anonymousKey=266d57342359ced7a3aeaebbbdc12cb3210938bd
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/47abad17deb34c838ce64f27413c7426/?anonymousKey=9e129225a9208763048cc9ce31f338ec4dcd5109
 rule correctRevertsOfSubmitReportData() {
     require contractAddressesLinked();
     env e; calldataarg args;
@@ -167,10 +166,12 @@ rule correctRevertsOfSubmitReportData() {
                                                 extraDataHash,
                                                 extraDataItemsCount,
                                                 contractVersion );
+    
+    bool submitReverted = lastReverted;
 
-    assert (extraDataFormat != EXTRA_DATA_FORMAT_EMPTY() && extraDataFormat != EXTRA_DATA_FORMAT_LIST()) => lastReverted;
-    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataHash != 0) => lastReverted;
-    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataItemsCount != 0) => lastReverted;
+    assert (extraDataFormat != EXTRA_DATA_FORMAT_EMPTY() && extraDataFormat != EXTRA_DATA_FORMAT_LIST()) => submitReverted;
+    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataHash != 0) => submitReverted;
+    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataItemsCount != 0) => submitReverted;
 }
 
 // rules for BaseOracle.sol:
