@@ -35,7 +35,7 @@ methods {
 
     // DepositContractMock.sol
     // havoc - "only the return value"
-        get_deposit_root() returns(bytes32) => DISPATCHER(true)
+        get_deposit_root() returns(bytes32) => NONDET // DISPATCHER(true)
 
     // StakingModuleMock.sol
     // havoc - "only the return value"
@@ -70,7 +70,7 @@ rule sanity(env e, method f) {
 
 //-----PROPERTIES-----
 // uniqueness of guardianIndicesOneBased()
-// STATUS - in progress (https://vaas-stg.certora.com/output/3106/3e9c46d0258d481ea256c5199219b266/?anonymousKey=8edf10f52fe75e0b85aa327ab469ec44dca32b0a)
+// STATUS - in progress (https://vaas-stg.certora.com/output/3106/3e9c46d0258d481ea256c5199219b266/?anonymousKey=8edf10f52fe75e0b85aa327ab469ec44dca32b0a )
 invariant complexUniqueness(env e, address guardian1, address guardian2)
     ((guardianIndicesOneBased(guardian1) != 0 && guardianIndicesOneBased(guardian2) != 0)
         => (guardian1 != guardian2 
@@ -96,6 +96,22 @@ invariant simpleUniqueness(env e, address guardian1, address guardian2)
             requireInvariant indexLengthCheck(guardian2);
         }
     }
+
+
+// https://vaas-stg.certora.com/output/3106/e55d99c0f86f440383ea6473ad684065/?anonymousKey=dea9f5835bb2d23c86d7b1dea3f03876ae3cc62f
+invariant uniqueness(env e)
+    (forall address guardian1. forall address guardian2. guardian1 != guardian2
+        => (guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2) 
+            || guardianIndicesOneBased(guardian1) == 0)) 
+    && 
+    (forall int256 i. i < getGuardiansLength() 
+        => to_mathint(guardianIndicesOneBased(getGuardian(to_uint256(i)))) == (to_uint256(i) + 1))
+    {
+        preserved {
+            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
+        }
+    }
+
 
 // correlation invariant for guardians and guardianIndicesOneBased: if a guardian, guardianIndicesOneBased should be > 0
 // STATUS - in progress (https://vaas-stg.certora.com/output/3106/b7dfaf2e26be490bbc9c6abfc091a3a1/?anonymousKey=86d7cb8e44b732a0f701aac95b33a83bac2821c1)
