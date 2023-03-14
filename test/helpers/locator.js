@@ -14,7 +14,8 @@ const locatorServices = [
   'validatorsExitBusOracle',
   'withdrawalQueue',
   'withdrawalVault',
-  'postTokenRebaseReceiver'
+  'postTokenRebaseReceiver',
+  'oracleDaemonConfig',
 ]
 
 function getRandomLocatorConfig(overrides = {}) {
@@ -30,5 +31,5 @@ function generateRandomAddress() {
 
 module.exports = {
   getRandomLocatorConfig,
-  locatorServices
+  locatorServices,
 }

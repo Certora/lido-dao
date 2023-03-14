@@ -1,6 +1,13 @@
 const BN = require('bn.js')
+const { ecsign: ecSignBuf } = require('ethereumjs-util')
 const { keccak256 } = require('js-sha3')
-const { ecSign, strip0x, bufferFromHexString, hexStringFromBuffer } = require('../0.6.12/helpers')
+
+const { strip0x, bufferFromHexString, hexStringFromBuffer } = require('./utils')
+
+function ecSign(digest, privateKey) {
+  const { v, r, s } = ecSignBuf(bufferFromHexString(digest), bufferFromHexString(privateKey))
+  return { v, r: hexStringFromBuffer(r), s: hexStringFromBuffer(s) }
+}
 
 // Converts a ECDSA signature to the format provided in https://eips.ethereum.org/EIPS/eip-2098.
 function toEip2098({ v, r, s }) {
@@ -70,7 +77,9 @@ class DSMPauseMessage extends DSMMessage {
   }
 
   get hash() {
-    return keccak256(hexToBytes(strip0x(this.messagePrefix) + encodeBN(this.blockNumber) + encodeBN(this.stakingModule)))
+    return keccak256(
+      hexToBytes(strip0x(this.messagePrefix) + encodeBN(this.blockNumber) + encodeBN(this.stakingModule))
+    )
   }
 }
 
@@ -80,15 +89,13 @@ function signPauseData(pauseMessagePrefix, pauseMessage, guardianPrivateKey) {
 }
 
 function encodePauseData(pauseMessagePrefix, pauseMessage) {
-  const uint256Size = 64
-  return hexToBytes(strip0x(pauseMessagePrefix) + encodeBN(pauseMessage.blockNumber) + encodeBN(pauseMessage.stakingModule))
+  return hexToBytes(
+    strip0x(pauseMessagePrefix) + encodeBN(pauseMessage.blockNumber) + encodeBN(pauseMessage.stakingModule)
+  )
 }
 
 function encodeBN(value) {
   return new BN(value).toString('hex', UINT256_SIZE) // 32bytes
-}
-function encodeBNuint24(value) {
-  return new BN(value).toString('hex', 6) // 3bytes
 }
 
 function signDepositData(
@@ -101,13 +108,14 @@ function signDepositData(
   calldata,
   guardianPrivateKey
 ) {
-  const hash = keccak256(encodeAttestMessage(attestMessagePrefix, blockNumber, blockHash, depositRoot, StakingModuleId, keysOpIndex))
+  const hash = keccak256(
+    encodeAttestMessage(attestMessagePrefix, blockNumber, blockHash, depositRoot, StakingModuleId, keysOpIndex)
+  )
   return toEip2098(ecSign(hash, guardianPrivateKey))
 }
 
 function encodeAttestMessage(attestMessagePrefix, blockNumber, blockHash, depositRoot, StakingModuleId, keysOpIndex) {
   const uint256Size = 64
-  const uint24Size = 6
 
   return hexToBytes(
     strip0x(attestMessagePrefix) +
@@ -120,13 +128,17 @@ function encodeAttestMessage(attestMessagePrefix, blockNumber, blockHash, deposi
 }
 
 function hexToBytes(hex) {
-  for (var bytes = [], c = 0; c < hex.length; c += 2) bytes.push(parseInt(hex.substr(c, 2), 16))
+  const bytes = []
+  for (let c = 0; c < hex.length; c += 2) bytes.push(parseInt(hex.substr(c, 2), 16))
   return bytes
 }
 
 module.exports = {
+  ecSign,
+  toEip2098,
+  keccak256,
   signDepositData,
   signPauseData,
   DSMPauseMessage,
-  DSMAttestMessage
+  DSMAttestMessage,
 }

@@ -1,19 +1,14 @@
+const { web3 } = require('hardhat')
 const withdrawals = require('./withdrawals')
 const { newApp } = require('./dao')
 const { artifacts } = require('hardhat')
 const { deployLocatorWithDummyAddressesImplementation } = require('./locator-deploy')
+const { ETH } = require('./utils')
 
-const {
-  SLOTS_PER_EPOCH,
-  SECONDS_PER_SLOT,
-  EPOCHS_PER_FRAME,
-  CONSENSUS_VERSION
-} = require('./constants')
+const { SLOTS_PER_EPOCH, SECONDS_PER_SLOT, EPOCHS_PER_FRAME, CONSENSUS_VERSION } = require('./constants')
 
 const OssifiableProxy = artifacts.require('OssifiableProxy')
 const LidoMock = artifacts.require('LidoMock')
-const Lido = artifacts.require('Lido')
-const WstETHMock = artifacts.require('WstETHMock')
 const WstETH = artifacts.require('WstETH')
 const LegacyOracle = artifacts.require('LegacyOracle')
 const MockLegacyOracle = artifacts.require('MockLegacyOracle')
@@ -48,17 +43,17 @@ async function lidoMockFactory({ dao, appManager, acl, voting }) {
 async function grantLidoRoles(pool, acl, voting, appManager) {
   await Promise.all([
     acl.createPermission(voting.address, pool.address, await pool.PAUSE_ROLE(), appManager.address, {
-      from: appManager.address
+      from: appManager.address,
     }),
     acl.createPermission(voting.address, pool.address, await pool.RESUME_ROLE(), appManager.address, {
-      from: appManager.address
+      from: appManager.address,
     }),
     acl.createPermission(voting.address, pool.address, await pool.STAKING_PAUSE_ROLE(), appManager.address, {
-      from: appManager.address
+      from: appManager.address,
     }),
     acl.createPermission(voting.address, pool.address, await pool.STAKING_CONTROL_ROLE(), appManager.address, {
-      from: appManager.address
-    })
+      from: appManager.address,
+    }),
   ])
 }
 
@@ -121,11 +116,12 @@ async function hashConsensusFactory({ voting, oracle, signers, legacyOracle, dep
     SECONDS_PER_SLOT,
     deployParams.genesisTime,
     EPOCHS_PER_FRAME,
-    initialEpoch,
     deployParams.hashConsensus.fastLaneLengthSlots,
     voting.address,
     oracle.address
   )
+
+  await consensus.updateInitialEpoch(initialEpoch, { from: voting.address })
 
   await consensus.grantRole(await consensus.MANAGE_MEMBERS_AND_QUORUM_ROLE(), voting.address, { from: voting.address })
   await consensus.grantRole(await consensus.DISABLE_CONSENSUS_ROLE(), voting.address, { from: voting.address })
@@ -137,12 +133,6 @@ async function hashConsensusFactory({ voting, oracle, signers, legacyOracle, dep
   await consensus.addMember(signers[3].address, 2, { from: voting.address })
   await consensus.addMember(signers[4].address, 2, { from: voting.address })
 
-  await oracle.initialize(voting.address, consensus.address, CONSENSUS_VERSION)
-
-  await oracle.grantRole(await oracle.MANAGE_CONSENSUS_CONTRACT_ROLE(), voting.address, { from: voting.address })
-  await oracle.grantRole(await oracle.MANAGE_CONSENSUS_VERSION_ROLE(), voting.address, { from: voting.address })
-  await oracle.grantRole(await oracle.SUBMIT_DATA_ROLE(), voting.address, { from: voting.address })
-
   return consensus
 }
 
@@ -152,7 +142,7 @@ async function hashConsensusTimeTravellableFactory({
   oracle,
   signers,
   deployParams,
-  lidoLocator
+  lidoLocator,
 }) {
   const initialEpoch = +(await legacyOracle.getLastCompletedEpochId()) + EPOCHS_PER_FRAME
   const consensus = await HashConsensusTimeTravellable.new(
@@ -166,6 +156,8 @@ async function hashConsensusTimeTravellableFactory({
     oracle.address
   )
 
+  await consensus.updateInitialEpoch(initialEpoch, { from: voting.address })
+
   await consensus.grantRole(await consensus.MANAGE_MEMBERS_AND_QUORUM_ROLE(), voting.address, { from: voting.address })
   await consensus.grantRole(await consensus.DISABLE_CONSENSUS_ROLE(), voting.address, { from: voting.address })
   await consensus.grantRole(await consensus.MANAGE_FRAME_CONFIG_ROLE(), voting.address, { from: voting.address })
@@ -174,6 +166,7 @@ async function hashConsensusTimeTravellableFactory({
   await consensus.addMember(signers[2].address, 1, { from: voting.address })
   await consensus.addMember(signers[3].address, 2, { from: voting.address })
   await consensus.addMember(signers[4].address, 2, { from: voting.address })
+
   await consensus.setTime(deployParams.genesisTime + initialEpoch * SLOTS_PER_EPOCH * SECONDS_PER_SLOT)
 
   return consensus
@@ -195,7 +188,7 @@ async function withdrawalCredentialsFactory() {
   return '0x'.padEnd(66, '1234')
 }
 
-async function stakingRouterFactory({ depositContract, dao, appManager, voting, pool, withdrawalCredentials }) {
+async function stakingRouterFactory({ depositContract, dao, appManager, voting, pool, oracle, withdrawalCredentials }) {
   const base = await StakingRouter.new(depositContract.address)
 
   const proxyAddress = await newApp(dao, 'lido-oracle', base.address, appManager.address)
@@ -203,31 +196,34 @@ async function stakingRouterFactory({ depositContract, dao, appManager, voting, 
   await stakingRouter.initialize(appManager.address, pool.address, withdrawalCredentials, { from: appManager.address })
 
   await stakingRouter.grantRole(await stakingRouter.MANAGE_WITHDRAWAL_CREDENTIALS_ROLE(), pool.address, {
-    from: appManager.address
+    from: appManager.address,
   })
   await stakingRouter.grantRole(await stakingRouter.MANAGE_WITHDRAWAL_CREDENTIALS_ROLE(), voting.address, {
-    from: appManager.address
+    from: appManager.address,
   })
   await stakingRouter.grantRole(await stakingRouter.STAKING_MODULE_PAUSE_ROLE(), voting.address, {
-    from: appManager.address
+    from: appManager.address,
   })
   await stakingRouter.grantRole(await stakingRouter.STAKING_MODULE_RESUME_ROLE(), voting.address, {
-    from: appManager.address
+    from: appManager.address,
   })
   await stakingRouter.grantRole(await stakingRouter.STAKING_MODULE_MANAGE_ROLE(), voting.address, {
-    from: appManager.address
+    from: appManager.address,
   })
-  await stakingRouter.grantRole(await stakingRouter.REPORT_EXITED_VALIDATORS_ROLE(), pool.address, {
-    from: appManager.address
+  await stakingRouter.grantRole(await stakingRouter.REPORT_EXITED_VALIDATORS_ROLE(), voting.address, {
+    from: appManager.address,
+  })
+  await stakingRouter.grantRole(await stakingRouter.REPORT_EXITED_VALIDATORS_ROLE(), oracle.address, {
+    from: appManager.address,
   })
   await stakingRouter.grantRole(await stakingRouter.UNSAFE_SET_EXITED_VALIDATORS_ROLE(), voting.address, {
-    from: appManager.address
+    from: appManager.address,
   })
   await stakingRouter.grantRole(await stakingRouter.REPORT_REWARDS_MINTED_ROLE(), voting.address, {
-    from: appManager.address
+    from: appManager.address,
   })
   await stakingRouter.grantRole(await stakingRouter.REPORT_REWARDS_MINTED_ROLE(), pool.address, {
-    from: appManager.address
+    from: appManager.address,
   })
 
   return stakingRouter
@@ -239,7 +235,7 @@ async function depositSecurityModuleFactory({
   stakingRouter,
   appManager,
   guardians,
-  deployParams
+  deployParams,
 }) {
   const depositSecurityModule = await DepositSecurityModule.new(
     pool.address,
@@ -259,19 +255,22 @@ async function elRewardsVaultFactory({ pool, treasury }) {
   return await LidoExecutionLayerRewardsVault.new(pool.address, treasury.address)
 }
 
-async function withdrawalQueueFactory({ appManager, oracle, wsteth }) {
+async function withdrawalQueueFactory({ appManager, pool, oracle, wsteth }) {
   const withdrawalQueue = (await withdrawals.deploy(appManager.address, wsteth.address)).queue
 
-  await withdrawalQueue.initialize(
-    appManager.address,
-    appManager.address,
-    appManager.address,
-    appManager.address,
-    appManager.address
-  )
+  await withdrawalQueue.initialize(appManager.address)
 
-  const BUNKER_MODE_REPORT_ROLE = await withdrawalQueue.BUNKER_MODE_REPORT_ROLE()
-  await withdrawalQueue.grantRole(BUNKER_MODE_REPORT_ROLE, oracle.address, { from: appManager.address })
+  const ORACLE_ROLE = await withdrawalQueue.ORACLE_ROLE()
+  await withdrawalQueue.grantRole(ORACLE_ROLE, oracle.address, { from: appManager.address })
+  const FINALIZE_ROLE = await withdrawalQueue.FINALIZE_ROLE()
+  await withdrawalQueue.grantRole(FINALIZE_ROLE, pool.address, { from: appManager.address })
+
+  await grantRoles({
+    by: appManager.address,
+    on: withdrawalQueue,
+    to: appManager.address,
+    roles: ['PAUSE_ROLE', 'RESUME_ROLE', 'FINALIZE_ROLE', 'ORACLE_ROLE'],
+  })
 
   return withdrawalQueue
 }
@@ -280,8 +279,8 @@ async function withdrawalVaultFactory({ pool, treasury }) {
   return await WithdrawalVault.new(pool.address, treasury.address)
 }
 
-async function eip712StETHFactory({ appManager }) {
-  return await EIP712StETH.new({ from: appManager.address })
+async function eip712StETHFactory({ pool, appManager }) {
+  return await EIP712StETH.new(pool.address, { from: appManager.address })
 }
 
 async function stakingModulesFactory(_) {
@@ -291,20 +290,22 @@ async function stakingModulesFactory(_) {
 async function guardiansFactory({ deployParams }) {
   return {
     privateKeys: deployParams.guardians,
-    addresses: Object.keys(deployParams.guardians)
+    addresses: Object.keys(deployParams.guardians),
   }
 }
 
 async function burnerFactory({ appManager, treasury, pool, voting }) {
   const burner = await Burner.new(appManager.address, treasury.address, pool.address, 0, 0)
 
-  const [REQUEST_BURN_MY_STETH_ROLE, RECOVER_ASSETS_ROLE] = await Promise.all([
+  const [REQUEST_BURN_MY_STETH_ROLE, REQUEST_BURN_SHARES_ROLE, RECOVER_ASSETS_ROLE] = await Promise.all([
     burner.REQUEST_BURN_MY_STETH_ROLE(),
-    burner.RECOVER_ASSETS_ROLE()
+    burner.REQUEST_BURN_SHARES_ROLE(),
+    burner.RECOVER_ASSETS_ROLE(),
   ])
 
   await burner.grantRole(REQUEST_BURN_MY_STETH_ROLE, voting.address, { from: appManager.address })
   await burner.grantRole(RECOVER_ASSETS_ROLE, voting.address, { from: appManager.address })
+  await burner.grantRole(REQUEST_BURN_SHARES_ROLE, voting.address, { from: appManager.address })
 
   return burner
 }
@@ -321,7 +322,23 @@ async function oracleReportSanityCheckerFactory({ lidoLocator, voting, appManage
     deployParams.oracleReportSanityChecker.managersRoster
   )
 
-  await checker.grantRole(await checker.ALL_LIMITS_MANAGER_ROLE(), voting.address, { from: appManager.address })
+  await grantRoles({
+    by: appManager.address,
+    on: checker,
+    to: voting.address,
+    roles: [
+      'ALL_LIMITS_MANAGER_ROLE',
+      'CHURN_VALIDATORS_PER_DAY_LIMIT_MANGER_ROLE',
+      'ONE_OFF_CL_BALANCE_DECREASE_LIMIT_MANAGER_ROLE',
+      'ANNUAL_BALANCE_INCREASE_LIMIT_MANAGER_ROLE',
+      'SHARE_RATE_DEVIATION_LIMIT_MANAGER_ROLE',
+      'MAX_VALIDATOR_EXIT_REQUESTS_PER_REPORT_ROLE',
+      'MAX_ACCOUNTING_EXTRA_DATA_LIST_ITEMS_COUNT_ROLE',
+      'MAX_NODE_OPERATORS_PER_EXTRA_DATA_ITEM_COUNT_ROLE',
+      'REQUEST_TIMESTAMP_MARGIN_MANAGER_ROLE',
+      'MAX_POSITIVE_TOKEN_REBASE_MANAGER_ROLE',
+    ],
+  })
 
   return checker
 }
@@ -349,17 +366,30 @@ async function postSetup({
   appManager,
   voting,
   deployParams,
+  oracle,
   legacyOracle,
-  consensusContract
+  consensusContract,
 }) {
-  await pool.initialize(lidoLocator.address, eip712StETH.address)
+  await pool.initialize(lidoLocator.address, eip712StETH.address, { value: ETH(1) })
+
+  await oracle.initialize(voting.address, consensusContract.address, CONSENSUS_VERSION)
+  await oracle.grantRole(await oracle.MANAGE_CONSENSUS_CONTRACT_ROLE(), voting.address, { from: voting.address })
+  await oracle.grantRole(await oracle.MANAGE_CONSENSUS_VERSION_ROLE(), voting.address, { from: voting.address })
+  await oracle.grantRole(await oracle.SUBMIT_DATA_ROLE(), voting.address, { from: voting.address })
 
   await legacyOracle.initialize(lidoLocator.address, consensusContract.address)
 
   await depositContract.reset()
   await depositContract.set_deposit_root(deployParams.depositRoot)
-  await withdrawalQueue.updateBunkerMode(false, 0, { from: appManager.address })
   await pool.resumeProtocolAndStaking({ from: voting.address })
+}
+
+async function grantRoles({ by, on, to, roles }) {
+  await Promise.all(
+    roles.map(async (role) => {
+      await on.grantRole(await on[role](), to, { from: by })
+    })
+  )
 }
 
 module.exports = {
@@ -390,5 +420,6 @@ module.exports = {
   lidoLocatorFactory,
   oracleReportSanityCheckerFactory,
   validatorExitBusFactory,
-  oracleReportSanityCheckerStubFactory
+  oracleReportSanityCheckerStubFactory,
+  grantRoles,
 }

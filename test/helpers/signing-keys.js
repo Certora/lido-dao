@@ -1,9 +1,9 @@
 const PUBKEY_LENGTH = 48
 const SIGNATURE_LENGTH = 96
 const EMPTY_PUBLIC_KEY = '0x' + '0'.repeat(2 * PUBKEY_LENGTH)
+const EMPTY_SIGNATURE = '0x' + '0'.repeat(2 * SIGNATURE_LENGTH)
 
-const { pad, hexConcat, hexSplit } = require('./utils')
-const { strip0x } = require('../0.6.12/helpers')
+const { strip0x, pad, hexConcat, hexSplit } = require('./utils')
 
 class ValidatorKeys {
   constructor(publicKeys, signatures) {
@@ -39,18 +39,18 @@ class ValidatorKeys {
 }
 
 class FakeValidatorKeys extends ValidatorKeys {
-  constructor(length, seed = randomInt(10, 10 ** 9)) {
+  constructor(length, { seed = randomInt(10, 10 ** 9), kFill = 'f', sFill = 'e' } = {}) {
     super(
       Array(length)
         .fill(0)
         .map((_, i) => Number(seed + i).toString(16))
         .map((v) => (v.length % 2 === 0 ? v : '0' + v)) // make resulting hex str length representation even(faa -> 0faa)
-        .map((v) => pad('0x' + v, PUBKEY_LENGTH, 'f')),
+        .map((v) => pad('0x' + v, PUBKEY_LENGTH, kFill)),
       Array(length)
         .fill(0)
         .map((_, i) => Number(seed + i).toString(16))
         .map((v) => (v.length % 2 === 0 ? v : '0' + v)) // make resulting hex str length representation even(faa -> 0faa)
-        .map((v) => pad('0x' + v, SIGNATURE_LENGTH, 'e'))
+        .map((v) => pad('0x' + v, SIGNATURE_LENGTH, sFill))
     )
   }
 }
@@ -71,7 +71,8 @@ module.exports = {
   PUBKEY_LENGTH,
   SIGNATURE_LENGTH,
   EMPTY_PUBLIC_KEY,
+  EMPTY_SIGNATURE,
   FakeValidatorKeys,
   splitPublicKeysBatch,
-  splitSignaturesBatch
+  splitSignaturesBatch,
 }

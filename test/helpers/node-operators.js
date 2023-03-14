@@ -1,7 +1,7 @@
-const hre = require('hardhat')
-const { assert } = require('chai')
-const { assertBn } = require('@aragon/contract-helpers-test/src/asserts')
+const { artifacts } = require('hardhat')
+const { assert } = require('./assert')
 const { FakeValidatorKeys } = require('./signing-keys')
+const { prepIdsCountsPayload } = require('./utils')
 
 /***
  * Adds new Node Operator to the registry and configures it
@@ -28,7 +28,6 @@ async function addNodeOperator(registry, config, txOptions) {
   const exitedSigningKeysCount = config.exitedSigningKeysCount || 0
   const depositedSigningKeysCount = config.depositedSigningKeysCount || 0
   const vettedSigningKeysCount = config.vettedSigningKeysCount || 0
-  const refundedValidatorsKeysCount = config.refundedValidatorsKeysCount || 0
   const stuckValidatorsCount = config.stuckValidatorsCount || 0
   const isActive = config.isActive === undefined ? true : config.isActive
 
@@ -44,8 +43,8 @@ async function addNodeOperator(registry, config, txOptions) {
     throw new Error('Invalid keys config: depositedSigningKeysCount < exitedSigningKeysCount')
   }
 
-  if (exitedSigningKeysCount < stuckValidatorsCount) {
-    throw new Error('Invalid keys config: exitedSigningKeysCount < stuckValidatorsCount')
+  if (stuckValidatorsCount > depositedSigningKeysCount - exitedSigningKeysCount) {
+    throw new Error('Invalid keys config: stuckValidatorsCount > depositedSigningKeysCount - exitedSigningKeysCount')
   }
 
   if (totalSigningKeysCount < exitedSigningKeysCount + depositedSigningKeysCount) {
@@ -58,27 +57,24 @@ async function addNodeOperator(registry, config, txOptions) {
     await registry.addSigningKeys(newOperatorId, totalSigningKeysCount, ...validatorKeys.slice(), txOptions)
   }
 
-  if (depositedSigningKeysCount > 0) {
-    await registry.increaseNodeOperatorDepositedSigningKeysCount(newOperatorId, depositedSigningKeysCount, txOptions)
-  }
-
   if (vettedSigningKeysCount > 0) {
     await registry.setNodeOperatorStakingLimit(newOperatorId, vettedSigningKeysCount, txOptions)
   }
 
-  if (exitedSigningKeysCount > 0) {
-    await registry.updateExitedValidatorsCount(newOperatorId, exitedSigningKeysCount, txOptions)
+  if (depositedSigningKeysCount > 0) {
+    await registry.increaseNodeOperatorDepositedSigningKeysCount(newOperatorId, depositedSigningKeysCount, txOptions)
   }
 
   if (exitedSigningKeysCount > 0) {
-    await registry.updateExitedValidatorsCount(newOperatorId, exitedSigningKeysCount, txOptions)
+    const { operatorIds, keysCounts } = prepIdsCountsPayload(newOperatorId, exitedSigningKeysCount)
+    await registry.updateExitedValidatorsCount(operatorIds, keysCounts, txOptions)
   }
 
   if (!isActive) {
     await registry.deactivateNodeOperator(newOperatorId, txOptions)
   }
 
-  const stakingModule = await hre.artifacts
+  const stakingModule = await artifacts
     .require('contracts/0.8.9/interfaces/IStakingModule.sol:IStakingModule')
     .at(registry.address)
 
@@ -87,15 +83,15 @@ async function addNodeOperator(registry, config, txOptions) {
   const nodeOperator = await registry.getNodeOperator(newOperatorId, true)
 
   if (isActive) {
-    assertBn(nodeOperator.stakingLimit, vettedSigningKeysCount)
-    assertBn(nodeOperator.totalSigningKeys, totalSigningKeysCount)
-    assertBn(nodeOperatorsSummary.totalExitedValidators, exitedSigningKeysCount)
-    assertBn(nodeOperatorsSummary.totalDepositedValidators, depositedSigningKeysCount)
-    assertBn(nodeOperatorsSummary.depositableValidatorsCount, vettedSigningKeysCount - depositedSigningKeysCount)
+    assert.equals(nodeOperator.stakingLimit, vettedSigningKeysCount)
+    assert.equals(nodeOperator.totalSigningKeys, totalSigningKeysCount)
+    assert.equals(nodeOperatorsSummary.totalExitedValidators, exitedSigningKeysCount)
+    assert.equals(nodeOperatorsSummary.totalDepositedValidators, depositedSigningKeysCount)
+    assert.equals(nodeOperatorsSummary.depositableValidatorsCount, vettedSigningKeysCount - depositedSigningKeysCount)
   } else {
-    assertBn(nodeOperatorsSummary.totalExitedValidators, exitedSigningKeysCount)
-    assertBn(nodeOperatorsSummary.totalDepositedValidators, depositedSigningKeysCount)
-    assertBn(nodeOperatorsSummary.depositableValidatorsCount, 0)
+    assert.equals(nodeOperatorsSummary.totalExitedValidators, exitedSigningKeysCount)
+    assert.equals(nodeOperatorsSummary.totalDepositedValidators, depositedSigningKeysCount)
+    assert.equals(nodeOperatorsSummary.depositableValidatorsCount, 0)
   }
   return { validatorKeys, id: newOperatorId.toNumber() }
 }
@@ -123,5 +119,5 @@ module.exports = {
   addNodeOperator,
   findNodeOperatorId,
   getAllNodeOperators,
-  filterNodeOperators
+  filterNodeOperators,
 }

@@ -1,3 +1,4 @@
+const { contract, artifacts } = require('hardhat')
 const { bn } = require('@aragon/contract-helpers-test')
 
 const BaseOracle = artifacts.require('BaseOracleTimeTravellable')
@@ -20,6 +21,8 @@ const computeEpochFirstSlot = (epoch) => epoch * SLOTS_PER_EPOCH
 const computeEpochFirstSlotAt = (time) => computeEpochFirstSlot(computeEpochAt(time))
 const computeTimestampAtEpoch = (epoch) => GENESIS_TIME + epoch * SECONDS_PER_EPOCH
 const computeTimestampAtSlot = (slot) => GENESIS_TIME + slot * SECONDS_PER_SLOT
+const computeDeadlineFromRefSlot = (slot) => computeTimestampAtSlot(+slot + SLOTS_PER_FRAME)
+const computeNextRefSlotFromRefSlot = (slot) => +slot + SLOTS_PER_FRAME
 
 const ZERO_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000'
 
@@ -43,7 +46,7 @@ async function deployBaseOracle(
     epochsPerFrame = EPOCHS_PER_FRAME,
     fastLaneLengthSlots = INITIAL_FAST_LANE_LENGTH_SLOTS,
     initialEpoch = INITIAL_EPOCH,
-    mockMember = admin
+    mockMember = admin,
   } = {}
 ) {
   if (!consensusContract) {
@@ -52,8 +55,8 @@ async function deployBaseOracle(
       secondsPerSlot,
       genesisTime,
       epochsPerFrame,
-      fastLaneLengthSlots,
       initialEpoch,
+      fastLaneLengthSlots,
       mockMember,
       { from: admin }
     )
@@ -84,6 +87,8 @@ module.exports = {
   computeEpochFirstSlotAt,
   computeTimestampAtSlot,
   computeTimestampAtEpoch,
+  computeNextRefSlotFromRefSlot,
+  computeDeadlineFromRefSlot,
   ZERO_HASH,
   HASH_1,
   HASH_2,
@@ -92,16 +97,13 @@ module.exports = {
   HASH_5,
   CONSENSUS_VERSION,
   UNREACHABLE_QUORUM,
-  deployBaseOracle
+  deployBaseOracle,
 }
 
-contract('BaseOracle', ([admin, member1]) => {
+contract('BaseOracle', ([admin]) => {
   context('Deployment and initial configuration', () => {
-    let oracle
-
     it('deploying base oracle ', async () => {
-      const deployed = await deployBaseOracle(admin)
-      oracle = deployed.oracle
+      await deployBaseOracle(admin)
     })
 
     // TODO: add more base tests

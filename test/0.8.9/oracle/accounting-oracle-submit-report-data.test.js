@@ -1,22 +1,27 @@
+const { contract, web3 } = require('hardhat')
 const { assert } = require('../../helpers/assert')
-const { e9, e18, e27 } = require('../../helpers/utils')
+const { e9, e18, e27, toNum } = require('../../helpers/utils')
+
+const AccountingOracleAbi = require('../../../lib/abi/AccountingOracle.json')
 
 const {
   CONSENSUS_VERSION,
   deployAndConfigureAccountingOracle,
-  getReportDataItems,
+  getAccountingReportDataItems,
   encodeExtraDataItems,
   packExtraDataList,
   calcExtraDataListHash,
-  calcReportDataHash,
+  calcAccountingReportDataHash,
   EXTRA_DATA_FORMAT_LIST,
+  EXTRA_DATA_FORMAT_EMPTY,
   SLOTS_PER_FRAME,
   SECONDS_PER_SLOT,
   GENESIS_TIME,
-  ZERO_HASH
+  ZERO_HASH,
+  HASH_1,
 } = require('./accounting-oracle-deploy.test')
 
-contract('AccountingOracle', ([admin, account1, account2, member1, member2, stranger]) => {
+contract('AccountingOracle', ([admin, member1]) => {
   let consensus = null
   let oracle = null
   let reportItems = null
@@ -33,6 +38,24 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
   let mockLegacyOracle = null
   let mockWithdrawalQueue = null
 
+  const getReportFields = (override = {}) => ({
+    consensusVersion: CONSENSUS_VERSION,
+    numValidators: 10,
+    clBalanceGwei: e9(320),
+    stakingModuleIdsWithNewlyExitedValidators: [1],
+    numExitedValidatorsByStakingModule: [3],
+    withdrawalVaultBalance: e18(1),
+    elRewardsVaultBalance: e18(2),
+    sharesRequestedToBurn: e18(3),
+    withdrawalFinalizationBatches: [1],
+    simulatedShareRate: e27(1),
+    isBunkerMode: true,
+    extraDataFormat: EXTRA_DATA_FORMAT_LIST,
+    extraDataHash,
+    extraDataItemsCount: extraDataItems.length,
+    ...override,
+  })
+
   const deploy = async (options = undefined) => {
     const deployed = await deployAndConfigureAccountingOracle(admin)
     const { refSlot } = await deployed.consensus.getCurrentFrame()
@@ -41,35 +64,22 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
       stuckKeys: [
         { moduleId: 1, nodeOpIds: [0], keysCounts: [1] },
         { moduleId: 2, nodeOpIds: [0], keysCounts: [2] },
-        { moduleId: 3, nodeOpIds: [2], keysCounts: [3] }
+        { moduleId: 3, nodeOpIds: [2], keysCounts: [3] },
       ],
       exitedKeys: [
         { moduleId: 2, nodeOpIds: [1, 2], keysCounts: [1, 3] },
-        { moduleId: 3, nodeOpIds: [1], keysCounts: [2] }
-      ]
+        { moduleId: 3, nodeOpIds: [1], keysCounts: [2] },
+      ],
     }
 
     extraDataItems = encodeExtraDataItems(extraData)
     extraDataList = packExtraDataList(extraDataItems)
     extraDataHash = calcExtraDataListHash(extraDataList)
-    reportFields = {
-      consensusVersion: CONSENSUS_VERSION,
+    reportFields = getReportFields({
       refSlot: +refSlot,
-      numValidators: 10,
-      clBalanceGwei: e9(320),
-      stakingModuleIdsWithNewlyExitedValidators: [1],
-      numExitedValidatorsByStakingModule: [3],
-      withdrawalVaultBalance: e18(1),
-      elRewardsVaultBalance: e18(2),
-      lastWithdrawalRequestIdToFinalize: 1,
-      finalizationShareRate: e27(1),
-      isBunkerMode: true,
-      extraDataFormat: EXTRA_DATA_FORMAT_LIST,
-      extraDataHash: extraDataHash,
-      extraDataItemsCount: extraDataItems.length
-    }
-    reportItems = getReportDataItems(reportFields)
-    const reportHash = calcReportDataHash(reportItems)
+    })
+    reportItems = getAccountingReportDataItems(reportFields)
+    const reportHash = calcAccountingReportDataHash(reportItems)
     await deployed.consensus.addMember(member1, 1, { from: admin })
     await deployed.consensus.submitReport(refSlot, reportHash, CONSENSUS_VERSION, { from: member1 })
 
@@ -88,8 +98,8 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
   async function prepareNextReport(newReportFields) {
     await consensus.setTime(deadline)
 
-    const newReportItems = getReportDataItems(newReportFields)
-    const reportHash = calcReportDataHash(newReportItems)
+    const newReportItems = getAccountingReportDataItems(newReportFields)
+    const reportHash = calcAccountingReportDataHash(newReportItems)
 
     await consensus.advanceTimeToNextFrameStart()
     await consensus.submitReport(newReportFields.refSlot, reportHash, CONSENSUS_VERSION, { from: member1 })
@@ -97,7 +107,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
     return {
       newReportFields,
       newReportItems,
-      reportHash
+      reportHash,
     }
   }
 
@@ -105,7 +115,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
     const { refSlot } = await consensus.getCurrentFrame()
     const next = await prepareNextReport({
       ...newReportFields,
-      refSlot: +refSlot + SLOTS_PER_FRAME
+      refSlot: +refSlot + SLOTS_PER_FRAME,
     })
     return next
   }
@@ -166,9 +176,9 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
 
         const newReportFields = {
           ...reportFields,
-          refSlot: incorrectRefSlot
+          refSlot: incorrectRefSlot,
         }
-        const reportItems = getReportDataItems(newReportFields)
+        const reportItems = getAccountingReportDataItems(newReportFields)
 
         await assert.reverts(
           oracle.submitReportData(reportItems, oracleVersion, { from: member1 }),
@@ -184,6 +194,18 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
       })
     })
 
+    context('only allows submitting main data for the same ref. slot once', () => {
+      it('reverts on trying to submit the second time', async () => {
+        const tx = await oracle.submitReportData(reportItems, oracleVersion, { from: member1 })
+        assert.emits(tx, 'ProcessingStarted', { refSlot: reportFields.refSlot })
+
+        await assert.reverts(
+          oracle.submitReportData(reportItems, oracleVersion, { from: member1 }),
+          'RefSlotAlreadyProcessing()'
+        )
+      })
+    })
+
     context('checks consensus version', () => {
       it('should revert if incorrect consensus version', async () => {
         await consensus.setTime(deadline)
@@ -193,12 +215,12 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
 
         const newReportFields = {
           ...reportFields,
-          consensusVersion: incorrectNextVersion
+          consensusVersion: incorrectNextVersion,
         }
-        const reportItems = getReportDataItems(newReportFields)
+        const reportItems = getAccountingReportDataItems(newReportFields)
 
-        const reportFiledsPrevVersion = { ...reportFields, consensusVersion: incorrectPrevVersion }
-        const reportItemsPrevVersion = getReportDataItems(reportFiledsPrevVersion)
+        const reportFieldsPrevVersion = { ...reportFields, consensusVersion: incorrectPrevVersion }
+        const reportItemsPrevVersion = getAccountingReportDataItems(reportFieldsPrevVersion)
 
         await assert.reverts(
           oracle.submitReportData(reportItems, oracleVersion, { from: member1 }),
@@ -211,7 +233,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         )
       })
 
-      it('should should allow calling if correct consensus version', async () => {
+      it('should allow calling if correct consensus version', async () => {
         await consensus.setTime(deadline)
         const { refSlot } = await consensus.getCurrentFrame()
 
@@ -223,10 +245,10 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         const newReportFields = {
           ...reportFields,
           refSlot: nextRefSlot,
-          consensusVersion: newConsensusVersion
+          consensusVersion: newConsensusVersion,
         }
-        const newReportItems = getReportDataItems(newReportFields)
-        const newReportHash = calcReportDataHash(newReportItems)
+        const newReportItems = getAccountingReportDataItems(newReportFields)
+        const newReportHash = calcAccountingReportDataHash(newReportItems)
 
         await oracle.setConsensusVersion(newConsensusVersion, { from: admin })
         await consensus.advanceTimeToNextFrameStart()
@@ -244,7 +266,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         const { newReportItems } = await prepareNextReportInNextFrame({
           ...reportFields,
           stakingModuleIdsWithNewlyExitedValidators: [2, 1],
-          numExitedValidatorsByStakingModule: [3, 4]
+          numExitedValidatorsByStakingModule: [3, 4],
         })
 
         await assert.reverts(
@@ -253,11 +275,11 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         )
       })
 
-      it('should revert if incorrect stakingModuleIdsWithNewlyExitedValidators order (when next number in list is less than previous)', async () => {
+      it('should revert if incorrect stakingModuleIdsWithNewlyExitedValidators order (when next number in list equals to previous)', async () => {
         const { newReportItems } = await prepareNextReportInNextFrame({
           ...reportFields,
           stakingModuleIdsWithNewlyExitedValidators: [1, 1],
-          numExitedValidatorsByStakingModule: [3, 4]
+          numExitedValidatorsByStakingModule: [3, 4],
         })
 
         await assert.reverts(
@@ -270,7 +292,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         const { newReportFields, newReportItems } = await prepareNextReportInNextFrame({
           ...reportFields,
           stakingModuleIdsWithNewlyExitedValidators: [1, 2],
-          numExitedValidatorsByStakingModule: [3, 4]
+          numExitedValidatorsByStakingModule: [3, 4],
         })
 
         const tx = await oracle.submitReportData(newReportItems, oracleVersion, { from: member1 })
@@ -280,13 +302,13 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
 
     context('checks data hash', () => {
       it('reverts with UnexpectedDataHash', async () => {
-        const incorrectReportItems = getReportDataItems({
+        const incorrectReportItems = getAccountingReportDataItems({
           ...reportFields,
-          numValidators: reportFields.numValidators - 1
+          numValidators: reportFields.numValidators - 1,
         })
 
-        const correctDataHash = calcReportDataHash(reportItems)
-        const incorrectDataHash = calcReportDataHash(incorrectReportItems)
+        const correctDataHash = calcAccountingReportDataHash(reportItems)
+        const incorrectDataHash = calcAccountingReportDataHash(incorrectReportItems)
 
         await assert.reverts(
           oracle.submitReportData(incorrectReportItems, oracleVersion, { from: member1 }),
@@ -304,7 +326,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
       it('reverts with MaxAccountingExtraDataItemsCountExceeded if data limit exceeds', async () => {
         const MAX_ACCOUNTING_EXTRA_DATA_LIMIT = 1
         await oracleReportSanityChecker.setMaxAccountingExtraDataListItemsCount(MAX_ACCOUNTING_EXTRA_DATA_LIMIT, {
-          from: admin
+          from: admin,
         })
 
         assert.equals(
@@ -322,7 +344,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         const MAX_ACCOUNTING_EXTRA_DATA_LIMIT = reportFields.extraDataItemsCount
 
         await oracleReportSanityChecker.setMaxAccountingExtraDataListItemsCount(MAX_ACCOUNTING_EXTRA_DATA_LIMIT, {
-          from: admin
+          from: admin,
         })
 
         assert.equals(
@@ -337,7 +359,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         const { newReportItems } = await prepareNextReportInNextFrame({
           ...reportFields,
           stakingModuleIdsWithNewlyExitedValidators: [1, 2],
-          numExitedValidatorsByStakingModule: [3]
+          numExitedValidatorsByStakingModule: [3],
         })
         await assert.reverts(
           oracle.submitReportData(newReportItems, oracleVersion, { from: member1 }),
@@ -349,7 +371,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         const { newReportItems } = await prepareNextReportInNextFrame({
           ...reportFields,
           stakingModuleIdsWithNewlyExitedValidators: [1, 2],
-          numExitedValidatorsByStakingModule: [3, 0]
+          numExitedValidatorsByStakingModule: [3, 0],
         })
         await assert.reverts(
           oracle.submitReportData(newReportItems, oracleVersion, { from: member1 }),
@@ -417,11 +439,11 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         assert.equals(lastOracleReportToLido.clBalance, reportFields.clBalanceGwei + '000000000')
         assert.equals(lastOracleReportToLido.withdrawalVaultBalance, reportFields.withdrawalVaultBalance)
         assert.equals(lastOracleReportToLido.elRewardsVaultBalance, reportFields.elRewardsVaultBalance)
-        assert.equals(
-          lastOracleReportToLido.lastWithdrawalRequestIdToFinalize,
-          reportFields.lastWithdrawalRequestIdToFinalize
+        assert.sameOrderedMembers(
+          toNum(lastOracleReportToLido.withdrawalFinalizationBatches),
+          toNum(reportFields.withdrawalFinalizationBatches)
         )
-        assert.equals(lastOracleReportToLido.finalizationShareRate, reportFields.finalizationShareRate)
+        assert.equals(lastOracleReportToLido.simulatedShareRate, reportFields.simulatedShareRate)
       })
 
       it('should call updateExitedValidatorsCountByStakingModule on StakingRouter', async () => {
@@ -441,7 +463,7 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         const { newReportItems, newReportFields } = await prepareNextReportInNextFrame({
           ...reportFields,
           stakingModuleIdsWithNewlyExitedValidators: [],
-          numExitedValidatorsByStakingModule: []
+          numExitedValidatorsByStakingModule: [],
         })
         const tx = await oracle.submitReportData(newReportItems, oracleVersion, { from: member1 })
         assert.emits(tx, 'ProcessingStarted', { refSlot: newReportFields.refSlot })
@@ -452,19 +474,42 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
       it('should call handleConsensusLayerReport on legacyOracle', async () => {
         await oracle.submitReportData(reportItems, oracleVersion, { from: member1 })
         const lastCall = await mockLegacyOracle.lastCall__handleConsensusLayerReport()
-        assert.equal(+lastCall.totalCalls, 1)
-        assert.equal(+lastCall.refSlot, reportFields.refSlot)
-        assert.equal(+lastCall.clBalance, e9(reportFields.clBalanceGwei))
-        assert.equal(+lastCall.clValidators, reportFields.numValidators)
+        assert.equals(lastCall.totalCalls, 1)
+        assert.equals(lastCall.refSlot, reportFields.refSlot)
+        assert.equals(lastCall.clBalance, e9(reportFields.clBalanceGwei))
+        assert.equals(lastCall.clValidators, reportFields.numValidators)
       })
 
-      it('should call updateBunkerMode on WithdrawalQueue', async () => {
+      it('should call onOracleReport on WithdrawalQueue', async () => {
         const prevProcessingRefSlot = +(await oracle.getLastProcessingRefSlot())
         await oracle.submitReportData(reportItems, oracleVersion, { from: member1 })
-        const lastCall = await mockWithdrawalQueue.lastCall__updateBunkerMode()
-        assert.equal(+lastCall.callCount, 1)
-        assert.equal(+lastCall.isBunkerMode, reportFields.isBunkerMode)
-        assert.equal(+lastCall.prevReportTimestamp, GENESIS_TIME + prevProcessingRefSlot * SECONDS_PER_SLOT)
+        const currentProcessingRefSlot = +(await oracle.getLastProcessingRefSlot())
+        const lastCall = await mockWithdrawalQueue.lastCall__onOracleReport()
+        assert.equals(lastCall.callCount, 1)
+        assert.equals(lastCall.isBunkerMode, reportFields.isBunkerMode)
+        assert.equals(lastCall.prevReportTimestamp, GENESIS_TIME + prevProcessingRefSlot * SECONDS_PER_SLOT)
+        assert.equals(lastCall.currentReportTimestamp, GENESIS_TIME + currentProcessingRefSlot * SECONDS_PER_SLOT)
+      })
+    })
+
+    context('warns when prev extra data has not been processed yet', () => {
+      it('emits WarnExtraDataIncompleteProcessing', async () => {
+        await consensus.setTime(deadline)
+        const prevRefSlot = +(await consensus.getCurrentFrame()).refSlot
+        await oracle.submitReportData(reportItems, oracleVersion, { from: member1 })
+        await consensus.advanceTimeToNextFrameStart()
+        const nextRefSlot = +(await consensus.getCurrentFrame()).refSlot
+        const tx = await consensus.submitReport(nextRefSlot, HASH_1, CONSENSUS_VERSION, { from: member1 })
+        assert.emits(
+          tx,
+          'WarnExtraDataIncompleteProcessing',
+          {
+            refSlot: prevRefSlot,
+            processedItemsCount: 0,
+            itemsCount: extraDataItems.length,
+          },
+          { abi: AccountingOracleAbi }
+        )
       })
     })
 
@@ -474,21 +519,94 @@ contract('AccountingOracle', ([admin, account1, account2, member1, member2, stra
         await oracle.submitReportData(reportItems, oracleVersion, { from: member1 })
 
         const nextRefSlot = reportFields.refSlot + SLOTS_PER_FRAME
-        const changedReportItems = getReportDataItems({
+        const changedReportItems = getAccountingReportDataItems({
           ...reportFields,
           refSlot: nextRefSlot,
-          extraDataFormat: EXTRA_DATA_FORMAT_LIST + 1
+          extraDataFormat: EXTRA_DATA_FORMAT_LIST + 1,
         })
 
-        const changedReportHash = calcReportDataHash(changedReportItems)
+        const changedReportHash = calcAccountingReportDataHash(changedReportItems)
         await consensus.advanceTimeToNextFrameStart()
         await consensus.submitReport(nextRefSlot, changedReportHash, CONSENSUS_VERSION, {
-          from: member1
+          from: member1,
         })
 
         await assert.revertsWithCustomError(
           oracle.submitReportData(changedReportItems, oracleVersion, { from: member1 }),
           `UnsupportedExtraDataFormat(${EXTRA_DATA_FORMAT_LIST + 1})`
+        )
+      })
+
+      it('should revert on non-empty format but zero length', async () => {
+        await consensus.setTime(deadline)
+        const { refSlot } = await consensus.getCurrentFrame()
+        const reportFields = getReportFields({
+          refSlot: +refSlot,
+          extraDataItemsCount: 0,
+        })
+        const reportItems = getAccountingReportDataItems(reportFields)
+        const reportHash = calcAccountingReportDataHash(reportItems)
+        await consensus.submitReport(refSlot, reportHash, CONSENSUS_VERSION, { from: member1 })
+        await assert.revertsWithCustomError(
+          oracle.submitReportData(reportItems, oracleVersion, { from: member1 }),
+          `ExtraDataItemsCountCannotBeZeroForNonEmptyData()`
+        )
+      })
+
+      it('should revert on non-empty format but zero hash', async () => {
+        await consensus.setTime(deadline)
+        const { refSlot } = await consensus.getCurrentFrame()
+        const reportFields = getReportFields({
+          refSlot: +refSlot,
+          extraDataHash: ZERO_HASH,
+        })
+        const reportItems = getAccountingReportDataItems(reportFields)
+        const reportHash = calcAccountingReportDataHash(reportItems)
+        await consensus.submitReport(refSlot, reportHash, CONSENSUS_VERSION, { from: member1 })
+        await assert.revertsWithCustomError(
+          oracle.submitReportData(reportItems, oracleVersion, { from: member1 }),
+          `ExtraDataHashCannotBeZeroForNonEmptyData()`
+        )
+      })
+    })
+
+    context('enforces zero extraData fields for the empty format', () => {
+      it('should revert for non empty ExtraDataHash', async () => {
+        await consensus.setTime(deadline)
+        const { refSlot } = await consensus.getCurrentFrame()
+        const nonZeroHash = web3.utils.keccak256('nonZeroHash')
+        const reportFields = getReportFields({
+          refSlot: +refSlot,
+          isBunkerMode: false,
+          extraDataFormat: EXTRA_DATA_FORMAT_EMPTY,
+          extraDataHash: nonZeroHash,
+          extraDataItemsCount: 0,
+        })
+        const reportItems = getAccountingReportDataItems(reportFields)
+        const reportHash = calcAccountingReportDataHash(reportItems)
+        await consensus.submitReport(refSlot, reportHash, CONSENSUS_VERSION, { from: member1 })
+        await assert.revertsWithCustomError(
+          oracle.submitReportData(reportItems, oracleVersion, { from: member1 }),
+          `UnexpectedExtraDataHash("${ZERO_HASH}", "${nonZeroHash}")`
+        )
+      })
+
+      it('should revert for non zero ExtraDataLength', async () => {
+        await consensus.setTime(deadline)
+        const { refSlot } = await consensus.getCurrentFrame()
+        const reportFields = getReportFields({
+          refSlot: +refSlot,
+          isBunkerMode: false,
+          extraDataFormat: EXTRA_DATA_FORMAT_EMPTY,
+          extraDataHash: ZERO_HASH,
+          extraDataItemsCount: 10,
+        })
+        const reportItems = getAccountingReportDataItems(reportFields)
+        const reportHash = calcAccountingReportDataHash(reportItems)
+        await consensus.submitReport(refSlot, reportHash, CONSENSUS_VERSION, { from: member1 })
+        await assert.revertsWithCustomError(
+          oracle.submitReportData(reportItems, oracleVersion, { from: member1 }),
+          `UnexpectedExtraDataItemsCount(0, 10)`
         )
       })
     })

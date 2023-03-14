@@ -1,8 +1,10 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-yarn compile
-yarn lint:sol
+RED_COLOR='\033[0;31m'
+NO_COLOR='\033[0m'
 
-# TODO: uncomment. it's temporarily disabled on staking_router + withdrawals-poc merge
-# yarn lint:js:fix
+yarn compile
+git diff --quiet lib/abi || (echo -e "${RED_COLOR}Unstaged ABIs detected${NO_COLOR}"; exit 1)
+
+yarn lint

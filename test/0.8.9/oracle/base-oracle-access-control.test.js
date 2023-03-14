@@ -1,3 +1,4 @@
+const { contract, web3, artifacts } = require('hardhat')
 const { assert } = require('../../helpers/assert')
 
 const {
@@ -10,7 +11,7 @@ const {
   INITIAL_EPOCH,
   CONSENSUS_VERSION,
   HASH_1,
-  SLOTS_PER_FRAME
+  SLOTS_PER_FRAME,
 } = require('./base-oracle-deploy.test')
 
 const MockConsensusContract = artifacts.require('MockConsensusContract')
@@ -56,8 +57,8 @@ contract('BaseOracle', ([admin, account1, account2, member1, member2]) => {
           SECONDS_PER_SLOT,
           GENESIS_TIME,
           EPOCHS_PER_FRAME,
-          INITIAL_FAST_LANE_LENGTH_SLOTS,
           INITIAL_EPOCH,
+          INITIAL_FAST_LANE_LENGTH_SLOTS,
           admin,
           { from: admin }
         )
@@ -105,13 +106,13 @@ contract('BaseOracle', ([admin, account1, account2, member1, member2]) => {
           'OnlyConsensusContractCanSubmitReport()'
         )
 
-        assert.equal(+(await oracle.getConsensusReportLastCall()).callCount, 0)
+        assert.equals((await oracle.getConsensusReportLastCall()).callCount, 0)
       })
 
       it('should allow calling from a consensus contract', async () => {
         await consensus.submitReportAsConsensus(HASH_1, initialRefSlot, initialRefSlot + SLOTS_PER_FRAME)
 
-        assert.equal(+(await oracle.getConsensusReportLastCall()).callCount, 1)
+        assert.equals((await oracle.getConsensusReportLastCall()).callCount, 1)
       })
     })
   })

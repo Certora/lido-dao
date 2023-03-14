@@ -1,46 +1,114 @@
+const { artifacts, contract, ethers, web3 } = require('hardhat')
+const { assert } = require('../helpers/assert')
+
 const crypto = require('crypto')
 const { ACCOUNTS_AND_KEYS, MAX_UINT256, ZERO_ADDRESS } = require('./helpers/constants')
 const { bn } = require('@aragon/contract-helpers-test')
-const { assertBn, assertEvent } = require('@aragon/contract-helpers-test/src/asserts')
-const { assertRevert } = require('../helpers/assertThrow')
-const { signPermit, signTransferAuthorization, makeDomainSeparator } = require('./helpers/permit_helpers')
-const { hexStringFromBuffer } = require('./helpers/sign_utils')
-const { ETH } = require('../helpers/utils')
+const {
+  calculatePermitDigest,
+  calculateTransferAuthorizationDigest,
+  makeDomainSeparator,
+} = require('./helpers/permit_helpers')
+const { ETH, hex, hexStringFromBuffer } = require('../helpers/utils')
+const { ecSign } = require('../helpers/signatures')
+const { EvmSnapshot, setBalance } = require('../helpers/blockchain')
 
 const EIP712StETH = artifacts.require('EIP712StETH')
 const StETHPermit = artifacts.require('StETHPermitMock')
+const ERC1271PermitSignerMock = artifacts.require('ERC1271PermitSignerMock')
 
 contract('StETHPermit', ([deployer, ...accounts]) => {
-  let stEthPermit, chainId, domainSeparator
+  let stEthPermit, eip712StETH, chainId, domainSeparator
+  const snapshot = new EvmSnapshot(ethers.provider)
 
-  beforeEach('deploy mock token', async () => {
-    const eip712StETH = await EIP712StETH.new({ from: deployer })
-    stEthPermit = await StETHPermit.new({ from: deployer })
+  before('deploy mock token', async () => {
+    stEthPermit = await StETHPermit.new({ from: deployer, value: ETH(1) })
+    eip712StETH = await EIP712StETH.new(stEthPermit.address, { from: deployer })
     await stEthPermit.initializeEIP712StETH(eip712StETH.address)
 
-    chainId = await web3.eth.net.getId();
+    chainId = await web3.eth.net.getId()
 
-    domainSeparator = makeDomainSeparator('Liquid staked Ether 2.0', '2', chainId, eip712StETH.address)
+    domainSeparator = makeDomainSeparator('Liquid staked Ether 2.0', '2', chainId, stEthPermit.address)
+    await snapshot.make()
   })
 
-  context('permit', () => {
-    const [alice, bob] = ACCOUNTS_AND_KEYS
-    const charlie = accounts[1]
+  const getAccountsEOA = async () => {
+    return {
+      alice: ACCOUNTS_AND_KEYS[0],
+      bob: ACCOUNTS_AND_KEYS[1],
+    }
+  }
+
+  const getAccountsEIP1271 = async () => {
+    const alice = await ERC1271PermitSignerMock.new()
+    const bob = await ERC1271PermitSignerMock.new()
+    return { alice, bob }
+  }
+
+  const signEOA = async (digest, acct) => {
+    return ecSign(digest, acct.key)
+  }
+
+  const signEIP1271 = async (digest, acct) => {
+    const sig = await acct.sign(digest)
+    return { v: hex(sig.v), r: hex(sig.r), s: hex(sig.s) }
+  }
+
+  afterEach(async () => {
+    await snapshot.rollback()
+  })
+
+  const test = ({ getAccounts, sign, desc }) => {
+    let alice, bob
+    let permitParams
+    const charlie = accounts[3]
+
+    before(async () => {
+      const accts = await getAccounts()
+      alice = accts.alice
+      bob = accts.bob
+
+      permitParams = {
+        owner: alice.address,
+        spender: bob.address,
+        value: 6e6,
+        nonce: 0,
+        deadline: MAX_UINT256,
+      }
+
+      await snapshot.make()
+    })
+
+    const signPermit = async (owner, spender, value, nonce, domainSeparator, deadline, acct) => {
+      const digest = calculatePermitDigest(owner, spender, value, nonce, domainSeparator, deadline)
+      return await sign(digest, acct)
+    }
 
     const initialTotalSupply = 100e6
     const initialBalance = 90e6
 
-    const permitParams = {
-      owner: alice.address,
-      spender: bob.address,
-      value: 6e6,
-      nonce: 0,
-      deadline: MAX_UINT256
-    }
-
     beforeEach(async () => {
       await stEthPermit.setTotalPooledEther(initialTotalSupply, { from: deployer })
       await stEthPermit.mintShares(permitParams.owner, initialBalance, { from: deployer })
+    })
+
+    it('EIP-712 signature helper reverts when zero stETH address passed', async () => {
+      await assert.revertsWithCustomError(EIP712StETH.new(ZERO_ADDRESS, { from: deployer }), `ZeroStETHAddress()`)
+    })
+
+    it('EIP-712 signature helper contract matches the stored one', async () => {
+      assert.equals(await stEthPermit.getEIP712StETH(), eip712StETH.address)
+    })
+
+    it('eip712Domain() is correct', async () => {
+      const { name, version, chainId, verifyingContract } = await stEthPermit.eip712Domain()
+
+      assert.equals(name, 'Liquid staked Ether 2.0')
+      assert.equals(version, '2')
+      assert.equals(chainId, await web3.eth.net.getId())
+      assert.equals(verifyingContract, stEthPermit.address)
+
+      assert.equals(makeDomainSeparator(name, version, chainId, verifyingContract), domainSeparator)
     })
 
     it('grants allowance when a valid permit is given', async () => {
@@ -50,62 +118,48 @@ contract('StETHPermit', ([deployer, ...accounts]) => {
       // on behalf, and sign with Alice's key
       let nonce = 0
 
-      let { v, r, s } = signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice.key)
+      let { v, r, s } = await signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice)
 
       // check that the allowance is initially zero
-      assertBn(await stEthPermit.allowance(owner, spender), bn(0))
+      assert.equals(await stEthPermit.allowance(owner, spender), bn(0))
       // check that the next nonce expected is zero
-      assertBn(await stEthPermit.nonces(owner), bn(0))
+      assert.equals(await stEthPermit.nonces(owner), bn(0))
       // check domain separator
-      assert.equal(
-        await stEthPermit.DOMAIN_SEPARATOR(),
-        domainSeparator
-      )
+      assert.equals(await stEthPermit.DOMAIN_SEPARATOR(), domainSeparator)
 
       // a third-party, Charlie (not Alice) submits the permit
-      const receipt = await stEthPermit.permit(
-        owner, spender, value, deadline, v, r, s, { from: charlie }
-      )
+      const receipt = await stEthPermit.permit(owner, spender, value, deadline, v, r, s, { from: charlie })
 
       // check that allowance is updated
-      assertBn(await stEthPermit.allowance(owner, spender), bn(value))
+      assert.equals(await stEthPermit.allowance(owner, spender), bn(value))
 
-      assertEvent(
-        receipt,
-        'Approval',
-        { expectedArgs: { owner: owner, spender: spender, value: bn(value) } }
-      )
+      assert.emits(receipt, 'Approval', { owner, spender, value: bn(value) })
 
-      assertBn(await stEthPermit.nonces(owner), bn(1))
+      assert.equals(await stEthPermit.nonces(owner), bn(1))
 
       // increment nonce
       nonce = 1
       value = 4e5
-
-        ; ({ v, r, s } = signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice.key))
+      ;({ v, r, s } = await signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice))
 
       // submit the permit
       const receipt2 = await stEthPermit.permit(owner, spender, value, deadline, v, r, s, { from: charlie })
 
       // check that allowance is updated
-      assertBn(await stEthPermit.allowance(owner, spender), bn(value))
+      assert.equals(await stEthPermit.allowance(owner, spender), bn(value))
 
-      assertEvent(
-        receipt2,
-        'Approval',
-        { expectedArgs: { owner: owner, spender: spender, value: bn(value) } }
-      )
+      assert.emits(receipt2, 'Approval', { owner, spender, value: bn(value) })
 
-      assertBn(await stEthPermit.nonces(owner), bn(2))
+      assert.equals(await stEthPermit.nonces(owner), bn(2))
     })
 
     it('reverts if the signature does not match given parameters', async () => {
       const { owner, spender, value, nonce, deadline } = permitParams
       // create a signed permit
-      const { v, r, s } = signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice.key)
+      const { v, r, s } = await signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice)
 
       // try to cheat by claiming the approved amount + 1
-      await assertRevert(
+      await assert.reverts(
         stEthPermit.permit(
           owner,
           spender,
@@ -116,11 +170,11 @@ contract('StETHPermit', ([deployer, ...accounts]) => {
           s,
           { from: charlie }
         ),
-        'ERC20Permit: invalid signature'
+        'INVALID_SIGNATURE'
       )
 
       // check that msg is incorrect even if claim the approved amount - 1
-      await assertRevert(
+      await assert.reverts(
         stEthPermit.permit(
           owner,
           spender,
@@ -131,7 +185,7 @@ contract('StETHPermit', ([deployer, ...accounts]) => {
           s,
           { from: charlie }
         ),
-        'ERC20Permit: invalid signature'
+        'INVALID_SIGNATURE'
       )
     })
 
@@ -139,27 +193,25 @@ contract('StETHPermit', ([deployer, ...accounts]) => {
       const { owner, spender, value, nonce, deadline } = permitParams
       // create a signed permit to grant Bob permission to spend
       // Alice's funds on behalf, but sign with Bob's key instead of Alice's
-      const { v, r, s } = signPermit(owner, spender, value, nonce, deadline, domainSeparator, bob.key)
+      const { v, r, s } = await signPermit(owner, spender, value, nonce, deadline, domainSeparator, bob)
 
       // try to cheat by submitting the permit that is signed by a
       // wrong person
-      await assertRevert(
-        stEthPermit.permit(owner, spender, value, deadline, v, r, s, {
-          from: charlie
-        }),
-        'ERC20Permit: invalid signature'
+      await assert.reverts(
+        stEthPermit.permit(owner, spender, value, deadline, v, r, s, { from: charlie }),
+        'INVALID_SIGNATURE'
       )
 
       // unlock bob account (allow transactions originated from bob.address)
       await ethers.provider.send('hardhat_impersonateAccount', [bob.address])
-      await web3.eth.sendTransaction({ to: bob.address, from: accounts[0], value: ETH(10) })
+      await setBalance(bob.address, ETH(10))
 
       // even Bob himself can't call permit with the invalid sig
-      await assertRevert(
+      await assert.reverts(
         stEthPermit.permit(owner, spender, value, deadline, v, r, s, {
-          from: bob.address
+          from: bob.address,
         }),
-        'ERC20Permit: invalid signature'
+        'INVALID_SIGNATURE'
       )
     })
 
@@ -167,28 +219,22 @@ contract('StETHPermit', ([deployer, ...accounts]) => {
       const { owner, spender, value, nonce } = permitParams
       // create a signed permit that already invalid
       const deadline = (await stEthPermit.getBlockTime()).toString() - 1
-      const { v, r, s } = signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice.key)
+      const { v, r, s } = await signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice)
 
       // try to submit the permit that is expired
-      await assertRevert(
-        stEthPermit.permit(owner, spender, value, deadline, v, r, s, {
-          from: charlie
-        }),
-        'ERC20Permit: expired deadline'
+      await assert.reverts(
+        stEthPermit.permit(owner, spender, value, deadline, v, r, s, { from: charlie }),
+        'DEADLINE_EXPIRED'
       )
 
       {
         // create a signed permit that valid for 1 minute (approximately)
         const deadline1min = (await stEthPermit.getBlockTime()).toString() + 60
-        const { v, r, s } = signPermit(owner, spender, value, nonce, deadline1min, domainSeparator, alice.key)
+        const { v, r, s } = await signPermit(owner, spender, value, nonce, deadline1min, domainSeparator, alice)
         const receipt = await stEthPermit.permit(owner, spender, value, deadline1min, v, r, s, { from: charlie })
 
-        assertBn(await stEthPermit.nonces(owner), bn(1))
-        assertEvent(
-          receipt,
-          'Approval',
-          { expectedArgs: { owner: owner, spender: spender, value: bn(value) } }
-        )
+        assert.equals(await stEthPermit.nonces(owner), bn(1))
+        assert.emits(receipt, 'Approval', { owner, spender, value: bn(value) })
       }
     })
 
@@ -196,64 +242,60 @@ contract('StETHPermit', ([deployer, ...accounts]) => {
       const { owner, spender, value, deadline } = permitParams
       const nonce = 1
       // create a signed permit
-      const { v, r, s } = signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice.key)
+      const { v, r, s } = await signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice)
       // check that the next nonce expected is 0, not 1
-      assertBn(await stEthPermit.nonces(owner), bn(0))
+      assert.equals(await stEthPermit.nonces(owner), bn(0))
 
       // try to submit the permit
-      await assertRevert(
-        stEthPermit.permit(owner, spender, value, deadline, v, r, s, {
-          from: charlie
-        }),
-        'ERC20Permit: invalid signature'
+      await assert.reverts(
+        stEthPermit.permit(owner, spender, value, deadline, v, r, s, { from: charlie }),
+        'INVALID_SIGNATURE'
       )
     })
 
     it('reverts if the permit has already been used', async () => {
       const { owner, spender, value, nonce, deadline } = permitParams
       // create a signed permit
-      const { v, r, s } = signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice.key)
+      const { v, r, s } = await signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice)
 
       // submit the permit
       await stEthPermit.permit(owner, spender, value, deadline, v, r, s, { from: charlie })
 
       // try to submit the permit again
-      await assertRevert(
-        stEthPermit.permit(owner, spender, value, deadline, v, r, s, {
-          from: charlie
-        }),
-        'ERC20Permit: invalid signature'
+      await assert.reverts(
+        stEthPermit.permit(owner, spender, value, deadline, v, r, s, { from: charlie }),
+        'INVALID_SIGNATURE'
       )
 
-      // unlock bob account (allow transactions originated from bob.address)
+      // unlock alice account (allow transactions originated from alice.address)
       await ethers.provider.send('hardhat_impersonateAccount', [alice.address])
-      await web3.eth.sendTransaction({ to: alice.address, from: accounts[0], value: ETH(10) })
+      await setBalance(alice.address, ETH(10))
 
       // try to submit the permit again from Alice herself
-      await assertRevert(
+      await assert.reverts(
         stEthPermit.permit(owner, spender, value, deadline, v, r, s, {
-          from: alice.address
+          from: alice.address,
         }),
-        'ERC20Permit: invalid signature'
+        'INVALID_SIGNATURE'
       )
     })
 
     it('reverts if the permit has a nonce that has already been used by the signer', async () => {
       const { owner, spender, value, nonce, deadline } = permitParams
       // create a signed permit
-      const permit = signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice.key)
+      const permit = await signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice)
 
       // submit the permit
       await stEthPermit.permit(owner, spender, value, deadline, permit.v, permit.r, permit.s, { from: charlie })
 
       // create another signed permit with the same nonce, but
       // with different parameters
-      const permit2 = signPermit(owner, spender, 1e6, nonce, deadline, domainSeparator, alice.key)
+      const permit2 = await signPermit(owner, spender, 1e6, nonce, deadline, domainSeparator, alice)
 
       // try to submit the permit again
-      await assertRevert(
+      await assert.reverts(
         stEthPermit.permit(owner, spender, 1e6, deadline, permit2.v, permit2.r, permit2.s, { from: charlie }),
-        'ERC20Permit: invalid signature'
+        'INVALID_SIGNATURE'
       )
     })
 
@@ -262,14 +304,12 @@ contract('StETHPermit', ([deployer, ...accounts]) => {
       // create a signed permit that attempts to grant allowance to the
       // zero address
       const spender = ZERO_ADDRESS
-      const { v, r, s } = signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice.key)
+      const { v, r, s } = await signPermit(owner, spender, value, nonce, deadline, domainSeparator, alice)
 
       // try to submit the permit with invalid approval parameters
-      await assertRevert(
-        stEthPermit.permit(owner, spender, value, deadline, v, r, s, {
-          from: charlie
-        }),
-        'APPROVE_TO_ZERO_ADDRESS'
+      await assert.reverts(
+        stEthPermit.permit(owner, spender, value, deadline, v, r, s, { from: charlie }),
+        'APPROVE_TO_ZERO_ADDR'
       )
     })
 
@@ -278,15 +318,25 @@ contract('StETHPermit', ([deployer, ...accounts]) => {
       // create a signed permit for a transfer
       const validAfter = 0
       const nonce = hexStringFromBuffer(crypto.randomBytes(32))
-      const { v, r, s } = signTransferAuthorization(from, to, value, validAfter, validBefore, nonce, domainSeparator, alice.key)
+      const digest = calculateTransferAuthorizationDigest(
+        from,
+        to,
+        value,
+        validAfter,
+        validBefore,
+        nonce,
+        domainSeparator
+      )
+      const { v, r, s } = await sign(digest, alice)
 
       // try to submit the transfer permit
-      await assertRevert(
-        stEthPermit.permit(from, to, value, validBefore, v, r, s, {
-          from: charlie
-        }),
-        'ERC20Permit: invalid signature'
+      await assert.reverts(
+        stEthPermit.permit(from, to, value, validBefore, v, r, s, { from: charlie }),
+        'INVALID_SIGNATURE'
       )
     })
-  })
+  }
+
+  context(`permit (ECDSA)`, () => test({ getAccounts: getAccountsEOA, sign: signEOA }))
+  context(`permit (EIP-1271)`, () => test({ getAccounts: getAccountsEIP1271, sign: signEIP1271 }))
 })
