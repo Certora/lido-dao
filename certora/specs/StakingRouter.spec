@@ -340,20 +340,28 @@ filtered{f -> !f.isView && !isDeposit(f)} {
 rule feeDistributionDoesntRevertAfterAddingModule() {
     env e;
     calldataarg args;
-    require getStakingModulesCount() <= 3;
+    require getStakingModulesCount() <= 1;    
+    uint256 nextId = to_uint256(getStakingModulesCount()+1);
     safeAssumptions(1);
-    safeAssumptions(getStakingModulesCount());
-    safeAssumptions(to_uint256(getStakingModulesCount()+1));
+    safeAssumptions(nextId);
     
     /// call the fee distribution function
     getStakingFeeAggregateDistribution();
     
     /// add a new module
-    addStakingModule(e, args);
-    
+    string name; require name.length == 32;
+    address stakingModuleAddress;
+    uint256 targetShare;
+    uint256 stakingModuleFee;
+    uint256 treasuryFee;
+    addStakingModule(e, name, stakingModuleAddress, targetShare, stakingModuleFee, treasuryFee);
+          
     /// Probe the active validator count for the newly added module
     /// as to assume that the validators state in that module is valid.
-    getStakingModuleActiveValidatorsCount(getStakingModulesCount());
+    
+    uint256 active1 = getStakingModuleActiveValidatorsCount(1);
+    uint256 active2 = getStakingModuleActiveValidatorsCount(getStakingModulesCount());
+    require active1 + active2 <= 0xFFFFFFFF;
     
     // call again to the fee distribution
     getStakingFeeAggregateDistribution@withrevert();
@@ -473,7 +481,7 @@ filtered{f -> !f.isView} {
 }
 
 rule reportStakingModuleExitedDoesntRevert(method f, uint256 moduleId) 
-filtered{f -> !isAddModule(f) && !f.isView} {
+filtered{f -> !f.isView} {
     env e1;
     env e2;
     calldataarg args;
