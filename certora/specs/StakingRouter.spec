@@ -214,16 +214,16 @@ filtered{f -> !f.isView && !isDeposit(f)} {
         (uint256,uint256,uint256,uint256,uint256,uint256)).selector;
 }
 
-rule cannotAddStakingModuleIfAlreadyRegistered(uint256 index) {
+rule cannotAddStakingModuleIfAlreadyRegistered(uint256 moduleId) {
     env e;
     string name;
     address stakingModuleAddress;
     uint256 targetShare;
     uint256 stakingModuleFee;
     uint256 treasuryFee;
-    require index < getStakingModulesCount();
+    require moduleId <= getStakingModulesCount();
     addStakingModule(e, name, stakingModuleAddress, targetShare, stakingModuleFee, treasuryFee);
-    assert stakingModuleAddress != getStakingModuleAddressByIndex(index);
+    assert stakingModuleAddress != getStakingModuleAddressById(moduleId);
 }
 
 // Checks the aggregated fee after the first call to addStakingModule

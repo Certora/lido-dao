@@ -9,7 +9,7 @@ certoraRun \
 --verify StakingRouterHarness:certora/specs/StakingRouter.spec \
 \
 \
---link StakingRouterHarness:DEPOSIT_CONTRACT=DepositContract \
+--link \
 LidoLocator:burner=Burner \
 LidoLocator:lido=LidoMockStEth \
 \
@@ -18,7 +18,9 @@ LidoLocator:lido=LidoMockStEth \
 DepositContract=solc6.11,StakingModuleMock=solc8.9,\
 NodeOperatorsRegistry=solc4.24,LidoMockStEth=solc4.24 \
 --loop_iter 4 \
---staging master \
+--cloud master \
+--optimistic_loop \
+--rule_sanity \
 --send_only \
---settings -t=600,-mediumTimeout=50,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
+--settings -t=1600,-depth=12,-mediumTimeout=50,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
 --msg "Staking Router"

@@ -147,7 +147,6 @@ invariant AllModulesAreActiveConsistency(uint256 nodeOperatorId)
 invariant UnregisteredOperatorIsNotPenalized(env e, uint256 nodeOperatorId)
     (e.block.timestamp > 0 && nodeOperatorId >= getNodeOperatorsCount())
     => !isOperatorPenalized(e, nodeOperatorId)
-    filtered{f -> f.isView || isObtainDepData(f)}
     {
         preserved {
             safeAssumptions_NOS(nodeOperatorId);
@@ -379,7 +378,7 @@ filtered{f -> !f.isView} {
     assert summary_deposited_after + deposited_before == 
         summary_deposited_before + deposited_after , 
         "Summary of deposited keys doesn't equal to sum of keys";
-
+    
     assert summary_total_after + total_before == 
         summary_total_before + total_after , 
         "Summary of total keys doesn't equal to sum of keys";

@@ -38,7 +38,6 @@ methods {
     TOTAL_BASIS_POINTS() returns (uint256) envfree
 
     // StakingRouter harness getters
-    getStakingModuleAddressByIndex(uint256) returns (address) envfree
     getStakingModuleAddressById(uint256) returns (address) envfree
     getStakingModuleExitedValidatorsById(uint256) returns (uint256) envfree
     getStakingModuleIdById(uint256) returns (uint256) envfree
@@ -66,7 +65,6 @@ definition PAUSED() returns uint8 = 1;
 definition STOPPED() returns uint8 = 2; 
 
 definition harnessGetters(method f) returns bool =
-    f.selector == getStakingModuleAddressByIndex(uint256).selector ||
     f.selector == getStakingModuleAddressById(uint256).selector ||
     f.selector == getStakingModuleExitedValidatorsById(uint256).selector ||
     f.selector == getStakingModuleIdById(uint256).selector ||

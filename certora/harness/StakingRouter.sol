@@ -20,10 +20,6 @@ contract StakingRouterHarness is StakingRouter {
             initialize(admin, lido, withdrawalCredentials);
         }
 
-    function getStakingModuleAddressByIndex(uint256 _stakingModuleIndex) public view returns (address) {
-        return _getStakingModuleAddressByIndex(_stakingModuleIndex);
-    }
-
     function getStakingModuleAddressById(uint256 _stakingModuleId) public view returns (address) {
         if(_stakingModuleId == 0){
             return address(0);

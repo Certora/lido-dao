@@ -6,8 +6,8 @@ pragma solidity 0.4.24;
 
 import {UnstructuredStorage} from "@aragon/os/contracts/common/UnstructuredStorage.sol";
 
-import {ECDSA} from "../common/lib/ECDSA.sol";
-import {IEIP712} from "../common/interfaces/IEIP712.sol";
+import {SignatureUtils} from "../common/lib/SignatureUtils.sol";
+import {IEIP712StETH} from "../common/interfaces/IEIP712StETH.sol";
 
 import {StETH} from "./StETH.sol";
 
@@ -161,8 +161,8 @@ contract StETHPermit is IERC2612, StETH {
      * @dev Initialize EIP712 message utils contract for stETH
      */
     function _initializeEIP712StETH(address _eip712StETH) internal {
-        require(_eip712StETH != address(0), "StETHPermit: zero eip712StETH");
-        require(_getEIP712StETH() == address(0), "StETHPermit: eip712StETH already set");
+        require(_eip712StETH != address(0), "ZERO_EIP712STETH");
+        require(getEIP712StETH() == address(0), "EIP712STETH_ALREADY_SET");
 
         EIP712_STETH_POSITION.setStorageAddress(_eip712StETH);
 
