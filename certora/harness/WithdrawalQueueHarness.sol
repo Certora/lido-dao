@@ -92,4 +92,18 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
         DiscountCheckpoint storage lastCheckpoint = _getCheckpoints()[checkpointIndex];
         return lastCheckpoint.fromRequestId;
     }
+
+    function getFinalizedAndNotClaimedEth() public returns (uint256) {
+        uint256 res = 0;
+        uint256 lastFinalizedRequestId = getLastFinalizedRequestId();
+
+        for (uint256 requestId = 1; requestId <= lastFinalizedRequestId; requestId++) {
+            WithdrawalRequest storage request = _getQueue()[requestId];
+            if (!request.claimed) {
+                res += _calculateClaimableEther(request, requestId, _findCheckpointHint(requestId, 1, getLastCheckpointIndex()));
+            }
+        }
+
+        return res;
+    }
 }
