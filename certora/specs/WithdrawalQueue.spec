@@ -35,6 +35,7 @@ methods {
     getRequestsStatusAmountOfStETH(uint256) returns (uint256) envfree
     requestWithdrawal(uint256, address) returns (uint256)
     claimWithdrawal(uint256, uint256)
+    getFinalizedAndNotClaimedEth() returns (uint256) envfree
 
     // Getters:
     // WithdrawalQueueBase:
@@ -73,6 +74,12 @@ function calculateDiscountFactor(uint256 stETHAmount, uint256 ethAmount) returns
  *                METHOD INTEGRITY                *
  **************************************************/
 
+/**
+After calling requestWithdrawal:
+    1. the stEth.shares of the user should decrease 
+    2. the contract’s stEth.shares should increase by the same amount and 
+    3. generate the desired withdrawal request.
+ **/
 rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     env e;
     require e.msg.sender != currentContract;
@@ -95,8 +102,17 @@ rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     assert reqCumulativeStEth == lastCumulativeStEth + amount;
 }
 
+/** 
+After calling claimWithdrawal, if the user’s ETH balance was increased then:
+    1.The locked ETH amount should decreased
+    2.The request’s claimed and finalized flags are on.
+    3.The request-id is smaller than the last finalized request id
+**/
 rule integrityOfClaimWithdrawal(uint256 requestId) {
     env e;
+    require requestId > 0;
+    requireInvariant cantWithdrawLessThanMinWithdrawal(requestId);
+    requireInvariant cumulativeEtherGreaterThamMinWithdrawal(requestId);
     bool isClaimedBefore = isRequestStatusClaimed(requestId);
     bool isFinalized = isRequestStatusFinalized(requestId);
     uint256 ethBalanceBefore = balanceOfEth(e.msg.sender);
@@ -108,12 +124,15 @@ rule integrityOfClaimWithdrawal(uint256 requestId) {
     uint256 lockedEthAfter = getLockedEtherAmount();
     bool isClaimedAfter = isRequestStatusClaimed(requestId);
 
-    assert ethBalanceAfter > ethBalanceBefore => lockedEthBefore > lockedEthAfter && 
+    assert ethBalanceAfter > ethBalanceBefore && lockedEthBefore > lockedEthAfter && 
                                                  !isClaimedBefore && isClaimedAfter && isFinalized &&
                                                  (requestId <= getLastFinalizedRequestId());
     assert ethBalanceAfter - ethBalanceBefore == lockedEthBefore - lockedEthAfter;
 }
 
+/** 
+After calling finalize, the locked ETH amount is increased and the last finalized request-id should update accordingly
+**/
 rule integrityOfFinalize(uint256 _lastIdToFinalize) {
     env e;
     uint256 lockedEtherAmountBefore = getLockedEtherAmount();
@@ -134,6 +153,9 @@ rule integrityOfFinalize(uint256 _lastIdToFinalize) {
  *                   HIGH LEVEL                   *
  **************************************************/
 
+/**
+Check how finalizing with defferent requests are affecting the finalization
+**/
 rule finalizeAloneVsFinalizeBatch(uint256 requestId1, uint256 requestId2, uint256 shareRate) {
     env eClaimWithdrawal;
     env e1;
@@ -147,8 +169,8 @@ rule finalizeAloneVsFinalizeBatch(uint256 requestId1, uint256 requestId2, uint25
     require owner != e1.msg.sender;
 
     require requestId1 + 1 == requestId2;
-    require requestId1 < getLastRequestId() && requestId2 < getLastRequestId();
-    require requestId1 > getLastFinalizedRequestId() && requestId2 > getLastFinalizedRequestId();
+    require requestId2 < getLastRequestId();
+    require requestId1 > getLastFinalizedRequestId();
 
     uint256 lockedEtherBefore = getLockedEtherAmount();
 
@@ -175,6 +197,9 @@ rule finalizeAloneVsFinalizeBatch(uint256 requestId1, uint256 requestId2, uint25
     assert userEthBalanceSeperate == userEthBalanceBatch;
 }
 
+/** 
+If there is a new checkpoint index then the last finalized request id must have grown,
+**/
 rule priceIndexFinalizedRequestsCounterCorelation(method f) {
     env e;
     calldataarg args;
@@ -189,6 +214,9 @@ rule priceIndexFinalizedRequestsCounterCorelation(method f) {
     assert latestIndexAfter != latestIndexBefore => finalizedRequestsCounterAfter > finalizedRequestsCounterBefore;
 }
 
+/**
+If there is a new checkpoint index then the discount factor must have changed
+**/
 rule newDiscountFactor(uint256 requestIdToFinalize) {
     env e;
     calldataarg args;
@@ -199,7 +227,7 @@ rule newDiscountFactor(uint256 requestIdToFinalize) {
     uint256 lastFinilizedReqId = getLastFinalizedRequestId();
     uint256 amountOfStEth = getRequestCumulativeStEth(requestIdToFinalize) - getRequestCumulativeStEth(getLastFinalizedRequestId());
 
-    require amountOfStEth > 0;
+    require amountOfStEth > 0; // avoid dev by zero
 
     uint256 actualDiscountFactor = calculateDiscountFactor(amountOfStEth, amountOfEth);
 
@@ -217,6 +245,9 @@ rule newDiscountFactor(uint256 requestIdToFinalize) {
     assert lastDiscountFactorAfter != lastDiscountFactorBefore => lastDiscountFactorAfter == actualDiscountFactor;
 }
 
+/**
+Discount history is preserved
+**/
 rule preserveDiscountHistory(method f, uint256 index) 
     filtered{ f -> f.selector != initialize(address, address, address, address, address).selector } 
     {
@@ -236,7 +267,10 @@ rule preserveDiscountHistory(method f, uint256 index)
     assert index <= lastCheckPointIndexBefore => (discountFactorBefore == discountFactorAfter && fromRequestIdBefore == fromRequestIdAfter);
 }
 
-rule claimSameWithdrawalRequestTwise(uint256 requestId) {
+/**
+Claim the same withdrawal request twice and assert there are no changes after the second claim or the code reverts
+**/
+rule claimSameWithdrawalRequestTwice(uint256 requestId) {
     env e;
    
     claimWithdrawal(e, requestId);
@@ -245,18 +279,21 @@ rule claimSameWithdrawalRequestTwise(uint256 requestId) {
     uint256 lockedEthAfterFirst = getLockedEtherAmount();
     bool isClaimedAfterFirst = isRequestStatusClaimed(requestId);
 
-    claimWithdrawal(e, requestId);
+    claimWithdrawal@withrevert(e, requestId);
 
     uint256 ethBalanceAfterSecond = balanceOfEth(e.msg.sender);
     uint256 lockedEthAfterSecond = getLockedEtherAmount();
     bool isClaimedAfterSecond = isRequestStatusClaimed(requestId);
 
-    assert ethBalanceAfterFirst == ethBalanceAfterSecond;
-    assert lockedEthAfterFirst == lockedEthAfterSecond;
-    assert isClaimedAfterFirst && isClaimedAfterSecond;
+    assert lastReverted || ethBalanceAfterFirst == ethBalanceAfterSecond;
+    assert lastReverted || lockedEthAfterFirst == lockedEthAfterSecond;
+    assert lastReverted || isClaimedAfterFirst && isClaimedAfterSecond;
 }
 
-rule immutablityOfClaimed(method f, uint256 requestId) {
+/**
+Claimed withdrawal request cant be unclaimed
+**/
+rule onceClaimedAlwaysClaimed(method f, uint256 requestId) {
     env e;
     calldataarg args;
 
@@ -269,29 +306,23 @@ rule immutablityOfClaimed(method f, uint256 requestId) {
     assert isClaimedBefore => isClaimedAfter;
 }
 
-// try to finalize more then ethBudget - budget comes from external call
-// rule finalizeMoreThanETHBudget(uint256 requestIdToFinalize){
-//     assert false;
-// }
-
 /**************************************************
  *                   INVARIANTS                   *
  **************************************************/
 
+/**
+The last finalized request-id is always less than the last request-id
+**/
 invariant finalizedRequestsCounterisValid()
     getLastFinalizedRequestId() <= getLastRequestId()
-
-// minimum withdrawal rule. min withdrawal == 0.1 ether == 10 ^ 17
+/**
+Cant withdraw less than the minimum amount or more than the maximum amount.
+minimum withdrawal rule. min withdrawal == 0.1 ether == 10 ^ 17
+**/
 invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId) 
-    reqId <= getLastRequestId() => (
-                               (
-                                reqId >= 1 => (getRequestCumulativeStEth(reqId) - getRequestCumulativeStEth(reqId - 1) >= MIN_STETH_WITHDRAWAL_AMOUNT() &&
-                                getRequestCumulativeStEth(reqId) - getRequestCumulativeStEth(reqId - 1) <= MAX_STETH_WITHDRAWAL_AMOUNT())
-                               ) 
-                            // && (
-                            //     reqId == 1 => ((getRequestCumulativeStEth(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT()) && 
-                            //     getRequestCumulativeStEth(reqId) <= MAX_STETH_WITHDRAWAL_AMOUNT())
-                            //    )
+    (reqId <= getLastRequestId() && reqId >= 1) => (
+                                getRequestCumulativeStEth(reqId) - getRequestCumulativeStEth(reqId - 1) >= MIN_STETH_WITHDRAWAL_AMOUNT() &&
+                                getRequestCumulativeStEth(reqId) - getRequestCumulativeStEth(reqId - 1) <= MAX_STETH_WITHDRAWAL_AMOUNT()
                             )
         {
             preserved 
@@ -302,9 +333,15 @@ invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId)
         }
                             
 
+/**
+Each request’s cumulative ETH must be greater than the minimum withdrawal amount
+**/
 invariant cumulativeEtherGreaterThamMinWithdrawal(uint256 reqId)
-    reqId <= getLastRequestId() && reqId >= 1 => (getRequestCumulativeStEth(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT())
+    (reqId <= getLastRequestId() && reqId >= 1) => (getRequestCumulativeStEth(reqId) >= MIN_STETH_WITHDRAWAL_AMOUNT())
 
+/**
+Cumulative ETH and cumulative shares are monotonic increasing
+**/
 invariant cumulativeEthMonotonocInc(uint256 reqId)
         reqId <= getLastRequestId() => (reqId > 0 => getRequestCumulativeStEth(reqId) > getRequestCumulativeStEth(reqId - 1)) &&
                                       (reqId > 0 => getRequestCumulativeShares(reqId) >= getRequestCumulativeShares(reqId - 1))
@@ -316,12 +353,52 @@ invariant cumulativeEthMonotonocInc(uint256 reqId)
             }
         }
 
-invariant finalizedCounterClaimedFlagCorrelation(uint256 requestId)
-    requestId > getLastFinalizedRequestId() => !isRequestStatusClaimed(requestId) && !isRequestStatusFinalized(requestId)
+/**
+If the request-id is greater than the last finalized request-id then the request’s claimed and finalized flags are off
+**/
+invariant finalizedCounterFinalizedFlagCorrelation(uint256 requestId)
+    requestId > getLastFinalizedRequestId() <=> !isRequestStatusFinalized(requestId)
 
-
+/**
+If a request is not claimed then it is not finalized
+**/
 invariant claimedFinalizedFlagsCorrelation(uint256 requestId)
     isRequestStatusClaimed(requestId) => isRequestStatusFinalized(requestId)
+
+/**
+Locked ETH should always be greater or equal to finalized and not claimed ether amount 
+**/
+invariant lockedEtherSolvency() 
+    getLockedEtherAmount() >= getFinalizedAndNotClaimedEth()
+        {
+            preserved 
+            {
+                requireInvariant cantWithdrawLessThanMinWithdrawal(getLastFinalizedRequestId());
+                require getRequestCumulativeStEth(0) == 0;
+                require getRequestCumulativeShares(0) == 0;
+            }
+        }
+
+rule lockedEtherSolvencyParametric(method f) {
+    env e;
+    calldataarg args;
+
+    requireInvariant cantWithdrawLessThanMinWithdrawal(getLastFinalizedRequestId());
+    require getRequestCumulativeStEth(0) == 0;
+    require getRequestCumulativeShares(0) == 0;
+
+    uint256 lockedAmountBefore = getLockedEtherAmount();
+    uint256 FinalizedAndNotClaimedEthBefore = getFinalizedAndNotClaimedEth();
+
+    require lockedAmountBefore >= FinalizedAndNotClaimedEthBefore;
+
+    f(e, args);
+
+    uint256 lockedAmountAfter = getLockedEtherAmount();
+    uint256 FinalizedAndNotClaimedEthAfter = getFinalizedAndNotClaimedEth();
+
+    assert lockedAmountAfter >= FinalizedAndNotClaimedEthAfter;
+}
 
 
 // RULES TO IMPLEMENT:
@@ -329,10 +406,14 @@ invariant claimedFinalizedFlagsCorrelation(uint256 requestId)
 // rule for share rate: get min and max share rate within finalized batch, claim -> compute effective share rate and assert it is within range.
 // hint monotonic increasing
 // claim withdrawal with the wrong hint
-// each etherLocked is less or equal to lockedEath
-// whoCanClaimRequests
-// claim with the wrong hint
+// lockedEth >= finalized and not claimed
+// finalize dont change fifo order of requests
+// unique request ids.
 
+// try to finalize more then ethBudget - budget comes from external call
+// rule finalizeMoreThanETHBudget(uint256 requestIdToFinalize){
+//     assert false;
+// }
 rule whoCanChangeUnfinalizedRequestsNumber(method f) {
     env e;
     calldataarg args;
