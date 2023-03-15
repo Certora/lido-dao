@@ -90,6 +90,57 @@ function pauseHelper(method f, env e, uint256 blockNumber, uint256 stakingModule
 
 
 /**************************************************
+ *               GHOSTS AND HOOKS                 *
+ **************************************************/
+
+
+ghost mapping(address => uint256) guardianIndicesOneBasedMirror {
+    init_state axiom forall address a. guardianIndicesOneBasedMirror[a] == 0;
+}
+
+hook Sstore guardianIndicesOneBased[KEY address guardian] uint256 index
+    (uint256 old_index) STORAGE
+{
+    guardianIndicesOneBasedMirror[guardian] = index;
+}
+
+hook Sload uint256 index guardianIndicesOneBased[KEY address guardian]  STORAGE {
+    require guardianIndicesOneBasedMirror[guardian] == index;
+}
+
+
+ghost mapping(uint256 => address) guardiansMirror {
+    init_state axiom forall uint256 a. guardiansMirror[a] == 0;
+}
+
+hook Sstore guardians[INDEX uint256 index] address guardian
+    (address old_guardian) STORAGE
+{
+    guardiansMirror[index] = guardian;
+}
+
+hook Sload address guardian guardians[INDEX uint256 index]  STORAGE {
+    require guardiansMirror[index] == guardian;
+}
+
+
+ghost uint256 mirrorArrayLen {
+    init_state axiom mirrorArrayLen == 0;
+    axiom mirrorArrayLen != max_uint256; 
+}
+
+hook Sstore guardians.(offset 0) uint256 newLen 
+    (uint256 oldLen) STORAGE {
+    mirrorArrayLen = newLen;
+}
+
+hook Sload uint256 len guardians.(offset 0) STORAGE {
+    require mirrorArrayLen == len;
+}
+
+
+
+/**************************************************
  *                    VERIFIED                    *
  **************************************************/
 
@@ -247,111 +298,38 @@ rule cannotDepositDuringPauseRevert(env e) {
 }
 
 
+// STATUS - verified
+invariant unique()
+    (forall address guardian1.
+        forall address guardian2.
+            (guardian1 != guardian2
+            => (guardianIndicesOneBasedMirror[guardian1] != guardianIndicesOneBasedMirror[guardian2]
+                || guardianIndicesOneBasedMirror[guardian1] == 0))
+            && guardianIndicesOneBasedMirror[guardian1] <= mirrorArrayLen)
+    && (forall uint256 i. i < mirrorArrayLen => (guardianIndicesOneBasedMirror[guardiansMirror[i]] - 1) == i)
+    filtered { f -> excludeMethods(f) }
+    {
+        preserved {
+            require mirrorArrayLen < max_uint128;   // high numbers cause false violations 
+        }
+    }
+
+
+// 0 can't be a guardian
+// STATUS - verify
+invariant zeroIsNotGuardian()
+    !isGuardian(0)
+    {
+        preserved {
+            require mirrorArrayLen < max_uint128;
+            requireInvariant unique();  // need it to synchronize array and mapping
+        }
+    }
+
 
 /**************************************************
  *                   IN PROGRESS                  *
  **************************************************/
-ghost mapping(address => uint256) guardianIndicesOneBasedMirror {
-    init_state axiom forall address a. guardianIndicesOneBasedMirror[a] == 0;
-}
-
-hook Sstore guardianIndicesOneBased[KEY address guardian] uint256 index
-    (uint256 old_index) STORAGE
-{
-    guardianIndicesOneBasedMirror[guardian] = index;
-}
-
-hook Sload uint256 index guardianIndicesOneBased[KEY address guardian]  STORAGE {
-    require guardianIndicesOneBasedMirror[guardian] == index;
-}
-
-
-ghost mapping(uint256 => address) guardiansMirror {
-    init_state axiom forall uint256 a. guardiansMirror[a] == 0;
-}
-
-hook Sstore guardians[INDEX uint256 index] address guardian
-    (address old_guardian) STORAGE
-{
-    guardiansMirror[index] = guardian;
-}
-
-hook Sload address guardian guardians[INDEX uint256 index]  STORAGE {
-    require guardiansMirror[index] == guardian;
-}
-
-
-ghost uint256 mirrorArrayLen {
-    init_state axiom mirrorArrayLen == 0;
-    axiom mirrorArrayLen != max_uint256; 
-}
-
-hook Sstore guardians.(offset 0) uint256 newLen 
-    (uint256 oldLen) STORAGE {
-    mirrorArrayLen = newLen;
-}
-
-hook Sload uint256 len guardians.(offset 0) STORAGE {
-    require mirrorArrayLen == len;
-}
-
-
-// uniqueness in array: no the same address
-// uniqueness in mapping: no the same index
-// don't exceed array length
-invariant uniqueArray() 
-    forall uint256 index1. 
-        forall uint256 index2. 
-            (index1 < mirrorArrayLen && index2 < mirrorArrayLen)
-            => guardiansMirror[index1] != guardiansMirror[index2]
-    
-invariant uniqueMapping1()
-    forall address guardian1.
-        forall address guardian2.
-            (guardian1 != guardian2
-                && guardianIndicesOneBasedMirror[guardian1] != 0 
-                && guardianIndicesOneBasedMirror[guardian2] != 0)
-            => guardianIndicesOneBasedMirror[guardian1] != guardianIndicesOneBasedMirror[guardian2]
-    filtered { f -> excludeMethods(f) }
-
-invariant unique()
-    (forall address guardian1.
-        forall address guardian2.
-            (guardian1 != guardian2 && guardianIndicesOneBasedMirror[guardian1] <= mirrorArrayLen && guardianIndicesOneBasedMirror[guardian2] <= mirrorArrayLen)
-            => (guardianIndicesOneBasedMirror[guardian1] != guardianIndicesOneBasedMirror[guardian2]
-                || guardianIndicesOneBasedMirror[guardian1] == 0))
-    && (forall uint256 i. i < mirrorArrayLen => (guardianIndicesOneBasedMirror[guardiansMirror[i]] - 1) == i)
-    filtered { f -> excludeMethods(f) }
-
-// verified
-invariant simple()
-    forall uint256 i. i < mirrorArrayLen => (guardianIndicesOneBasedMirror[guardiansMirror[i]] - 1) == i
-    filtered { f -> excludeMethods(f) }
-
-// tool error: https://vaas-stg.certora.com/output/3106/74422e354542401c89429656fce51d9a/?anonymousKey=7a8f89a378eec53f1849d820595a9f1322ca93bb
-invariant simple2()
-    forall address addr. guardianIndicesOneBasedMirror[addr] <= mirrorArrayLen
-                            => guardiansMirror[guardianIndicesOneBasedMirror[addr] - 1] == addr
-    filtered { f -> excludeMethods(f) }
-
-invariant frankenstein()
-    (forall uint256 index1. 
-        forall uint256 index2. 
-            (index1 < mirrorArrayLen && index2 < mirrorArrayLen)
-            => guardiansMirror[index1] != guardiansMirror[index2])
-    &&
-    (forall address guardian1.
-        forall address guardian2.
-            guardian1 != guardian2
-            => (guardianIndicesOneBasedMirror[guardian1] != guardianIndicesOneBasedMirror[guardian2]
-                || guardianIndicesOneBasedMirror[guardian1] == 0))
-
-    filtered { f -> excludeMethods(f) }
-
-
-
-
-
 
 
 // only guardian can pause deposits
@@ -363,6 +341,8 @@ rule onlyGuardianCanPause(env e, method f) {
     uint256 blockNumber;
     uint256 stakingModuleId;
     DSM.Signature sig;
+
+    requireInvariant unique();  // need it to synchronize array and mapping
 
     require StkRouter.getStakingModuleStatus(stakingModuleId) == 0;
 

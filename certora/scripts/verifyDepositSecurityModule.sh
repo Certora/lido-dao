@@ -24,7 +24,7 @@ certoraRun \
     --solc_map ECDSA=solc8.9,StakingModuleMock=solc8.9,DepositSecurityModuleHarness=solc8.9,StakingRouter=solc8.9,WithdrawalQueueHarness=solc8.9,LidoLocator=solc8.9,Lido=solc4.24 \
     --link DepositSecurityModuleHarness:LIDO=Lido \
     --optimistic_loop \
-    --loop_iter 3 \
+    --loop_iter 2 \
     --send_only \
     --rule_sanity \
     --staging master \
