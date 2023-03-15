@@ -10,6 +10,7 @@ import {UnstructuredStorage} from "../../contracts/0.8.9/lib/UnstructuredStorage
 
 contract StakingRouterHarness is StakingRouter {
     using UnstructuredStorage for bytes32;
+    ValidatorsCountsCorrection private correctionStorage;
 
     constructor(
         address admin, 
@@ -19,6 +20,16 @@ contract StakingRouterHarness is StakingRouter {
         StakingRouter(depositContract) {
             initialize(admin, lido, withdrawalCredentials);
         }
+
+    function unsafeSetExitedValidatorsCount(
+        uint256 _stakingModuleId,
+        uint256 _nodeOperatorId,
+        bool _triggerUpdateFinish,
+        ValidatorsCountsCorrection memory
+    ) public override {
+        ValidatorsCountsCorrection memory correction = correctionStorage;
+        super.unsafeSetExitedValidatorsCount(_stakingModuleId, _nodeOperatorId, _triggerUpdateFinish, correction);
+    }
 
     function getStakingModuleAddressById(uint256 _stakingModuleId) public view returns (address) {
         if(_stakingModuleId == 0){

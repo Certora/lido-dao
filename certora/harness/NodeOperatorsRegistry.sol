@@ -153,4 +153,11 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
             sumOfKeys += getNodeOperatorTargetStats_max(i);
         }
     }
+
+    function sumOfActiveOperators() public view returns (uint256 sumOfActive) {
+        for (uint256 operatorId; operatorId < getNodeOperatorsCount(); ++operatorId) {
+            if (!getNodeOperatorIsActive(operatorId)) continue;
+            sumOfActive++;
+        }
+    } 
 }

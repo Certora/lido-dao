@@ -6,7 +6,6 @@ methods {
     getNodeOperatorIsActive(uint256) returns (bool) envfree
     MAX_NODE_OPERATORS_COUNT() returns (uint256) envfree
     getRewardsDistributionShare(uint256, uint256) returns (uint256, uint256)
-    _loadAllocatedSigningKeys(uint256 ,uint256[],uint256[]) returns (bytes, bytes) => NONDET
     getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
     getStuckPenaltyDelay() returns(uint256) envfree
     getNodeOperatorSummary(uint256) envfree
@@ -33,6 +32,7 @@ methods {
     sumOfDepositedKeys() returns (uint256) envfree
     sumOfTotalKeys() returns (uint256) envfree
     sumOfMaxKeys() returns (uint256) envfree
+    sumOfActiveOperators() returns (uint256) envfree
 }
 
 definition UINT64_MAX() returns uint64 = 0xFFFFFFFFFFFFFFFF;
@@ -82,6 +82,7 @@ function safeAssumptions_NOS(uint256 nodeOperatorId) {
     requireInvariant TargetPlusExitedDoesntOverflow(nodeOperatorId);
     requireInvariant KeysOfUnregisteredNodeAreZero(nodeOperatorId);
     requireInvariant DepositedKeysLEMaxValidators(nodeOperatorId);
+    requireInvariant VettedKeysGEMaxValidators(nodeOperatorId);
     reasonableKeysAssumptions(nodeOperatorId);
 }
 
@@ -143,6 +144,10 @@ invariant AllModulesAreActiveConsistency(uint256 nodeOperatorId)
             requireInvariant AllModulesAreActiveConsistency(id);
         }
     }
+/// The sum of all active node operators equals the active count.
+invariant SumOfActiveOperatorsEqualsActiveCount() 
+    sumOfActiveOperators() == getActiveNodeOperatorsCount()
+
 /// Any unregistered node operator is not penalized
 invariant UnregisteredOperatorIsNotPenalized(env e, uint256 nodeOperatorId)
     (e.block.timestamp > 0 && nodeOperatorId >= getNodeOperatorsCount())
@@ -189,6 +194,9 @@ invariant DepositedKeysLEVettedKeys(uint256 nodeOperatorId)
             requireInvariant NodeOperatorsCountLEMAX();
             requireInvariant ExitedKeysLEDepositedKeys(nodeOperatorId);
             requireInvariant VettedKeysLETotalKeys(nodeOperatorId);
+            requireInvariant VettedKeysGEMaxValidators(nodeOperatorId);
+            requireInvariant DepositedKeysLEMaxValidators(nodeOperatorId);
+            reasonableKeysAssumptions(nodeOperatorId);
         }
 
         preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
@@ -221,6 +229,16 @@ invariant VettedKeysLETotalKeys(uint256 nodeOperatorId)
             require indexTo == nodeOperatorId;
         }
     }
+/// The vetted keys count is never less than the max validators target
+invariant VettedKeysGEMaxValidators(uint256 nodeOperatorId)
+    getNodeOperatorTargetStats_max(nodeOperatorId) <=
+    getNodeOperatorSigningStats_vetted(nodeOperatorId)
+    {
+        preserved {
+            safeAssumptions_NOS(nodeOperatorId);
+        }
+    }
+
 /// The deposited keys count is never higher than the max validators target 
 invariant DepositedKeysLEMaxValidators(uint256 nodeOperatorId)
     getNodeOperatorSigningStats_deposited(nodeOperatorId) <=
@@ -238,7 +256,6 @@ invariant DepositedKeysLEMaxValidators(uint256 nodeOperatorId)
             require indexTo == nodeOperatorId;
         }
     }
-
 
 /// All key counts of an unregistered node operators are zero
 invariant KeysOfUnregisteredNodeAreZero(uint256 nodeOperatorId) 
@@ -396,19 +413,24 @@ filtered{f -> !f.isView} {
  filtered{f -> !f.isView && f.selector != deactivateNodeOperator(uint256).selector} {
     env e1;
     env e2;
+    env e3;
     calldataarg args;
-    require e1.msg.sender == e2.msg.sender;
-    require e1.msg.value == e2.msg.value;
+    require e1.msg.sender == e3.msg.sender;
+    require e3.msg.value == 0;
 
     string name; require name.length == 32;
     address rewardAddress;
     uint256 nodeOperatorId = getNodeOperatorsCount();
-    safeAssumptions_NOS(nodeOperatorId);
+
+    requireInvariant NodeOperatorsCountLEMAX();
+    requireInvariant ActiveOperatorsLECount();
     addNodeOperator(e1, name, rewardAddress);
+
+    requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
 
     f(e2, args);
 
-    deactivateNodeOperator@withrevert(e2, nodeOperatorId);
+    deactivateNodeOperator@withrevert(e3, nodeOperatorId);
     assert !lastReverted;
  }
 
@@ -416,16 +438,17 @@ filtered{f -> !f.isView} {
  filtered{f -> !f.isView && f.selector != deactivateNodeOperator(uint256).selector} {
     env e1;
     env e2;
+    env e3;
     calldataarg args;
-    require e1.msg.sender == e2.msg.sender;
-    require e1.msg.value == e2.msg.value;
+    require e1.msg.sender == e3.msg.sender;
+    require e3.msg.value == 0;
 
     safeAssumptions_NOS(nodeOperatorId);
     activateNodeOperator(e1, nodeOperatorId);
     
     f(e2, args);
 
-    deactivateNodeOperator@withrevert(e2, nodeOperatorId);
+    deactivateNodeOperator@withrevert(e3, nodeOperatorId);
 
     assert !lastReverted;
 }
@@ -434,16 +457,17 @@ rule canActivateAfterDeactivate(method f, uint256 nodeOperatorId)
 filtered{f -> !f.isView && f.selector != activateNodeOperator(uint256).selector} {
     env e1;
     env e2;
+    env e3;
     calldataarg args;
-    require e1.msg.sender == e2.msg.sender;
-    require e1.msg.value == e2.msg.value;
+    require e1.msg.sender == e3.msg.sender;
+    require e3.msg.value == 0;
 
     safeAssumptions_NOS(nodeOperatorId);
     deactivateNodeOperator(e1, nodeOperatorId);
 
     f(e2, args);
     
-    activateNodeOperator@withrevert(e2, nodeOperatorId);
+    activateNodeOperator@withrevert(e3, nodeOperatorId);
 
     assert !lastReverted;
 }
@@ -503,6 +527,7 @@ rule rewardSharesAreMonotonicWithTotalShares(
     safeAssumptions_NOS(0);
     safeAssumptions_NOS(1);
     safeAssumptions_NOS(nodeOperatorId);
+    requireInvariant SumOfActiveOperatorsEqualsActiveCount();
     
     sumOfShares1, share1 = getRewardsDistributionShare(e, totalRewardShares1, nodeOperatorId);
     sumOfShares2, share2 = getRewardsDistributionShare(e, totalRewardShares2, nodeOperatorId);
@@ -909,8 +934,8 @@ filtered{f -> !f.isView} {
     assert penalized_before == penalized_after;
 }
 
-/// Check that the penalty of nodeOperatorId is cleared.
-/// Also check that no other node operator changed its penalty status.
+/// Checks that the penalty of nodeOperatorId is cleared.
+/// Also checks that no other node operator changed its penalty status.
 rule afterClearPenaltyOperatorIsNotPenalized(uint256 nodeOperatorId) {
     env e1;
     env e2;
@@ -926,16 +951,18 @@ rule afterClearPenaltyOperatorIsNotPenalized(uint256 nodeOperatorId) {
     assert penalizedOther2 == penalizedOther1;
 }
 
-/// Verifies that a node operator stays penalized after any update to the stuck or 
-/// refunded keys count.
-rule operatorStaysPenalizedAfterKeysUpdate(uint256 nodeOperatorId) {
+/// Checks the penalty status transition after updating the stuck or the refunded
+/// validators count for any node operator.
+rule operatorPenaltyStatusAfterKeysUpdate(uint256 nodeOperatorId) {
     env e;
     uint64 validatorsCount;
     bool stuck_or_refunded;
-    // Realistic time frame
+    // Realistic time
     require e.block.timestamp + getStuckPenaltyDelay() <= UINT32_MAX();
 
     bool penalized_before = isOperatorPenalized(e, nodeOperatorId);
+    uint256 refundedBefore = getNodeOperator_refundedValidators(nodeOperatorId);
+    uint256 stuckBefore = getNodeOperator_stuckValidators(nodeOperatorId);
         if(stuck_or_refunded) {
             updateStuckValidatorsCount(e, nodeOperatorId, validatorsCount);
         }
@@ -943,6 +970,12 @@ rule operatorStaysPenalizedAfterKeysUpdate(uint256 nodeOperatorId) {
             updateRefundedValidatorsCount(e, nodeOperatorId, validatorsCount);
         }
     bool penalized_after = isOperatorPenalized(e, nodeOperatorId);
+    uint256 refundedAfter = getNodeOperator_refundedValidators(nodeOperatorId);
+    uint256 stuckAfter = getNodeOperator_stuckValidators(nodeOperatorId);
 
-    assert penalized_before => penalized_after;
+    assert stuck_or_refunded => stuckAfter == validatorsCount;
+    assert !stuck_or_refunded => refundedAfter == validatorsCount;
+    assert penalized_before && stuckAfter > refundedAfter => penalized_after;
+    assert !penalized_before && stuckAfter <= refundedAfter => !penalized_after;
+    assert !penalized_before && stuckAfter > refundedAfter => penalized_after;
 }
