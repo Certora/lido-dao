@@ -57,13 +57,18 @@ methods {
     getGuardianQuorum() returns(uint256) envfree
     isGuardian(address) returns(bool) envfree
     getHashedAddress(uint256,uint256,(bytes32,bytes32)) returns(address) envfree
+    getEthBalance(address) returns(uint256) envfree
 }
+
+
 
 rule sanity(env e, method f) {
     calldataarg args;
     f(e, args);
     assert false;
 }
+
+
 
 /**************************************************
  *                   DEFINITIONS                  *
@@ -77,6 +82,7 @@ definition excludeMethods(method f) returns bool =
 /**************************************************
  *                    FUNCTIONS                   *
  **************************************************/
+
 
 function pauseHelper(method f, env e, uint256 blockNumber, uint256 stakingModuleId, DSM.Signature sig) {
     if (f.selector == pauseDeposits(uint256,uint256,(bytes32,bytes32)).selector){ 
@@ -337,12 +343,12 @@ invariant zeroIsNotGuardian()
 // There can be 2 issues:
 // 1. Hashing doesn't work properly.
 // 2. need correlation invariant becuase array and mapping aren't synced. However, pauseDeposits() uses mapping indexes, while I use array
-rule onlyGuardianCanPause(env e, method f) {
+rule onlyGuardianCanPause(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 blockNumber;
     uint256 stakingModuleId;
     DSM.Signature sig;
 
-    requireInvariant unique();  // need it to synchronize array and mapping
+    // requireInvariant unique();  // need it to synchronize array and mapping
 
     require StkRouter.getStakingModuleStatus(stakingModuleId) == 0;
 
@@ -387,8 +393,32 @@ rule cannotDepositTwice(env e, method f) {
     assert lastReverted, "Remember, with great power comes great responsibility.";
 }
 
+rule whoChangedBalanceOf(env e, method f) filtered { f -> excludeMethods(f) } {
+    uint256 blockNumber;
+    bytes32 blockHash;
+    bytes32 depositRoot;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    bytes depositCalldata;
+
+    uint256 before = getEthBalance(StkRouter);
+    
+    depositBufferedEtherCall(e,
+        blockNumber,
+        blockHash,
+        depositRoot,
+        stakingModuleId,
+        nonce,
+        depositCalldata
+    );
+
+    assert getEthBalance(StkRouter) == before, "balanceOf changed";
+}
 
 //-----IDEAS-----
+// if canDeposit reverts, deposit reverts too
+// if canDeposit doesn't revert, deposit doesn't revert too
+
 // checking signatures (Merkle tree (kind of)) in _verifySignatures(). do we have an example?
 
 

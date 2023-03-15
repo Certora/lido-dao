@@ -61,4 +61,8 @@ contract DepositSecurityModuleHarness is DepositSecurityModule {
         bytes32 msgHash = keccak256(abi.encodePacked(PAUSE_MESSAGE_PREFIX, blockNumber, stakingModuleId));
         return ECDSA.recover(msgHash, sig.r, sig.vs);
     }
+
+    function getEthBalance(address addr) external view returns (uint256) {
+        return address(addr).balance;
+    }
 }
