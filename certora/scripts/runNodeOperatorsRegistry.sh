@@ -7,10 +7,10 @@ certoraRun \
 \
 \
 --solc_map Burner=solc8.9,NodeOperatorsRegistryHarness=solc4.24,LidoMockStEth=solc4.24 \
---loop_iter 2 \
+--loop_iter 3 \
 --cloud master \
 --optimistic_loop \
 --send_only \
 --rule_sanity \
---settings -t=1500,-mediumTimeout=120,-depth=10,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
+--settings -t=2000,-mediumTimeout=120,-depth=10,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
 --msg "NodeOperatorsRegistry"

@@ -12,6 +12,7 @@ methods {
     updateStuckValidatorsCount(bytes, bytes) => DISPATCHER(true)
     updateExitedValidatorsCount(bytes, bytes) => DISPATCHER(true) 
     updateRefundedValidatorsCount(uint256, uint256) => DISPATCHER(true)
+    updateTargetValidatorsLimits(uint256, bool, uint256) => DISPATCHER(true)
     /// Staking Router module deposit external functions:
     obtainDepositData(uint256,bytes) => DISPATCHER(true)
     _distributeRewards() => NONDET

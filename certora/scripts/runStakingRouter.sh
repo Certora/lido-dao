@@ -23,4 +23,4 @@ NodeOperatorsRegistry=solc4.24,LidoMockStEth=solc4.24 \
 --rule_sanity \
 --send_only \
 --settings -t=1600,-depth=12,-mediumTimeout=50,-copyLoopUnroll=6,-optimisticUnboundedHashing=true \
---msg "Staking Router "
+--msg "Staking Router"

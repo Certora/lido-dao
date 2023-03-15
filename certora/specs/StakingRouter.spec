@@ -56,7 +56,7 @@ rule depositSanity() {
     env e;
     require e.msg.value > 0;
     uint256 _maxDepositsCount;
-    require _maxDepositsCount == 1;
+    //require _maxDepositsCount == 1;
     require getStakingModulesCount() == 1;
     safeAssumptions(1);
     uint256 _stakingModuleId;
@@ -97,17 +97,13 @@ filtered{f -> f.isView && !harnessGetters(f), g -> isAddModule(g)} {
 /**************************************************
  *          Status Definition Rules               *
  **************************************************/
-rule activeStatusDefinition(uint256 moduleId) {
+rule moduleStatusDefinition(uint256 moduleId) {
     assert getStakingModuleIsActive(moduleId) <=> 
         getStakingModuleStatus(moduleId) == ACTIVE();
-}
 
-rule pausedStatusDefinition(uint256 moduleId) {
     assert getStakingModuleIsDepositsPaused(moduleId) <=> 
         getStakingModuleStatus(moduleId) == PAUSED();
-}
 
-rule stoppedStatusDefinition(uint256 moduleId) {
     assert getStakingModuleIsStopped(moduleId) <=> 
         getStakingModuleStatus(moduleId) == STOPPED();
 }
@@ -261,7 +257,7 @@ rule aggregatedFeeLT100Percent_preserve() {
     safeAssumptions(1);
     safeAssumptions(getStakingModulesCount());
     
-    string name;
+    string name; require name.length == 32;
     address Address;
     uint256 targetShare;
     uint256 ModuleFee;
@@ -297,7 +293,7 @@ rule validMaxDepositCountBound(uint256 maxDepositsValue) {
 
     assert maxDepositCount <= depositable;
 }
-
+/// The exited keys count never surpasses the summary deposited keys count.
 rule moduleActiveValidatorsDoesntUnderflow(method f, uint256 moduleId)
 filtered{f -> !f.isView && !isDeposit(f)} {
     //cacheItem.activeValidatorsCount =

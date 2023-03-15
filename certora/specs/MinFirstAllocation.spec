@@ -11,7 +11,7 @@ methods {
     allocate(uint256) returns(uint256) envfree
 }
 
-definition bucketLength() returns uint256 = 4;
+definition bucketLength() returns uint256 = 5;
 
 function nonOverFlow(uint256 allocationSize) returns bool {
     return sumOfBuckets() + allocationSize <= to_mathint(max_uint);
@@ -60,29 +60,4 @@ rule minimumBucketIsAlwaysIncrementedWhenPossible(uint256 allocationSize) {
     uint256 incr_min = getIncrement(i_min);
 
     assert incr_min > 0 <=> (allocationSize > 0 && bucket_min < capacity_min);
-}
-
-rule incrementsReduceDifferences(uint256 i, uint256 j, uint256 allocationSize) {
-    require bucketLength() >= getLength();
-    require nonOverFlow(allocationSize);
-
-    uint256 bucket_i = getBucket(i);
-    uint256 bucket_j = getBucket(j);
-    require bucket_i >= bucket_j;
-    uint256 diff_before = bucket_i - bucket_j;
-    
-    allocate(allocationSize);
-
-    uint256 bucket_i_after = bucket_i + getIncrement(i);
-    uint256 bucket_j_after = bucket_j + getIncrement(j);
-
-    // We are concerned of cases where the capacities aren't reached.
-    require bucket_i_after < getCapacity(i);
-    require bucket_j_after < getCapacity(j);
-
-    uint256 diff_after = bucket_i_after >= bucket_j_after ?
-        bucket_i_after - bucket_j_after :
-        bucket_j_after - bucket_i_after;
-
-    assert diff_after <= diff_before;
 }

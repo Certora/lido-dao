@@ -300,7 +300,16 @@ invariant TargetPlusExitedDoesntOverflow(uint256 nodeOperatorId)
             require indexTo == nodeOperatorId;
         }
     }
-
+/// Any deactivated node operator has no available keys (max validators = deposited)
+invariant NoAvailableKeysForInactiveModule(uint256 nodeOperatorId)    
+    !getNodeOperatorIsActive(nodeOperatorId) =>
+        getNodeOperatorSigningStats_deposited(nodeOperatorId) ==
+        getNodeOperatorTargetStats_max(nodeOperatorId)
+    {
+        preserved{
+            safeAssumptions_NOS(nodeOperatorId);
+        }
+    }
 /**************************************************
  *          Keys summaries - sums invariants     *
 **************************************************/
@@ -524,8 +533,8 @@ rule rewardSharesAreMonotonicWithTotalShares(
     uint256 sumOfShares1; uint256 sumOfShares2;
     uint256 share1; uint256 share2;
 
-    safeAssumptions_NOS(0);
-    safeAssumptions_NOS(1);
+    //safeAssumptions_NOS(0);
+    //safeAssumptions_NOS(1);
     safeAssumptions_NOS(nodeOperatorId);
     requireInvariant SumOfActiveOperatorsEqualsActiveCount();
     
