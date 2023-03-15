@@ -59,6 +59,12 @@ methods {
     getHashedAddress(uint256,uint256,(bytes32,bytes32)) returns(address) envfree
 }
 
+rule sanity(env e, method f) {
+    calldataarg args;
+    f(e, args);
+    assert false;
+}
+
 /**************************************************
  *                   DEFINITIONS                  *
  **************************************************/
@@ -245,74 +251,107 @@ rule cannotDepositDuringPauseRevert(env e) {
 /**************************************************
  *                   IN PROGRESS                  *
  **************************************************/
+ghost mapping(address => uint256) guardianIndicesOneBasedMirror {
+    init_state axiom forall address a. guardianIndicesOneBasedMirror[a] == 0;
+}
 
-// correlation invariant for guardians and guardianIndicesOneBased: if a guardian, guardianIndicesOneBased should be > 0
-// STATUS - in progress (https://vaas-stg.certora.com/output/3106/b7dfaf2e26be490bbc9c6abfc091a3a1/?anonymousKey=86d7cb8e44b732a0f701aac95b33a83bac2821c1)
-// need uniqueness of guardianIndicesOneBased()
-invariant correlation(env e, address guardian)
-    guardianIndicesOneBased(guardian) > 0 
-        <=> (getGuardian(guardianIndicesOneBased(guardian) - 1) == guardian && guardian != 0)
-    filtered { f -> excludeMethods(f)  }
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-        }
-    }
+hook Sstore guardianIndicesOneBased[KEY address guardian] uint256 index
+    (uint256 old_index) STORAGE
+{
+    guardianIndicesOneBasedMirror[guardian] = index;
+}
+
+hook Sload uint256 index guardianIndicesOneBased[KEY address guardian]  STORAGE {
+    require guardianIndicesOneBasedMirror[guardian] == index;
+}
+
+
+ghost mapping(uint256 => address) guardiansMirror {
+    init_state axiom forall uint256 a. guardiansMirror[a] == 0;
+}
+
+hook Sstore guardians[INDEX uint256 index] address guardian
+    (address old_guardian) STORAGE
+{
+    guardiansMirror[index] = guardian;
+}
+
+hook Sload address guardian guardians[INDEX uint256 index]  STORAGE {
+    require guardiansMirror[index] == guardian;
+}
+
+
+ghost uint256 mirrorArrayLen {
+    init_state axiom mirrorArrayLen == 0;
+    axiom mirrorArrayLen != max_uint256; 
+}
+
+hook Sstore guardians.(offset 0) uint256 newLen 
+    (uint256 oldLen) STORAGE {
+    mirrorArrayLen = newLen;
+}
+
+hook Sload uint256 len guardians.(offset 0) STORAGE {
+    require mirrorArrayLen == len;
+}
+
+
+// uniqueness in array: no the same address
+// uniqueness in mapping: no the same index
+// don't exceed array length
+invariant uniqueArray() 
+    forall uint256 index1. 
+        forall uint256 index2. 
+            (index1 < mirrorArrayLen && index2 < mirrorArrayLen)
+            => guardiansMirror[index1] != guardiansMirror[index2]
     
+invariant uniqueMapping1()
+    forall address guardian1.
+        forall address guardian2.
+            (guardian1 != guardian2
+                && guardianIndicesOneBasedMirror[guardian1] != 0 
+                && guardianIndicesOneBasedMirror[guardian2] != 0)
+            => guardianIndicesOneBasedMirror[guardian1] != guardianIndicesOneBasedMirror[guardian2]
+    filtered { f -> excludeMethods(f) }
 
+invariant unique()
+    (forall address guardian1.
+        forall address guardian2.
+            (guardian1 != guardian2 && guardianIndicesOneBasedMirror[guardian1] <= mirrorArrayLen && guardianIndicesOneBasedMirror[guardian2] <= mirrorArrayLen)
+            => (guardianIndicesOneBasedMirror[guardian1] != guardianIndicesOneBasedMirror[guardian2]
+                || guardianIndicesOneBasedMirror[guardian1] == 0))
+    && (forall uint256 i. i < mirrorArrayLen => (guardianIndicesOneBasedMirror[guardiansMirror[i]] - 1) == i)
+    filtered { f -> excludeMethods(f) }
 
-// STATUS - in progress (need uniqueness: https://vaas-stg.certora.com/output/3106/96f7160907bd4484b13ca890e6fa8b1a/?anonymousKey=13f35dc6c082604b4c5a760429e1407652e81b3e)
-// guardianIndicesOneBased[addr] < guardians.length  (invariant from line 306)
-invariant indexLengthCheck(address guardian)
-    getGuardianIndex(guardian) < getGuardiansLength()
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-        }
-    }
+// verified
+invariant simple()
+    forall uint256 i. i < mirrorArrayLen => (guardianIndicesOneBasedMirror[guardiansMirror[i]] - 1) == i
+    filtered { f -> excludeMethods(f) }
 
-// uniqueness of guardianIndicesOneBased()
-// STATUS - in progress (https://vaas-stg.certora.com/output/3106/3e9c46d0258d481ea256c5199219b266/?anonymousKey=8edf10f52fe75e0b85aa327ab469ec44dca32b0a )
-invariant complexUniqueness(env e, address guardian1, address guardian2)
-    ((guardianIndicesOneBased(guardian1) != 0 && guardianIndicesOneBased(guardian2) != 0)
-        => (guardian1 != guardian2 
-                <=> guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2)))
+// tool error: https://vaas-stg.certora.com/output/3106/74422e354542401c89429656fce51d9a/?anonymousKey=7a8f89a378eec53f1849d820595a9f1322ca93bb
+invariant simple2()
+    forall address addr. guardianIndicesOneBasedMirror[addr] <= mirrorArrayLen
+                            => guardiansMirror[guardianIndicesOneBasedMirror[addr] - 1] == addr
+    filtered { f -> excludeMethods(f) }
+
+invariant frankenstein()
+    (forall uint256 index1. 
+        forall uint256 index2. 
+            (index1 < mirrorArrayLen && index2 < mirrorArrayLen)
+            => guardiansMirror[index1] != guardiansMirror[index2])
     &&
-    ((guardianIndicesOneBased(guardian1) != 0 && guardianIndicesOneBased(guardian2) == 0)
-        => guardian1 != guardian2)
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-            requireInvariant indexLengthCheck(guardian1);
-            requireInvariant indexLengthCheck(guardian2);
-        }
-    }
+    (forall address guardian1.
+        forall address guardian2.
+            guardian1 != guardian2
+            => (guardianIndicesOneBasedMirror[guardian1] != guardianIndicesOneBasedMirror[guardian2]
+                || guardianIndicesOneBasedMirror[guardian1] == 0))
 
-// STATUS - in progress: (https://vaas-stg.certora.com/output/3106/3ac29048c01b4ed796abb2f6a5439925/?anonymousKey=76904c7e8f0901ce58e4b7e1f878d10d6c2f03ae)
-invariant simpleUniqueness(env e, address guardian1, address guardian2)
-    guardian1 != guardian2 <=> guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2)
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-            requireInvariant indexLengthCheck(guardian1);
-            requireInvariant indexLengthCheck(guardian2);
-        }
-    }
+    filtered { f -> excludeMethods(f) }
 
 
-// STATUS - in progress: https://vaas-stg.certora.com/output/3106/e55d99c0f86f440383ea6473ad684065/?anonymousKey=dea9f5835bb2d23c86d7b1dea3f03876ae3cc62f
-invariant uniqueness(env e)
-    (forall address guardian1. forall address guardian2. guardian1 != guardian2
-        => (guardianIndicesOneBased(guardian1) != guardianIndicesOneBased(guardian2) 
-            || guardianIndicesOneBased(guardian1) == 0)) 
-    && 
-    (forall int256 i. i < getGuardiansLength() 
-        => to_mathint(guardianIndicesOneBased(getGuardian(to_uint256(i)))) == (to_uint256(i) + 1))
-    {
-        preserved {
-            require getGuardiansLength() >= 0 && getGuardiansLength() <= 100000000;
-        }
-    }
+
+
+
 
 
 // only guardian can pause deposits
@@ -339,7 +378,7 @@ rule onlyGuardianCanPause(env e, method f) {
 
 // STATUS - violated - possible deposit twice. is it intended? 
 // can't deposit with the same input twice
-rule cannotdepositTwice(env e, method f) {
+rule cannotDepositTwice(env e, method f) {
     uint256 blockNumber;
     bytes32 blockHash;
     bytes32 depositRoot;
@@ -371,3 +410,8 @@ rule cannotdepositTwice(env e, method f) {
 
 //-----IDEAS-----
 // checking signatures (Merkle tree (kind of)) in _verifySignatures(). do we have an example?
+
+
+
+
+// Note: check unstructuredStorage library
