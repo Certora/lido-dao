@@ -175,14 +175,66 @@ rule correctRevertsOfSubmitReportData() {
 }
 
 // rules for BaseOracle.sol:
+// ------------------------------------------------------------------------------------------
+// 1a.setConsensusContract() can be called only if msg.sender has the appropriate role
+// 1b.setConsensusVersion() can be called only if msg.sender has the appropriate role
+// 2. cannot submitConsensusReport() after its processingDeadlineTime
+// 3. Only Consensus contract can submit a report, i.e., call submitConsensusReport()
+// 4. cannot submitConsensusReport() if its refSlot < prevSubmittedRefSlot
+// 5. cannot submitConsensusReport() if its refSlot <= prevProcessingRefSlot
 
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/0e9e4a93a81945f3ac7dfc60d531817c/?anonymousKey=506b7ea379db5fed22a8fbdfc81477bedcf25010
+rule onlyManagerCanSetConsensusContract() {
+    env e; calldataarg args;
+
+    bytes32 roleManager = MANAGE_CONSENSUS_CONTRACT_ROLE();
+    bool isManager = hasRole(e,roleManager,e.msg.sender);
+
+    bytes32 roleAdmin = getRoleAdmin(e,roleManager);
+    bool isAdmin = hasRole(e,roleAdmin,e.msg.sender);
+
+    address newAddress;
+    setConsensusContract@withrevert(e,newAddress);
+
+    assert (!isManager && !isAdmin) => lastReverted;
+}
+
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/1dd3d3d2456441e5a4cb474b5f933881/?anonymousKey=250fe9c13081828347aaf5dedd477bb59f467554
+rule onlyManagerCanSetConsensusVersion() {
+    env e; calldataarg args;
+
+    bytes32 roleManager = MANAGE_CONSENSUS_VERSION_ROLE();
+    bool isManager = hasRole(e,roleManager,e.msg.sender);
+
+    bytes32 roleAdmin = getRoleAdmin(e,roleManager);
+    bool isAdmin = hasRole(e,roleAdmin,e.msg.sender);
+
+    uint256 newVersion;
+    setConsensusVersion@withrevert(e,newVersion);
+
+    assert (!isManager && !isAdmin) => lastReverted;
+}
+
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/12dc1ba7763b43a09054482acefef5e1/?anonymousKey=e3f6b40b6a126e42a5784249629cb5fc700c3cc2
+rule onlyConsensusContractCanSubmitConsensusReport(method f) 
+    filtered { f -> f.selector == submitConsensusReport(bytes32,uint256,uint256).selector }
+{    
+    require contractAddressesLinked();
+    env e; calldataarg args;
+
+    f@withrevert(e,args);
+
+    assert (e.msg.sender != ConsensusContract) => lastReverted;
+}
 
 // rules for IReportAsyncProcessor.sol imported from HashConsensus.sol:
 // ------------------------------------------------------------------------------------------
 // 1. cannot submit a report using submitConsensusReport() for the
 //    slot returned from getLastProcessingRefSlot() and any slot preceding it.
 // 2. cannot submit a report if its "ReportData.consensusVersion" !=  getConsensusVersion()
-// 3. Only Consensus contract can submit a report, i.e., call submitConsensusReport()
 
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/21cba2b81811458ea98ea5a12987aa4a/?anonymousKey=785d93a962710a832ff9f4ba0555d07554d2976b
@@ -241,19 +293,6 @@ rule cannotSubmitReportDataIfUsingDifferentConsensusVersion() {
                                                 contractVersion );
 
     assert (consensusVersion != currentConsensusVersion) => lastReverted;
-}
-
-// Status: Pass
-// https://vaas-stg.certora.com/output/80942/12dc1ba7763b43a09054482acefef5e1/?anonymousKey=e3f6b40b6a126e42a5784249629cb5fc700c3cc2
-rule onlyConsensusContractCanSubmitConsensusReport(method f) 
-    filtered { f -> f.selector == submitConsensusReport(bytes32,uint256,uint256).selector }
-{    
-    require contractAddressesLinked();
-    env e; calldataarg args;
-
-    f@withrevert(e,args);
-
-    assert (e.msg.sender != ConsensusContract) => lastReverted;
 }
 
 
