@@ -139,7 +139,7 @@ rule cannotInitializeTwice(method f)
 }
 
 // Status: Pass
-// https://vaas-stg.certora.com/output/80942/47abad17deb34c838ce64f27413c7426/?anonymousKey=9e129225a9208763048cc9ce31f338ec4dcd5109
+// https://vaas-stg.certora.com/output/80942/6b3200aef589412da430b0388dbe9cc5/?anonymousKey=f0d1a16182596b855a428ed8e875a3b56bcc749e
 rule correctRevertsOfSubmitReportData() {
     require contractAddressesLinked();
     env e; calldataarg args;
@@ -172,17 +172,22 @@ rule correctRevertsOfSubmitReportData() {
     assert (extraDataFormat != EXTRA_DATA_FORMAT_EMPTY() && extraDataFormat != EXTRA_DATA_FORMAT_LIST()) => submitReverted;
     assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataHash != 0) => submitReverted;
     assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataItemsCount != 0) => submitReverted;
+
+    assert (consensusVersion != currentConsensusVersion) => submitReverted;
 }
+
 
 // rules for BaseOracle.sol:
 // ------------------------------------------------------------------------------------------
 // 1a.setConsensusContract() can be called only if msg.sender has the appropriate role
 // 1b.setConsensusVersion() can be called only if msg.sender has the appropriate role
-// 2. cannot submitConsensusReport() after its processingDeadlineTime
-// 3. Only Consensus contract can submit a report, i.e., call submitConsensusReport()
-// 4. cannot submitConsensusReport() if its refSlot < prevSubmittedRefSlot
-// 5. cannot submitConsensusReport() if its refSlot <= prevProcessingRefSlot
+// 2. Only Consensus contract can submit a report, i.e., call submitConsensusReport()
+// 3. Cannot submitConsensusReport() if its refSlot < prevSubmittedRefSlot
+// 4. Cannot submitConsensusReport() if its refSlot <= prevProcessingRefSlot
+// 5. Cannot submitConsensusReport() if its deadline <= refSlot
+// 6. Cannot submitConsensusReport() if its reportHash == 0
 
+// 1a.setConsensusContract() can be called only if msg.sender has the appropriate role
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/0e9e4a93a81945f3ac7dfc60d531817c/?anonymousKey=506b7ea379db5fed22a8fbdfc81477bedcf25010
 rule onlyManagerCanSetConsensusContract() {
@@ -200,6 +205,7 @@ rule onlyManagerCanSetConsensusContract() {
     assert (!isManager && !isAdmin) => lastReverted;
 }
 
+// 1b.setConsensusVersion() can be called only if msg.sender has the appropriate role
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/1dd3d3d2456441e5a4cb474b5f933881/?anonymousKey=250fe9c13081828347aaf5dedd477bb59f467554
 rule onlyManagerCanSetConsensusVersion() {
@@ -217,6 +223,7 @@ rule onlyManagerCanSetConsensusVersion() {
     assert (!isManager && !isAdmin) => lastReverted;
 }
 
+// 2. Only Consensus contract can submit a report, i.e., call submitConsensusReport()
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/12dc1ba7763b43a09054482acefef5e1/?anonymousKey=e3f6b40b6a126e42a5784249629cb5fc700c3cc2
 rule onlyConsensusContractCanSubmitConsensusReport(method f) 
@@ -230,15 +237,73 @@ rule onlyConsensusContractCanSubmitConsensusReport(method f)
     assert (e.msg.sender != ConsensusContract) => lastReverted;
 }
 
-// rules for IReportAsyncProcessor.sol imported from HashConsensus.sol:
-// ------------------------------------------------------------------------------------------
-// 1. cannot submit a report using submitConsensusReport() for the
-//    slot returned from getLastProcessingRefSlot() and any slot preceding it.
-// 2. cannot submit a report if its "ReportData.consensusVersion" !=  getConsensusVersion()
-
+// 3. Cannot submitConsensusReport() if its refSlot < prevSubmittedRefSlot
 // Status: Pass
-// https://vaas-stg.certora.com/output/80942/21cba2b81811458ea98ea5a12987aa4a/?anonymousKey=785d93a962710a832ff9f4ba0555d07554d2976b
-rule cannotSubmitConsensusReportOlderThanLastProcessingRefSlot(method f) 
+// https://vaas-stg.certora.com/output/80942/d3493f0f47a544d086086b793689841c/?anonymousKey=e0006776f21a9ac59c4745a93d0a7e854c7c4e9a
+rule refSlotCannotDecrease() {    
+    require contractAddressesLinked();
+    env e; calldataarg args;  
+
+    uint256 lastProcessingRefSlot = getLastProcessingRefSlot(e);
+
+    bytes32 prevSubmittedHash; uint256 prevSubmittedRefSlot;
+    uint256 prevSubmittedDeadline; bool processingStarted;
+    prevSubmittedHash, prevSubmittedRefSlot, prevSubmittedDeadline, processingStarted = getConsensusReport(e);
+
+    bytes32 reportHash; uint256 refSlot; uint256 deadline;
+    submitConsensusReport@withrevert(e, reportHash, refSlot, deadline);
+
+    assert (refSlot < prevSubmittedRefSlot) => lastReverted;
+}
+
+// 4. Cannot submitConsensusReport() if its refSlot <= prevProcessingRefSlot
+// As mentioned in IReportAsyncProcessor imported from HashConsensus.sol
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/ea835481700b428aa37c1b82b1ccac33/?anonymousKey=8f394d9d34b1bda2b007f90b7897952c5400a2f0
+rule refSlotMustBeGreaterThanProcessingOne() {    
+    require contractAddressesLinked();
+    env e; calldataarg args;
+
+    uint256 lastProcessingRefSlot = getLastProcessingRefSlot(e);
+    
+    bytes32 reportHash; uint256 refSlot; uint256 deadline;
+    submitConsensusReport@withrevert(e, reportHash, refSlot, deadline);
+
+    assert (refSlot <= lastProcessingRefSlot) => lastReverted;
+}
+
+// 5. Cannot submitConsensusReport() if its deadline <= refSlot
+// Status: Fail
+// https://vaas-stg.certora.com/output/80942/8c323c10f71b4dafb6b754ba1a4ec865/?anonymousKey=e4b06b987f42ac8c5f9088aa491740d37b475bde
+rule deadlineMustBeAfterRefSlotBaseOracle() {    
+    require contractAddressesLinked();
+    env e; calldataarg args;
+    
+    bytes32 reportHash; uint256 refSlot; uint256 deadline;
+    submitConsensusReport@withrevert(e,reportHash, refSlot, deadline);
+
+    assert (deadline <= refSlot) => lastReverted;
+}
+
+// 6. Cannot submitConsensusReport() if its reportHash == 0
+// Status: Fail
+// https://vaas-stg.certora.com/output/80942/430b70d788dd453eae3647ac444f9cad/?anonymousKey=9f16b9986826770acb548c758fa681767ed4cabf
+rule reportHashCannotBeZero() {    
+    require contractAddressesLinked();
+    env e; calldataarg args;
+    
+    bytes32 reportHash; uint256 refSlot; uint256 deadline;
+    submitConsensusReport@withrevert(e,reportHash, refSlot, deadline);
+
+    assert (reportHash == 0) => lastReverted;
+}
+
+
+/* passes but is wrongly written - delete
+// Status: Pass
+// new: https://vaas-stg.certora.com/output/80942/e03b0807e4bc40f18b097fb6261c3741/?anonymousKey=2b28ef31f55d6e50b58ee6e41622d1eeb2056690
+// old: https://vaas-stg.certora.com/output/80942/21cba2b81811458ea98ea5a12987aa4a/?anonymousKey=785d93a962710a832ff9f4ba0555d07554d2976b
+rule refSlotMustBeGreaterThanProcessingOne(method f) 
     filtered { f -> f.selector == submitConsensusReport(bytes32,uint256,uint256).selector }
 {    
     require contractAddressesLinked();
@@ -260,40 +325,10 @@ rule cannotSubmitConsensusReportOlderThanLastProcessingRefSlot(method f)
     f@withrevert(e2,args2); // finally try to submit a new consensus report
 
     // assert lastReverted; // FAIL --> checked that the above call is NOT always reverting
-    assert (refSlot < lastProcessingRefSlot) => lastReverted;
+    assert (refSlot <= lastProcessingRefSlot) => lastReverted;
 }
+*/
 
-// Status: Pass
-// https://vaas-stg.certora.com/output/80942/08a41c3001fc4e40a3da21df35906a4b/?anonymousKey=dcf7e94b4d40b0e2986cf2e2b3f9d4995d347953
-rule cannotSubmitReportDataIfUsingDifferentConsensusVersion() {
-    require contractAddressesLinked();
-    env e; calldataarg args;
-
-    uint256 currentConsensusVersion = getConsensusVersion(e);
-
-    // struct ReportData
-    uint256 consensusVersion; uint256 refSlot;
-    // uint256 numValidators; uint256 clBalanceGwei;
-    // uint256[] stakingModuleIdsWithNewlyExitedValidators; uint256[] numExitedValidatorsByStakingModule;
-    // uint256 withdrawalVaultBalance; uint256 elRewardsVaultBalance;
-    uint256 lastFinalizableWithdrawalRequestId; uint256 simulatedShareRate; bool isBunkerMode;
-    uint256 extraDataFormat; bytes32 extraDataHash; uint256 extraDataItemsCount;
-
-    uint256 contractVersion;
-
-    helperCreateAndSubmitReportData@withrevert( e,
-                                                consensusVersion,
-                                                refSlot,
-                                                lastFinalizableWithdrawalRequestId,
-                                                simulatedShareRate,
-                                                isBunkerMode,
-                                                extraDataFormat,
-                                                extraDataHash,
-                                                extraDataItemsCount,
-                                                contractVersion );
-
-    assert (consensusVersion != currentConsensusVersion) => lastReverted;
-}
 
 
 // rules for Versioned:
@@ -478,23 +513,3 @@ rule sanity(method f)
     f(e,args);
     assert false;
 }
-
-// not relevant rule - to delete
-/*
-rule shouldNotRevert(method f)
-filtered{f -> f.selector == submitReportData((uint256,uint256,uint256,uint256,uint256[],uint256[],uint256,uint256,uint256,uint256,bool,uint256,bytes32,uint256),uint256).selector}
-{
-    env e;
-    calldataarg args;
-
-    require contractAddressesLinked();
-
-    require e.msg.value == 0;
-    require e.msg.sender != 0;
-    require e.block.timestamp > 0;
-    require e.block.timestamp < 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-
-    f@withrevert(e,args);
-    assert (!lastReverted);
-}
-*/
