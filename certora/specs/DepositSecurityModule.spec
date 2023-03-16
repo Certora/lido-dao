@@ -1,7 +1,7 @@
 using LidoLocator as Locator
 using DepositSecurityModuleHarness as DSM
 using StakingRouter as StkRouter
-using ECDSA as SigContact
+using Lido as Lido
 
 methods {
     // StakingRouter.sol
@@ -42,8 +42,14 @@ methods {
     // havoc - "only the return value"
         getStakingModuleSummary() returns(uint256, uint256, uint256) => DISPATCHER(true)
         getNonce() returns (uint256) => DISPATCHER(true)
-        obtainDepositData(uint256, bytes) => DISPATCHER(true)
 
+    // BeaconChainDepositor.sol
+    // havoc - "all contracts"
+        _computeDepositDataRoot(bytes, bytes, bytes) returns(bytes32) => DISPATCHER(true)
+
+    // NodeOperatorsRegistry.sol
+    // havoc - "all contracts"
+        obtainDepositData(uint256, bytes) returns(bytes, bytes) => DISPATCHER(true)
 
     // DepositSecurityModule.sol
     guardianIndicesOneBased(address) returns(uint256) envfree
@@ -58,6 +64,8 @@ methods {
     isGuardian(address) returns(bool) envfree
     getHashedAddress(uint256,uint256,(bytes32,bytes32)) returns(address) envfree
     getEthBalance(address) returns(uint256) envfree
+
+    LIDO() returns(address) envfree
 }
 
 
@@ -77,6 +85,9 @@ rule sanity(env e, method f) {
 definition excludeMethods(method f) returns bool =
     f.selector != depositBufferedEtherCall(uint256, bytes32, bytes32, uint256, uint256, bytes).selector;
 
+
+definition onlyDeposit(method f) returns bool =
+    f.selector == depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[]).selector;
 
 
 /**************************************************
@@ -104,30 +115,30 @@ ghost mapping(address => uint256) guardianIndicesOneBasedMirror {
     init_state axiom forall address a. guardianIndicesOneBasedMirror[a] == 0;
 }
 
-hook Sstore guardianIndicesOneBased[KEY address guardian] uint256 index
-    (uint256 old_index) STORAGE
-{
-    guardianIndicesOneBasedMirror[guardian] = index;
-}
+// hook Sstore guardianIndicesOneBased[KEY address guardian] uint256 index
+//     (uint256 old_index) STORAGE
+// {
+//     guardianIndicesOneBasedMirror[guardian] = index;
+// }
 
-hook Sload uint256 index guardianIndicesOneBased[KEY address guardian]  STORAGE {
-    require guardianIndicesOneBasedMirror[guardian] == index;
-}
+// hook Sload uint256 index guardianIndicesOneBased[KEY address guardian]  STORAGE {
+//     require guardianIndicesOneBasedMirror[guardian] == index;
+// }
 
 
 ghost mapping(uint256 => address) guardiansMirror {
     init_state axiom forall uint256 a. guardiansMirror[a] == 0;
 }
 
-hook Sstore guardians[INDEX uint256 index] address guardian
-    (address old_guardian) STORAGE
-{
-    guardiansMirror[index] = guardian;
-}
+// hook Sstore guardians[INDEX uint256 index] address guardian
+//     (address old_guardian) STORAGE
+// {
+//     guardiansMirror[index] = guardian;
+// }
 
-hook Sload address guardian guardians[INDEX uint256 index]  STORAGE {
-    require guardiansMirror[index] == guardian;
-}
+// hook Sload address guardian guardians[INDEX uint256 index]  STORAGE {
+//     require guardiansMirror[index] == guardian;
+// }
 
 
 ghost uint256 mirrorArrayLen {
@@ -135,14 +146,14 @@ ghost uint256 mirrorArrayLen {
     axiom mirrorArrayLen != max_uint256; 
 }
 
-hook Sstore guardians.(offset 0) uint256 newLen 
-    (uint256 oldLen) STORAGE {
-    mirrorArrayLen = newLen;
-}
+// hook Sstore guardians.(offset 0) uint256 newLen 
+//     (uint256 oldLen) STORAGE {
+//     mirrorArrayLen = newLen;
+// }
 
-hook Sload uint256 len guardians.(offset 0) STORAGE {
-    require mirrorArrayLen == len;
-}
+// hook Sload uint256 len guardians.(offset 0) STORAGE {
+//     require mirrorArrayLen == len;
+// }
 
 
 
@@ -372,6 +383,8 @@ rule cannotDepositTwice(env e, method f) {
     uint256 nonce;
     bytes depositCalldata;
     
+    uint256 before = getEthBalance(Lido);
+
     depositBufferedEtherCall(e,
         blockNumber,
         blockHash,
@@ -380,6 +393,8 @@ rule cannotDepositTwice(env e, method f) {
         nonce,
         depositCalldata
     );
+
+    uint256 after = getEthBalance(Lido);
 
     depositBufferedEtherCall@withrevert(e,
         blockNumber,
@@ -390,10 +405,12 @@ rule cannotDepositTwice(env e, method f) {
         depositCalldata
     );
 
-    assert lastReverted, "Remember, with great power comes great responsibility.";
+    bool isReverted = lastReverted;
+
+    assert (before - 32 == after) => isReverted, "Remember, with great power comes great responsibility.";
 }
 
-rule whoChangedBalanceOf(env e, method f) filtered { f -> excludeMethods(f) } {
+rule whoChangedBalanceOf(env e, method f) filtered { f -> onlyDeposit(f) } {
     uint256 blockNumber;
     bytes32 blockHash;
     bytes32 depositRoot;
@@ -401,26 +418,52 @@ rule whoChangedBalanceOf(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 nonce;
     bytes depositCalldata;
 
-    uint256 before = getEthBalance(StkRouter);
+    uint256 beforeLido = getEthBalance(Lido);
+    uint256 beforeStk = getEthBalance(StkRouter);
     
-    depositBufferedEtherCall(e,
-        blockNumber,
-        blockHash,
-        depositRoot,
-        stakingModuleId,
-        nonce,
-        depositCalldata
-    );
+    calldataarg args;
+    f(e, args);
 
-    assert getEthBalance(StkRouter) == before, "balanceOf changed";
+    uint256 afterLido = getEthBalance(Lido);
+    uint256 afterStk = getEthBalance(StkRouter);
+
+    assert beforeLido == afterLido, "balanceOf changed";
+    assert beforeStk == afterStk;
 }
+
+
+
+// STATUS - in progress / verified / error / timeout / etc.
+// TODO: rule description
+// rule basicFRule(env e, method f) {
+//     bytes32 hash; bytes32 r; bytes32 vs;
+
+//     address addr1 = SigContact.recover(e, hash, r, vs);
+//     address addr2 = SigContact.recover(e, hash, r, vs);
+
+//     assert addr1 == addr2, "Remember, with great power comes great responsibility.";
+// }
+
 
 //-----IDEAS-----
 // if canDeposit reverts, deposit reverts too
 // if canDeposit doesn't revert, deposit doesn't revert too
 
-// checking signatures (Merkle tree (kind of)) in _verifySignatures(). do we have an example?
+// checking signatures (Merkle tree (kind of)) in _verifySignatures(). do we have an example?:
+// can't pass the same guardian signature twice
+// passing signature of non guardian
 
+
+// deposits not too close to each other
+
+// check that nonce was increased by 1
+
+// check reverts of deposit
+
+
+// extend onlyOwner can change with function call check
+
+// staking router balance remains the same
 
 
 
