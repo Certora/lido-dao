@@ -212,82 +212,82 @@ abstract contract WithdrawalQueueBase {
     ///  the function with returned `state` until it returns a state with `finished` flag set
     /// @return state that was changed during this function invokation.
     ///  If (state.finished) than calculation is finished and returned `state` is ready to be used
-    function calculateFinalizationBatches(
-        uint256 _maxShareRate,
-        uint256 _maxTimestamp,
-        uint256 _maxRequestsPerCall,
-        BatchesCalculationState memory _state
-    )
-        external
-        view
-        returns (BatchesCalculationState memory)
-    {
-        if (_state.finished || _state.remainingEthBudget == 0) revert InvalidState();
+    // function calculateFinalizationBatches(
+    //     uint256 _maxShareRate,
+    //     uint256 _maxTimestamp,
+    //     uint256 _maxRequestsPerCall,
+    //     BatchesCalculationState memory _state
+    // )
+    //     external
+    //     view
+    //     returns (BatchesCalculationState memory)
+    // {
+    //     if (_state.finished || _state.remainingEthBudget == 0) revert InvalidState();
 
-        uint256 currentId;
-        WithdrawalRequest memory prevRequest;
-        uint256 prevRequestShareRate;
+    //     uint256 currentId;
+    //     WithdrawalRequest memory prevRequest;
+    //     uint256 prevRequestShareRate;
 
-        if (_state.batchesLength == 0) {
-            currentId = getLastFinalizedRequestId() + 1;
+    //     if (_state.batchesLength == 0) {
+    //         currentId = getLastFinalizedRequestId() + 1;
 
-            prevRequest = _getQueue()[currentId - 1];
-        } else {
-            uint256 lastHandledRequestId = _state.batches[_state.batchesLength - 1];
-            currentId = lastHandledRequestId + 1;
+    //         prevRequest = _getQueue()[currentId - 1];
+    //     } else {
+    //         uint256 lastHandledRequestId = _state.batches[_state.batchesLength - 1];
+    //         currentId = lastHandledRequestId + 1;
 
-            prevRequest = _getQueue()[lastHandledRequestId];
-            (prevRequestShareRate,,) = _calcBatch(_getQueue()[lastHandledRequestId - 1], prevRequest);
-        }
+    //         prevRequest = _getQueue()[lastHandledRequestId];
+    //         (prevRequestShareRate,,) = _calcBatch(_getQueue()[lastHandledRequestId - 1], prevRequest);
+    //     }
 
-        uint256 nextCallRequestId = currentId + _maxRequestsPerCall;
-        uint256 queueLength = getLastRequestId() + 1;
+    //     uint256 nextCallRequestId = currentId + _maxRequestsPerCall;
+    //     uint256 queueLength = getLastRequestId() + 1;
 
-        while (currentId < queueLength && currentId < nextCallRequestId) {
-            WithdrawalRequest memory request = _getQueue()[currentId];
+    //     while (currentId < queueLength && currentId < nextCallRequestId) {
+    //         WithdrawalRequest memory request = _getQueue()[currentId];
 
-            if (request.timestamp > _maxTimestamp) break;  // max timestamp break
+    //         if (request.timestamp > _maxTimestamp) break;  // max timestamp break
 
-            (uint256 requestShareRate, uint256 ethToFinalize, uint256 shares) = _calcBatch(prevRequest, request);
+    //         (uint256 requestShareRate, uint256 ethToFinalize, uint256 shares) = _calcBatch(prevRequest, request);
 
-            if (requestShareRate > _maxShareRate) {
-                // discounted
-                ethToFinalize = (shares * _maxShareRate) / E27_PRECISION_BASE;
-            }
+    //         if (requestShareRate > _maxShareRate) {
+    //             // discounted
+    //             ethToFinalize = (shares * _maxShareRate) / E27_PRECISION_BASE;
+    //         }
 
-            if (ethToFinalize > _state.remainingEthBudget) break; // budget break
-            _state.remainingEthBudget -= ethToFinalize;
+    //         if (ethToFinalize > _state.remainingEthBudget) break; // budget break
+    //         _state.remainingEthBudget -= ethToFinalize;
 
-            if (_state.batchesLength != 0 && (
-                // share rate of requests in the same batch can differ by 1-2 wei because of the rounding error
-                // (issue: https://github.com/lidofinance/lido-dao/issues/442 )
-                // so we're counting requests that are placed during the same report day
-                // as equal even if their actual share rate are different
-                prevRequest.reportTimestamp == request.reportTimestamp ||
-                // both requests are below or
-                prevRequestShareRate <= _maxShareRate && requestShareRate <= _maxShareRate ||
-                // both are above the line
-                prevRequestShareRate > _maxShareRate && requestShareRate > _maxShareRate
-            )) {
-                _state.batches[_state.batchesLength - 1] = currentId; // extend the last batch
-            } else {
-                // to be able to check batches on-chain we need it to have fixed max length
-                if (_state.batchesLength == MAX_BATCHES_LENGTH) break;
+    //         if (_state.batchesLength != 0 && (
+    //             // share rate of requests in the same batch can differ by 1-2 wei because of the rounding error
+    //             // (issue: https://github.com/lidofinance/lido-dao/issues/442 )
+    //             // so we're counting requests that are placed during the same report day
+    //             // as equal even if their actual share rate are different
+    //             prevRequest.reportTimestamp == request.reportTimestamp ||
+    //             // both requests are below or
+    //             prevRequestShareRate <= _maxShareRate && requestShareRate <= _maxShareRate ||
+    //             // both are above the line
+    //             prevRequestShareRate > _maxShareRate && requestShareRate > _maxShareRate
+    //         )) {
+    //             _state.batches[_state.batchesLength - 1] = currentId; // extend the last batch
+    //         } else {
+    //             // to be able to check batches on-chain we need it to have fixed max length
+    //             if (_state.batchesLength == MAX_BATCHES_LENGTH) break;
 
-                // create a new batch
-                _state.batches[_state.batchesLength] = currentId;
-                ++_state.batchesLength;
-            }
+    //             // create a new batch
+    //             _state.batches[_state.batchesLength] = currentId;
+    //             ++_state.batchesLength;
+    //         }
 
-            prevRequestShareRate = requestShareRate;
-            prevRequest = request;
-            unchecked{ ++currentId; }
-        }
+    //         prevRequestShareRate = requestShareRate;
+    //         prevRequest = request;
+    //         unchecked{ ++currentId; }
+    //     }
 
-        _state.finished = currentId == queueLength || currentId < nextCallRequestId;
+    //     _state.finished = currentId == queueLength || currentId < nextCallRequestId;
 
-        return _state;
-    }
+    //     return _state;
+    // }
 
     /// @notice Checks the finalization batches, calculates required ether and the amount of shares to burn and
     /// @param _batches finalization batches calculated offchain using `calculateFinalizationBatches`

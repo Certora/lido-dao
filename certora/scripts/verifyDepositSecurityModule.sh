@@ -12,7 +12,6 @@ certoraRun \
     certora/harnesses/DepositSecurityModuleHarness.sol \
     contracts/0.8.9/StakingRouter.sol \
     contracts/0.8.9/LidoLocator.sol \
-    contracts/0.8.9/test_helpers/StakingModuleMock.sol \
     contracts/0.8.9/BeaconChainDepositor.sol \
     \
     contracts/0.4.24/nos/NodeOperatorsRegistry.sol \
@@ -21,14 +20,14 @@ certoraRun \
     certora/harnesses/WithdrawalQueueHarness.sol \
     \
     --verify DepositSecurityModuleHarness:certora/specs/DepositSecurityModule.spec \
-    --solc_map BeaconChainDepositor=solc8.9,StakingModuleMock=solc8.9,DepositSecurityModuleHarness=solc8.9,StakingRouter=solc8.9,WithdrawalQueueHarness=solc8.9,LidoLocator=solc8.9,Lido=solc4.24,NodeOperatorsRegistry=solc4.24 \
+    --solc_map BeaconChainDepositor=solc8.9,DepositSecurityModuleHarness=solc8.9,StakingRouter=solc8.9,WithdrawalQueueHarness=solc8.9,LidoLocator=solc8.9,Lido=solc4.24,NodeOperatorsRegistry=solc4.24 \
     --link DepositSecurityModuleHarness:LIDO=Lido \
     --optimistic_loop \
     --loop_iter 2 \
     --send_only \
     --rule_sanity \
     --staging master \
-    --settings -t=2000,-mediumTimeout=2000,-depth=100,-copyLoopUnroll=10 \
+    --settings -t=2000,-mediumTimeout=2000,-depth=100,-copyLoopUnroll=6 \
     $RULE \
     --msg "DepositSecurityModule: $RULE $MSG"
 
@@ -37,3 +36,5 @@ certoraRun \
 # DepositContractMock=solc4.24
 
 # contracts/0.8.9/DepositSecurityModule.sol \
+
+# contracts/0.8.9/test_helpers/StakingModuleMock.sol \

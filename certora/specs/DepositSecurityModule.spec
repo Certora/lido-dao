@@ -36,7 +36,7 @@ methods {
 
     // DepositContractMock.sol
     // havoc - "only the return value"
-        get_deposit_root() returns(bytes32) => NONDET // DISPATCHER(true)
+        get_deposit_root() returns(bytes32) => NONDET // DISPATCHER(true)                       // report shows unresolved call (UNRESOLVED Auto summary) and ignores NONDET. Effect is the same, but strange that it's not resolved 
 
     // StakingModuleMock.sol
     // havoc - "only the return value"
@@ -45,11 +45,11 @@ methods {
 
     // BeaconChainDepositor.sol
     // havoc - "all contracts"
-        _computeDepositDataRoot(bytes, bytes, bytes) returns(bytes32) => DISPATCHER(true)
+        _computeDepositDataRoot(bytes, bytes, bytes) returns(bytes32) => DISPATCHER(true)       // DISPATCHER wasn't applied
 
     // NodeOperatorsRegistry.sol
     // havoc - "all contracts"
-        obtainDepositData(uint256, bytes) returns(bytes, bytes) => DISPATCHER(true)
+        obtainDepositData(uint256, bytes) returns(bytes, bytes) => DISPATCHER(true)             // DISPATCHER wasn't applied
 
     // DepositSecurityModule.sol
     guardianIndicesOneBased(address) returns(uint256) envfree
@@ -410,7 +410,43 @@ rule cannotDepositTwice(env e, method f) {
     assert (before - 32 == after) => isReverted, "Remember, with great power comes great responsibility.";
 }
 
-rule whoChangedBalanceOf(env e, method f) filtered { f -> onlyDeposit(f) } {
+
+// STATUS - in progress (draft)
+// staking router balance remains the same
+// Lido balance decreases by 32 ETH
+rule correct32EthDeposit(env e, method f) {
+    uint256 blockNumber;
+    bytes32 blockHash;
+    bytes32 depositRoot;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    bytes depositCalldata;
+    
+    uint256 lidoBalanceBefore = getEthBalance(Lido);
+    uint256 stkRouterBalanceBefore = getEthBalance(StkRouter);
+
+    depositBufferedEtherCall@withrevert(e,
+        blockNumber,
+        blockHash,
+        depositRoot,
+        stakingModuleId,
+        nonce,
+        depositCalldata
+    );
+
+    bool isReverted = lastReverted;
+
+    uint256 lidoBalanceAfter = getEthBalance(Lido);
+    uint256 stkRouterBalanceAfter = getEthBalance(StkRouter);
+
+    assert !isReverted => (lidoBalanceBefore - 32 == lidoBalanceAfter), "Remember, with great power comes great responsibility.";
+    assert stkRouterBalanceBefore == stkRouterBalanceAfter, "Remember, with great power comes great responsibility.";
+}
+
+
+// STATUS - in progress (draft)
+// if deposit reverts, canDeposit reverts too (another way around will require many constraints) 
+rule agreedReverts(env e, env e2, method f) filtered { f -> onlyDeposit(f) } {
     uint256 blockNumber;
     bytes32 blockHash;
     bytes32 depositRoot;
@@ -418,18 +454,27 @@ rule whoChangedBalanceOf(env e, method f) filtered { f -> onlyDeposit(f) } {
     uint256 nonce;
     bytes depositCalldata;
 
-    uint256 beforeLido = getEthBalance(Lido);
-    uint256 beforeStk = getEthBalance(StkRouter);
-    
-    calldataarg args;
-    f(e, args);
+    require e.block.timestamp == e2.block.timestamp;
+    require e.msg.value == e2.msg.value && e.msg.value == 0;
 
-    uint256 afterLido = getEthBalance(Lido);
-    uint256 afterStk = getEthBalance(StkRouter);
+    depositBufferedEtherCall@withrevert(e,
+        blockNumber,
+        blockHash,
+        depositRoot,
+        stakingModuleId,
+        nonce,
+        depositCalldata
+    );
 
-    assert beforeLido == afterLido, "balanceOf changed";
-    assert beforeStk == afterStk;
+    bool isDepositReverted = lastReverted;
+
+    bool isDepositable = canDeposit@withrevert(e2, stakingModuleId);
+
+    bool isCanDepositRevrted = lastReverted;
+
+    assert isDepositReverted => (isCanDepositRevrted || !isDepositable);
 }
+
 
 
 
@@ -446,7 +491,7 @@ rule whoChangedBalanceOf(env e, method f) filtered { f -> onlyDeposit(f) } {
 
 
 //-----IDEAS-----
-// if canDeposit reverts, deposit reverts too
+
 // if canDeposit doesn't revert, deposit doesn't revert too
 
 // checking signatures (Merkle tree (kind of)) in _verifySignatures(). do we have an example?:
@@ -463,7 +508,6 @@ rule whoChangedBalanceOf(env e, method f) filtered { f -> onlyDeposit(f) } {
 
 // extend onlyOwner can change with function call check
 
-// staking router balance remains the same
 
 
 
