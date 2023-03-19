@@ -352,14 +352,11 @@ invariant zeroIsNotGuardian()
 // only guardian can pause deposits
 // STATUS - in progress: https://vaas-stg.certora.com/output/3106/7f9fb82c59374a3d8a8c0c31b98ec44c/?anonymousKey=e8037a9854892fd6131b4f61605eea484994cdd3
 // There can be 2 issues:
-// 1. Hashing doesn't work properly.
-// 2. need correlation invariant becuase array and mapping aren't synced. However, pauseDeposits() uses mapping indexes, while I use array
+// 1. struct is not passed correctly inside pauseDeposit()
 rule onlyGuardianCanPause(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 blockNumber;
     uint256 stakingModuleId;
     DSM.Signature sig;
-
-    // requireInvariant unique();  // need it to synchronize array and mapping
 
     require StkRouter.getStakingModuleStatus(stakingModuleId) == 0;
 
@@ -411,9 +408,11 @@ rule cannotDepositTwice(env e, method f) {
 }
 
 
-// STATUS - in progress (draft)
+// STATUS - in progress
 // staking router balance remains the same
 // Lido balance decreases by 32 ETH
+// Lido deposit to StakingRouter didn't change ETH balances: https://vaas-stg.certora.com/output/3106/dbf11709d7b14512b8a6082dc8a97032/?anonymousKey=e9bcdd50b348d98cd84c87d62d48c1a18c24dbb6
+// counter example shows that deposit wasn't reverted, but the call trace is not full
 rule correct32EthDeposit(env e, method f) {
     uint256 blockNumber;
     bytes32 blockHash;
@@ -439,14 +438,13 @@ rule correct32EthDeposit(env e, method f) {
     uint256 lidoBalanceAfter = getEthBalance(Lido);
     uint256 stkRouterBalanceAfter = getEthBalance(StkRouter);
 
-    assert !isReverted => (lidoBalanceBefore - 32 == lidoBalanceAfter), "Remember, with great power comes great responsibility.";
+    assert !isReverted => (to_uint256(lidoBalanceBefore - 32) == lidoBalanceAfter), "Remember, with great power comes great responsibility.";
     assert stkRouterBalanceBefore == stkRouterBalanceAfter, "Remember, with great power comes great responsibility.";
 }
 
 
-// STATUS - in progress (draft)
-// if deposit reverts, canDeposit reverts too (another way around will require many constraints) 
-rule agreedReverts(env e, env e2, method f) filtered { f -> onlyDeposit(f) } {
+// if canDeposit() returns false, depositBufferedEther() reverts
+rule agreedRevertsSimple(env e, env e2, method f) filtered { f -> onlyDeposit(f) } {
     uint256 blockNumber;
     bytes32 blockHash;
     bytes32 depositRoot;
@@ -454,8 +452,12 @@ rule agreedReverts(env e, env e2, method f) filtered { f -> onlyDeposit(f) } {
     uint256 nonce;
     bytes depositCalldata;
 
-    require e.block.timestamp == e2.block.timestamp;
+    require e.block.number == e2.block.number;
     require e.msg.value == e2.msg.value && e.msg.value == 0;
+
+    bool isDepositable = canDeposit@withrevert(e2, stakingModuleId);
+
+    bool isCanDepositReverted = lastReverted;
 
     depositBufferedEtherCall@withrevert(e,
         blockNumber,
@@ -468,36 +470,70 @@ rule agreedReverts(env e, env e2, method f) filtered { f -> onlyDeposit(f) } {
 
     bool isDepositReverted = lastReverted;
 
-    bool isDepositable = canDeposit@withrevert(e2, stakingModuleId);
+    assert  (isCanDepositReverted || !isDepositable) => isDepositReverted;
+}
 
-    bool isCanDepositRevrted = lastReverted;
 
-    assert isDepositReverted => (isCanDepositRevrted || !isDepositable);
+// STATUS - verified
+// checking signatures: can't pass the same guardian signature twice
+rule youShallNotPass(env e) {
+    bytes32 depositRoot;
+    uint256 blockNumber;
+    bytes32 blockHash;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    DSM.Signature sig1;
+    DSM.Signature sig2;
+
+    _verifySignaturesCall@withrevert(e,
+        depositRoot,
+        blockNumber,
+        blockHash,
+        stakingModuleId,
+        nonce,
+        sig1,
+        sig2
+    );
+
+    bool isReverted = lastReverted;
+    
+    assert compareSignatures(e, sig1, sig2) => isReverted, "Remember, with great power comes great responsibility.";
+}
+
+
+// STATUS - verified
+// checking signatures: passing signature of non guardian
+rule nonGuardianCantSign(env e) {
+    bytes32 depositRoot;
+    uint256 blockNumber;
+    bytes32 blockHash;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    DSM.Signature sig1;
+    DSM.Signature sig2;
+
+    address addressFromSig1 = getAddressForSignature(e, depositRoot, blockNumber, blockHash, stakingModuleId, nonce, sig1);
+    address addressFromSig2 = getAddressForSignature(e, depositRoot, blockNumber, blockHash, stakingModuleId, nonce, sig2);
+
+    _verifySignaturesCall@withrevert(e,
+        depositRoot,
+        blockNumber,
+        blockHash,
+        stakingModuleId,
+        nonce,
+        sig1,
+        sig2
+    );
+
+    bool isReverted = lastReverted;
+    
+    assert !isGuardian(addressFromSig1) || !isGuardian(addressFromSig2) => isReverted, "Remember, with great power comes great responsibility.";
 }
 
 
 
-
-// STATUS - in progress / verified / error / timeout / etc.
-// TODO: rule description
-// rule basicFRule(env e, method f) {
-//     bytes32 hash; bytes32 r; bytes32 vs;
-
-//     address addr1 = SigContact.recover(e, hash, r, vs);
-//     address addr2 = SigContact.recover(e, hash, r, vs);
-
-//     assert addr1 == addr2, "Remember, with great power comes great responsibility.";
-// }
-
-
 //-----IDEAS-----
-
-// if canDeposit doesn't revert, deposit doesn't revert too
-
-// checking signatures (Merkle tree (kind of)) in _verifySignatures(). do we have an example?:
-// can't pass the same guardian signature twice
-// passing signature of non guardian
-
+// if canDeposit doesn't revert/return false, deposit doesn't revert too - bug rule (need to eliminate many cases to revert in if statement, rule will look unnatural)
 
 // deposits not too close to each other
 
@@ -505,10 +541,6 @@ rule agreedReverts(env e, env e2, method f) filtered { f -> onlyDeposit(f) } {
 
 // check reverts of deposit
 
-
 // extend onlyOwner can change with function call check
-
-
-
 
 // Note: check unstructuredStorage library
