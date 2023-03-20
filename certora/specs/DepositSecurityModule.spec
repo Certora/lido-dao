@@ -2,6 +2,7 @@ using LidoLocator as Locator
 using DepositSecurityModuleHarness as DSM
 using StakingRouter as StkRouter
 using Lido as Lido
+// using DepositContract as DepositContract
 
 methods {
     // StakingRouter.sol
@@ -36,7 +37,7 @@ methods {
 
     // DepositContractMock.sol
     // havoc - "only the return value"
-        get_deposit_root() returns(bytes32) => NONDET // DISPATCHER(true)                       // report shows unresolved call (UNRESOLVED Auto summary) and ignores NONDET. Effect is the same, but strange that it's not resolved 
+        get_deposit_root() returns(bytes32) => NONDET // DISPATCHER(true)    
 
     // StakingModuleMock.sol
     // havoc - "only the return value"
@@ -64,6 +65,7 @@ methods {
     isGuardian(address) returns(bool) envfree
     getHashedAddress(uint256,uint256,(bytes32,bytes32)) returns(address) envfree
     getEthBalance(address) returns(uint256) envfree
+    getSortedGuardianSignaturesLength() returns(uint256) envfree
 
     LIDO() returns(address) envfree
 }
@@ -171,8 +173,11 @@ rule onlyOwnerCanChangeOwner(env e, method f) {
 
     address ownerAfter = getOwner();
 
-    assert ownerBefore != ownerAfter => ownerBefore == e.msg.sender, "Remember, with great power comes great responsibility.";
+    assert ownerBefore != ownerAfter 
+            => (ownerBefore == e.msg.sender
+                && f.selector == setOwner(address).selector);
 }
+
 
 // STATUS - verified
 rule onlyOwnerCanChangePauseIntentValidityPeriodBlocks(env e, method f) {
@@ -183,8 +188,11 @@ rule onlyOwnerCanChangePauseIntentValidityPeriodBlocks(env e, method f) {
 
     uint256 vaidityAfter = getPauseIntentValidityPeriodBlocks();
 
-    assert validityBefore != vaidityAfter => getOwner() == e.msg.sender, "Remember, with great power comes great responsibility.";
+    assert validityBefore != vaidityAfter 
+            => (getOwner() == e.msg.sender
+                && f.selector == setPauseIntentValidityPeriodBlocks(uint256).selector);
 }
+
 
 // STATUS - verified
 rule onlyOwnerCanChangeMaxDepositsPerBlock(env e, method f) {
@@ -195,8 +203,11 @@ rule onlyOwnerCanChangeMaxDepositsPerBlock(env e, method f) {
 
     uint256 maxDepositAfter = getMaxDeposits();
 
-    assert maxDepositBefore != maxDepositAfter => getOwner() == e.msg.sender, "Remember, with great power comes great responsibility.";
+    assert maxDepositBefore != maxDepositAfter 
+            => (getOwner() == e.msg.sender
+                && f.selector == setMaxDeposits(uint256).selector);
 }
+
 
 // STATUS - verified
 rule onlyOwnerCanChangeMinDepositBlockDistance(env e, method f) {
@@ -207,8 +218,11 @@ rule onlyOwnerCanChangeMinDepositBlockDistance(env e, method f) {
 
     uint256 minDepositBlockDistanceAfter = getMinDepositBlockDistance();
 
-    assert minDepositBlockDistanceBefore != minDepositBlockDistanceAfter => getOwner() == e.msg.sender, "Remember, with great power comes great responsibility.";
+    assert minDepositBlockDistanceBefore != minDepositBlockDistanceAfter 
+            => (getOwner() == e.msg.sender
+                && f.selector == setMinDepositBlockDistance(uint256).selector);
 }
+
 
 // STATUS - verified
 rule onlyOwnerCanChangeQuorum(env e, method f) {
@@ -219,8 +233,14 @@ rule onlyOwnerCanChangeQuorum(env e, method f) {
 
     uint256 quorumAfter = getGuardianQuorum();
 
-    assert quorumBefore != quorumAfter => getOwner() == e.msg.sender, "Remember, with great power comes great responsibility.";
+    assert quorumBefore != quorumAfter 
+            => (getOwner() == e.msg.sender
+                && (f.selector == setGuardianQuorum(uint256).selector
+                    || f.selector == addGuardian(address, uint256).selector
+                    || f.selector == addGuardians(address[], uint256).selector
+                    || f.selector == removeGuardian(address, uint256).selector));
 }
+
 
 // STATUS - verified
 rule onlyOwnerCanChangeGuardians(env e, method f) {
@@ -231,10 +251,15 @@ rule onlyOwnerCanChangeGuardians(env e, method f) {
 
     int256 lengthAfter = getGuardiansLength();
 
-    assert lengthBefore != lengthAfter => getOwner() == e.msg.sender, "Remember, with great power comes great responsibility.";
+    assert lengthBefore != lengthAfter 
+            => (getOwner() == e.msg.sender
+                && (f.selector == addGuardian(address, uint256).selector
+                    || f.selector == addGuardians(address[], uint256).selector
+                    || f.selector == removeGuardian(address, uint256).selector));
 }
 
-// STATUS - verified, except harness deposit call becuase deispatcher doesn't work: https://vaas-stg.certora.com/output/3106/0c772543a4c840acbd1c2a99d3b0d4a0/?anonymousKey=a1d7e728c263f2eb9efe1da3312eb9011b8cd538
+
+// STATUS - verified
 rule onlyOwnerCanChangeUnpause(env e, method f) {
     uint256 _stakingModuleId;
 
@@ -243,7 +268,9 @@ rule onlyOwnerCanChangeUnpause(env e, method f) {
     calldataarg args;
     f(e, args);
 
-    assert StkRouter.getStakingModuleStatus(_stakingModuleId) == 0 => getOwner() == e.msg.sender, "Remember, with great power comes great responsibility.";
+    assert StkRouter.getStakingModuleStatus(_stakingModuleId) == 0 
+            => (getOwner() == e.msg.sender
+                && f.selector == unpauseDeposits(uint256).selector);
 }
 
 
@@ -438,7 +465,9 @@ rule correct32EthDeposit(env e, method f) {
     uint256 lidoBalanceAfter = getEthBalance(Lido);
     uint256 stkRouterBalanceAfter = getEthBalance(StkRouter);
 
-    assert !isReverted => (to_uint256(lidoBalanceBefore - 32) == lidoBalanceAfter), "Remember, with great power comes great responsibility.";
+    assert to_uint256(lidoBalanceBefore - 32) == lidoBalanceAfter => to_uint256(stkRouterBalanceBefore - 32) == stkRouterBalanceAfter, "Remember, with great power comes great responsibility.";
+    assert to_uint256(lidoBalanceBefore - 32) == lidoBalanceAfter;
+    assert lidoBalanceBefore == lidoBalanceAfter;
     assert stkRouterBalanceBefore == stkRouterBalanceAfter, "Remember, with great power comes great responsibility.";
 }
 
@@ -531,16 +560,77 @@ rule nonGuardianCantSign(env e) {
 }
 
 
+// STATUS - in progress
+// checking depositBufferedEther 5/6 conditions from doc:
+/**
+     * Reverts if any of the following is true:
+     *   1. IDepositContract.get_deposit_root() != depositRoot.
+     *   2. StakingModule.getNonce() != nonce.
+     *   3. The number of guardian signatures is less than getGuardianQuorum().
+     *   4. An invalid or non-guardian signature received.   // check in another rule
+     *   5. block.number - StakingModule.getLastDepositBlock() < minDepositBlockDistance.
+     *   6. blockhash(blockNumber) != blockHash.
+     */
+rule revert5(env e, env e2, method f) {
+    uint256 blockNumber;
+    bytes32 blockHash;
+    bytes32 depositRoot;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    bytes depositCalldata;
 
-//-----IDEAS-----
-// if canDeposit doesn't revert/return false, deposit doesn't revert too - bug rule (need to eliminate many cases to revert in if statement, rule will look unnatural)
+    // bytes32 getDepositRootBefore = DepositContract.get_deposit_root(e);
+    uint256 signaturesLengthBefore = getSortedGuardianSignaturesLength();
+    uint256 nonceBefore = StkRouter.getStakingModuleNonce(e, stakingModuleId);
+    uint256 getStakingModuleLastDepositBlockBefore = StkRouter.getStakingModuleLastDepositBlock(e, stakingModuleId);
+    uint256 MinDepositBlockDistanceBefore = getMinDepositBlockDistance();
+    bytes32 blockHashBefore = returnBlockHash(e, blockNumber);
 
-// deposits not too close to each other
+    require e.block.number == e2.block.number;
 
-// check that nonce was increased by 1
+    depositBufferedEtherCall@withrevert(e2,
+        blockNumber,
+        blockHash,
+        depositRoot,
+        stakingModuleId,
+        nonce,
+        depositCalldata
+    );
 
-// check reverts of deposit
+    bool isReverted = lastReverted;
 
-// extend onlyOwner can change with function call check
+    assert // getDepositRootBefore != depositRoot   // deposit_contract is too heavy, need a workaround
+                // || 
+                signaturesLengthBefore != nonce
+                || signaturesLengthBefore < getGuardianQuorum()
+                || to_uint256(e2.block.number - getStakingModuleLastDepositBlockBefore) < MinDepositBlockDistanceBefore
+                || blockHashBefore != blockHash || blockHash != 0
+            => isReverted, "Remember, with great power comes great responsibility.";
+}
 
-// Note: check unstructuredStorage library
+
+// STATUS - in progress
+// After calling depositBufferedEther check that nonce was increased by 1
+rule noncePlusOne(env e, method f) {
+    uint256 blockNumber;
+    bytes32 blockHash;
+    bytes32 depositRoot;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    bytes depositCalldata;
+    
+    uint256 nonceBefore = StkRouter.getStakingModuleNonce(e, stakingModuleId);
+
+    depositBufferedEtherCall(e,
+        blockNumber,
+        blockHash,
+        depositRoot,
+        stakingModuleId,
+        nonce,
+        depositCalldata
+    );
+
+    uint256 nonceAfter = StkRouter.getStakingModuleNonce(e, stakingModuleId);
+
+    assert to_uint256(nonceBefore + 1) == nonceAfter, "Remember, with great power comes great responsibility.";
+}

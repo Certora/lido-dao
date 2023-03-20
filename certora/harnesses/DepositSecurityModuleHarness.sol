@@ -107,4 +107,12 @@ contract DepositSecurityModuleHarness is DepositSecurityModule {
     function compareSignatures(Signature memory sig1, Signature memory sig2) external pure returns (bool) {
         return sig1.r == sig2.r && sig1.vs == sig2.vs;
     }
+
+    function getSortedGuardianSignaturesLength() external view returns (uint256) {
+        return sortedGuardianSignatures.length;
+    }
+
+    function returnBlockHash(uint256 blockNumber) external view returns (bytes32) {
+        return blockhash(blockNumber);
+    }
 }
