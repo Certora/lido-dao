@@ -343,37 +343,6 @@ contract AccountingOracle is BaseOracle {
         uint256 extraDataItemsCount;
     }
 
-    ReportData public helperReportData;         // munging added by Certora
-
-    function helperCreateAndSubmitReportData(   // munging added by Certora
-        uint256 consensusVersion,
-        uint256 refSlot,
-        //uint256 numValidators,
-        //uint256 clBalanceGwei,
-        //uint256 stakingModuleIdsWithNewlyExitedValidators,
-        //uint256 numExitedValidatorsByStakingModule,
-        //uint256 withdrawalVaultBalance,
-        //uint256 elRewardsVaultBalance,
-        uint256 lastFinalizableWithdrawalRequestId,
-        uint256 simulatedShareRate,
-        bool isBunkerMode,
-        uint256 extraDataFormat,
-        bytes32 extraDataHash,
-        uint256 extraDataItemsCount,
-        uint256 contractVersion)
-    public {
-        helperReportData.consensusVersion = consensusVersion;
-        helperReportData.refSlot = refSlot;
-        helperReportData.lastFinalizableWithdrawalRequestId = lastFinalizableWithdrawalRequestId;
-        helperReportData.simulatedShareRate = simulatedShareRate;
-        helperReportData.isBunkerMode = isBunkerMode;
-        helperReportData.extraDataFormat = extraDataFormat;
-        helperReportData.extraDataHash = extraDataHash;
-        helperReportData.extraDataItemsCount = extraDataItemsCount;
-
-        submitReportData(helperReportData, contractVersion);
-    }
-
     uint256 public constant EXTRA_DATA_TYPE_STUCK_VALIDATORS = 1;
     uint256 public constant EXTRA_DATA_TYPE_EXITED_VALIDATORS = 2;
 
@@ -908,4 +877,49 @@ contract AccountingOracle is BaseOracle {
         bytes32 position = EXTRA_DATA_PROCESSING_STATE_POSITION;
         assembly { r.slot := position }
     }
+
+    ///
+    /// Certora helpers
+    ///
+
+    ReportData public helperReportData;         // munging added by Certora
+
+    function helperCreateAndSubmitReportData(   // munging added by Certora
+        uint256 consensusVersion,
+        uint256 refSlot,
+        //uint256 numValidators,
+        //uint256 clBalanceGwei,
+        //uint256 stakingModuleIdsWithNewlyExitedValidators,
+        //uint256 numExitedValidatorsByStakingModule,
+        //uint256 withdrawalVaultBalance,
+        //uint256 elRewardsVaultBalance,
+        uint256 lastFinalizableWithdrawalRequestId,
+        uint256 simulatedShareRate,
+        bool isBunkerMode,
+        uint256 extraDataFormat,
+        bytes32 extraDataHash,
+        uint256 extraDataItemsCount,
+        uint256 contractVersion)
+    public returns (bytes32) {
+        helperReportData.consensusVersion = consensusVersion;
+        helperReportData.refSlot = refSlot;
+        helperReportData.lastFinalizableWithdrawalRequestId = lastFinalizableWithdrawalRequestId;
+        helperReportData.simulatedShareRate = simulatedShareRate;
+        helperReportData.isBunkerMode = isBunkerMode;
+        helperReportData.extraDataFormat = extraDataFormat;
+        helperReportData.extraDataHash = extraDataHash;
+        helperReportData.extraDataItemsCount = extraDataItemsCount;
+
+        submitReportData(helperReportData, contractVersion);
+
+        return keccak256(abi.encode(helperReportData));
+    }
+
+    function isConsensusMember(address addr) external view returns (bool) {
+        return _isConsensusMember(addr);
+    }
+
+    // function helperHashOfReportData() external view returns (bytes32) {
+    //     return keccak256(abi.encode(helperReportData));
+    // }
 }

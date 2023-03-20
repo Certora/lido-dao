@@ -112,33 +112,125 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 //     d) The provided reference slot differs from the current consensus frame's one.
 //     e) The processing deadline for the current consensus frame is missed.
 //     f) The keccak256 hash of the ABI-encoded data is different from the last hash provided by the hash consensus contract.
-//     g) The provided data doesn't meet safety checks. (which?)
-//  2. verify submitReportData() does not revert outside of the allowed reverting scenarios (? - how?)
-//  3. verify all the errors on lines 91-110 are caught correctly (? - probably duplicates point 1 above)
-//  4. cannot call submitReportData() twice in the same e.block.timestamp
+//     g) The provided data doesn't meet safety checks. (in OracleReportSanityChecker.sol)
 //  5. If ReportData.extraDataFormat is not EXTRA_DATA_FORMAT_EMPTY=0 or EXTRA_DATA_FORMAT_LIST=1 => revert
 //  6. if the oracle report contains no extra data => ReportData.extraDataHash == 0
 //  7. if the oracle report contains no extra data => ReportData.extraDataItemsCount == 0
 //  8a.submitReportData(), submitReportExtraDataList(), submitReportExtraDataEmpty
 //     can be called only if msg.sender has the appropriate role SUBMIT_DATA_ROLE (same as 1a)
+//     or if the caller is a member of the oracle committee
+//  4. cannot call submitReportData() twice in the same e.block.timestamp
 //  9. Cannot initialize() or initializeWithoutMigration() twice
+// 10. Cannot initialize() with empty addresses
 
+//  2. verify submitReportData() does not revert outside of the allowed reverting scenarios (? - how?)
+//  3. verify all the errors on lines 91-110 are caught correctly (? - probably duplicates point 1 above)
+
+//  1. verify all the reverting scenarios of submitReportData()
+//  5. If ReportData.extraDataFormat is not EXTRA_DATA_FORMAT_EMPTY=0 or EXTRA_DATA_FORMAT_LIST=1 => revert
+//  6a.if the oracle report contains no extra data => ReportData.extraDataHash == 0
+//  6b.if the oracle report contains extra data => ReportData.extraDataHash != 0
+//  7a.if the oracle report contains no extra data => ReportData.extraDataItemsCount == 0
+//  7b.if the oracle report contains extra data => ReportData.extraDataItemsCount != 0
 // Status: Pass
-// https://vaas-stg.certora.com/output/80942/465e52d9e9344e8da1eba714a476c786/?anonymousKey=172d2e2c028297570752855bd2f2ae823fb649ee
+// https://vaas-stg.certora.com/output/80942/cb1f07e5bd85468589eb907a929b97ca/?anonymousKey=16237fd60a58dea6b21536a72e9d6a197aba8523
+rule correctRevertsOfSubmitReportData() {
+    require contractAddressesLinked();
+    env e; calldataarg args;
+
+    bool hasSubmitDataRole = hasRole(e,SUBMIT_DATA_ROLE(),e.msg.sender);
+    bool callerIsConsensusMember = isConsensusMember(e,e.msg.sender);
+
+    uint256 currentContractVersion = getContractVersion(e);
+    uint256 currentConsensusVersion = getConsensusVersion(e);
+
+    bytes32 currentHash; uint256 currentRefSlot; uint256 currentDeadline; bool processingStarted;
+    currentHash, currentRefSlot, currentDeadline, processingStarted = getConsensusReport(e);
+
+    uint256 lastProcessingRefSlot = getLastProcessingRefSlot(e);
+
+    // struct ReportData
+    uint256 consensusVersion; uint256 refSlot;
+    // uint256 numValidators; uint256 clBalanceGwei;
+    // uint256[] stakingModuleIdsWithNewlyExitedValidators; uint256[] numExitedValidatorsByStakingModule;
+    // uint256 withdrawalVaultBalance; uint256 elRewardsVaultBalance;
+    uint256 lastFinalizableWithdrawalRequestId; uint256 simulatedShareRate; bool isBunkerMode;
+    uint256 extraDataFormat; bytes32 extraDataHash; uint256 extraDataItemsCount;
+
+    uint256 contractVersion;
+
+    bytes32 submittedHash = helperCreateAndSubmitReportData@withrevert( e,
+                                consensusVersion, refSlot,
+                                lastFinalizableWithdrawalRequestId, simulatedShareRate, isBunkerMode,
+                                extraDataFormat, extraDataHash, extraDataItemsCount,
+                                contractVersion );
+    
+    bool submitReverted = lastReverted;
+
+    assert (!hasSubmitDataRole && !callerIsConsensusMember) => submitReverted;  // case 1a
+    assert (contractVersion != currentContractVersion)      => submitReverted;  // case 1b
+    assert (consensusVersion != currentConsensusVersion)    => submitReverted;  // case 1c
+    assert (refSlot != currentRefSlot)                      => submitReverted;  // case 1d
+    assert (e.block.timestamp > currentDeadline)            => submitReverted;  // case 1e
+    assert (submittedHash != currentHash)                   => submitReverted;  // case 1f
+
+    assert (extraDataFormat != EXTRA_DATA_FORMAT_EMPTY() &&
+            extraDataFormat != EXTRA_DATA_FORMAT_LIST())    => submitReverted;  // case 5
+    
+    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && 
+            extraDataHash != 0)                             => submitReverted;  // case 6a
+    
+    assert (extraDataFormat == EXTRA_DATA_FORMAT_LIST() && 
+            extraDataHash == 0)                             => submitReverted;  // case 6b
+    
+    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && 
+            extraDataItemsCount != 0)                       => submitReverted;  // case 7a
+    
+    assert (extraDataFormat == EXTRA_DATA_FORMAT_LIST() && 
+            extraDataItemsCount == 0)                       => submitReverted;  // case 7b
+}
+
+//  8a.submitReportData(), submitReportExtraDataList(), submitReportExtraDataEmpty
+//     can be called only if msg.sender has the appropriate role SUBMIT_DATA_ROLE (same as 1a)
+//     or if the caller is a member of the oracle committee
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/f4905a42c92847038aa32718403b9c8a/?anonymousKey=7bd858eae6586c20777b7c372fa7dec65ce0ed87
+rule callerMustHaveSubmitDataRoleOrBeAConsensusMember(method f) 
+    filtered { f -> f.selector == submitReportData((uint256,uint256,uint256,uint256,uint256[],uint256[],uint256,uint256,uint256,uint256,bool,uint256,bytes32,uint256),uint256).selector ||
+                    f.selector == submitReportExtraDataList(bytes).selector ||
+                    f.selector == submitReportExtraDataEmpty().selector }
+{    
+    require contractAddressesLinked();
+    env e; calldataarg args;
+
+    bool hasSubmitDataRole = hasRole(e,SUBMIT_DATA_ROLE(),e.msg.sender);
+    bool callerIsConsensusMember = isConsensusMember(e,e.msg.sender);
+
+    f(e,args);
+
+    assert (!hasSubmitDataRole && !callerIsConsensusMember) => lastReverted;
+}
+
+//  4. cannot call submitReportData() twice in the same e.block.timestamp
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/a468b233b03f4f8d8382141d1d0a6eb6/?anonymousKey=f2e33c53956a1dea740d260ea93a234b0fdc8af4
 rule cannotSubmitReportDataTwiceAtSameTimestamp(method f) 
     filtered { f -> f.selector == submitReportData((uint256,uint256,uint256,uint256,uint256[],uint256[],uint256,uint256,uint256,uint256,bool,uint256,bytes32,uint256),uint256).selector ||
                     f.selector == submitReportExtraDataList(bytes).selector ||
                     f.selector == submitReportExtraDataEmpty().selector }
 {    
     require contractAddressesLinked();
-    env e; calldataarg args; calldataarg args2;
+    env e; calldataarg args; env e2; calldataarg args2;
+
+    require e.block.timestamp == e2.block.timestamp;
 
     f(e,args);              // successfully submit a report at time == e.block.timestamp
-    f@withrevert(e,args2);  // same e.block.timestamp, any calldataarg
+    f@withrevert(e2,args2); // same e.block.timestamp, any calldataarg
 
     assert lastReverted;
 }
 
+//  9. Cannot initialize() or initializeWithoutMigration() twice
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/e04fba855b5641f682cb05edb5362213/?anonymousKey=163260b76cb1479de139f7b547b37bea891bfccb
 rule cannotInitializeTwice(method f) 
@@ -155,44 +247,21 @@ rule cannotInitializeTwice(method f)
     assert lastReverted;
 }
 
+// 10. Cannot initialize() with empty addresses
 // Status: Pass
-// https://vaas-stg.certora.com/output/80942/6b3200aef589412da430b0388dbe9cc5/?anonymousKey=f0d1a16182596b855a428ed8e875a3b56bcc749e
-rule correctRevertsOfSubmitReportData() {
+// https://vaas-stg.certora.com/output/80942/f264880cd2dd4d0381fdaa06a5234879/?anonymousKey=511229de14f62dab5a22416abd33943fb8b5e538
+// if both directions <=> then status: fail
+// https://vaas-stg.certora.com/output/80942/622251a95a63420490af941bc010d4ac/?anonymousKey=ea15d59a3222d319a1c85f86159cc315c4e74695
+rule cannotInitializeWithEmptyAddresses() {
     require contractAddressesLinked();
     env e; calldataarg args;
+    // require e.msg.value == 0;
 
-    uint256 currentConsensusVersion = getConsensusVersion(e);
+    address admin; address consensusContract; uint256 consensusVersion;
+    initialize@withrevert(e, admin, consensusContract, consensusVersion);
 
-    // struct ReportData
-    uint256 consensusVersion; uint256 refSlot;
-    // uint256 numValidators; uint256 clBalanceGwei;
-    // uint256[] stakingModuleIdsWithNewlyExitedValidators; uint256[] numExitedValidatorsByStakingModule;
-    // uint256 withdrawalVaultBalance; uint256 elRewardsVaultBalance;
-    uint256 lastFinalizableWithdrawalRequestId; uint256 simulatedShareRate; bool isBunkerMode;
-    uint256 extraDataFormat; bytes32 extraDataHash; uint256 extraDataItemsCount;
-
-    uint256 contractVersion;
-
-    helperCreateAndSubmitReportData@withrevert( e,
-                                                consensusVersion,
-                                                refSlot,
-                                                lastFinalizableWithdrawalRequestId,
-                                                simulatedShareRate,
-                                                isBunkerMode,
-                                                extraDataFormat,
-                                                extraDataHash,
-                                                extraDataItemsCount,
-                                                contractVersion );
-    
-    bool submitReverted = lastReverted;
-
-    assert (extraDataFormat != EXTRA_DATA_FORMAT_EMPTY() && extraDataFormat != EXTRA_DATA_FORMAT_LIST()) => submitReverted;
-    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataHash != 0) => submitReverted;
-    assert (extraDataFormat == EXTRA_DATA_FORMAT_EMPTY() && extraDataItemsCount != 0) => submitReverted;
-
-    assert (consensusVersion != currentConsensusVersion) => submitReverted;
+    assert (admin == 0 || consensusContract == 0) => lastReverted;
 }
-
 
 // rules for BaseOracle.sol:
 // ------------------------------------------------------------------------------------------
