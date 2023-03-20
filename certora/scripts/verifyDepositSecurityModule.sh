@@ -26,7 +26,7 @@ certoraRun \
     --loop_iter 2 \
     --send_only \
     --rule_sanity \
-    --cloud master \
+    --staging master \
     --settings -t=2000,-mediumTimeout=2000,-depth=100,-copyLoopUnroll=6 \
     $RULE \
     --msg "DepositSecurityModule: $RULE $MSG"
