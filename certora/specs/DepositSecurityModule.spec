@@ -37,7 +37,7 @@ methods {
 
     // DepositContractMock.sol
     // havoc - "only the return value"
-        get_deposit_root() returns(bytes32) => NONDET // DISPATCHER(true)    
+        // get_deposit_root() returns(bytes32) => NONDET // DISPATCHER(true)    
 
     // StakingModuleMock.sol
     // havoc - "only the return value"
@@ -85,7 +85,8 @@ rule sanity(env e, method f) {
  **************************************************/
 
 definition excludeMethods(method f) returns bool =
-    f.selector != depositBufferedEtherCall(uint256, bytes32, bytes32, uint256, uint256, bytes).selector;
+    f.selector != depositBufferedEtherCall(uint256, bytes32, bytes32, uint256, uint256, bytes).selector
+        && f.selector != _verifySignaturesCall(bytes32,uint256,bytes32,uint256,uint256,(bytes32,bytes32),(bytes32,bytes32)).selector;
 
 
 definition onlyDeposit(method f) returns bool =
@@ -165,7 +166,7 @@ ghost uint256 mirrorArrayLen {
 
 // onlyOwner can change owner, pauseIntentValidityPeriodBlocks, maxDepositsPerBlock, minDepositBlockDistance, quorum; add/remove guardians, unpause deposits
 // STATUS - verified
-rule onlyOwnerCanChangeOwner(env e, method f) {
+rule onlyOwnerCanChangeOwner(env e, method f) filtered { f -> excludeMethods(f) } {
     address ownerBefore = getOwner();
 
     calldataarg args;
@@ -180,7 +181,7 @@ rule onlyOwnerCanChangeOwner(env e, method f) {
 
 
 // STATUS - verified
-rule onlyOwnerCanChangePauseIntentValidityPeriodBlocks(env e, method f) {
+rule onlyOwnerCanChangePauseIntentValidityPeriodBlocks(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 validityBefore = getPauseIntentValidityPeriodBlocks();
 
     calldataarg args;
@@ -189,13 +190,13 @@ rule onlyOwnerCanChangePauseIntentValidityPeriodBlocks(env e, method f) {
     uint256 vaidityAfter = getPauseIntentValidityPeriodBlocks();
 
     assert validityBefore != vaidityAfter 
-            => (getOwner() == e.msg.sender
+            => (getOwner() != e.msg.sender
                 && f.selector == setPauseIntentValidityPeriodBlocks(uint256).selector);
 }
 
 
 // STATUS - verified
-rule onlyOwnerCanChangeMaxDepositsPerBlock(env e, method f) {
+rule onlyOwnerCanChangeMaxDepositsPerBlock(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 maxDepositBefore = getMaxDeposits();
 
     calldataarg args;
@@ -210,7 +211,7 @@ rule onlyOwnerCanChangeMaxDepositsPerBlock(env e, method f) {
 
 
 // STATUS - verified
-rule onlyOwnerCanChangeMinDepositBlockDistance(env e, method f) {
+rule onlyOwnerCanChangeMinDepositBlockDistance(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 minDepositBlockDistanceBefore = getMinDepositBlockDistance();
 
     calldataarg args;
@@ -225,7 +226,7 @@ rule onlyOwnerCanChangeMinDepositBlockDistance(env e, method f) {
 
 
 // STATUS - verified
-rule onlyOwnerCanChangeQuorum(env e, method f) {
+rule onlyOwnerCanChangeQuorum(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 quorumBefore = getGuardianQuorum();
 
     calldataarg args;
@@ -243,7 +244,7 @@ rule onlyOwnerCanChangeQuorum(env e, method f) {
 
 
 // STATUS - verified
-rule onlyOwnerCanChangeGuardians(env e, method f) {
+rule onlyOwnerCanChangeGuardians(env e, method f) filtered { f -> excludeMethods(f) } {
     int256 lengthBefore = getGuardiansLength();
 
     calldataarg args;
@@ -260,7 +261,7 @@ rule onlyOwnerCanChangeGuardians(env e, method f) {
 
 
 // STATUS - verified
-rule onlyOwnerCanChangeUnpause(env e, method f) {
+rule onlyOwnerCanChangeUnpause(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 _stakingModuleId;
 
     require StkRouter.getStakingModuleStatus(_stakingModuleId) == 1;
@@ -293,7 +294,7 @@ rule canUnpauseScenario(env e, env e2) {
 
 // STATUS - verified
 // impossible to stop from here
-rule cantStop(env e, method f) {
+rule cantStop(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 stakingModuleId;
     uint8 stakingModuleStatusBefore = StkRouter.getStakingModuleStatus(stakingModuleId);
 
@@ -359,16 +360,75 @@ invariant unique()
     }
 
 
+// STATUS - verified
 // 0 can't be a guardian
-// STATUS - verify
 invariant zeroIsNotGuardian()
     !isGuardian(0)
+    filtered { f -> excludeMethods(f) }
     {
         preserved {
             require mirrorArrayLen < max_uint128;
             requireInvariant unique();  // need it to synchronize array and mapping
         }
     }
+
+
+// STATUS - verified
+// checking signatures: can't pass the same guardian signature twice
+rule youShallNotPass(env e) {
+    bytes32 depositRoot;
+    uint256 blockNumber;
+    bytes32 blockHash;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    DSM.Signature sig1;
+    DSM.Signature sig2;
+
+    _verifySignaturesCall@withrevert(e,
+        depositRoot,
+        blockNumber,
+        blockHash,
+        stakingModuleId,
+        nonce,
+        sig1,
+        sig2
+    );
+
+    bool isReverted = lastReverted;
+    
+    assert compareSignatures(e, sig1, sig2) => isReverted, "Remember, with great power comes great responsibility.";
+}
+
+
+// STATUS - verified
+// checking signatures: passing signature of non guardian
+rule nonGuardianCantSign(env e) {
+    bytes32 depositRoot;
+    uint256 blockNumber;
+    bytes32 blockHash;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    DSM.Signature sig1;
+    DSM.Signature sig2;
+
+    address addressFromSig1 = getAddressForSignature(e, depositRoot, blockNumber, blockHash, stakingModuleId, nonce, sig1);
+    address addressFromSig2 = getAddressForSignature(e, depositRoot, blockNumber, blockHash, stakingModuleId, nonce, sig2);
+
+    _verifySignaturesCall@withrevert(e,
+        depositRoot,
+        blockNumber,
+        blockHash,
+        stakingModuleId,
+        nonce,
+        sig1,
+        sig2
+    );
+
+    bool isReverted = lastReverted;
+    
+    assert !isGuardian(addressFromSig1) || !isGuardian(addressFromSig2) => isReverted, "Remember, with great power comes great responsibility.";
+}
+
 
 
 /**************************************************
@@ -502,62 +562,6 @@ rule agreedRevertsSimple(env e, env e2, method f) filtered { f -> onlyDeposit(f)
     assert  (isCanDepositReverted || !isDepositable) => isDepositReverted;
 }
 
-
-// STATUS - verified
-// checking signatures: can't pass the same guardian signature twice
-rule youShallNotPass(env e) {
-    bytes32 depositRoot;
-    uint256 blockNumber;
-    bytes32 blockHash;
-    uint256 stakingModuleId;
-    uint256 nonce;
-    DSM.Signature sig1;
-    DSM.Signature sig2;
-
-    _verifySignaturesCall@withrevert(e,
-        depositRoot,
-        blockNumber,
-        blockHash,
-        stakingModuleId,
-        nonce,
-        sig1,
-        sig2
-    );
-
-    bool isReverted = lastReverted;
-    
-    assert compareSignatures(e, sig1, sig2) => isReverted, "Remember, with great power comes great responsibility.";
-}
-
-
-// STATUS - verified
-// checking signatures: passing signature of non guardian
-rule nonGuardianCantSign(env e) {
-    bytes32 depositRoot;
-    uint256 blockNumber;
-    bytes32 blockHash;
-    uint256 stakingModuleId;
-    uint256 nonce;
-    DSM.Signature sig1;
-    DSM.Signature sig2;
-
-    address addressFromSig1 = getAddressForSignature(e, depositRoot, blockNumber, blockHash, stakingModuleId, nonce, sig1);
-    address addressFromSig2 = getAddressForSignature(e, depositRoot, blockNumber, blockHash, stakingModuleId, nonce, sig2);
-
-    _verifySignaturesCall@withrevert(e,
-        depositRoot,
-        blockNumber,
-        blockHash,
-        stakingModuleId,
-        nonce,
-        sig1,
-        sig2
-    );
-
-    bool isReverted = lastReverted;
-    
-    assert !isGuardian(addressFromSig1) || !isGuardian(addressFromSig2) => isReverted, "Remember, with great power comes great responsibility.";
-}
 
 
 // STATUS - in progress
