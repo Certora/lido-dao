@@ -98,13 +98,30 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 
 // rule ideas for AccountingOracle (without inheritance):
 // ------------------------------------------------------------------------------------------
-//  1. verify all the reverting scenarios of submitReportData()
-//  2. verify submitReportData() does not revert outside of the allowed reverting scenarios
-//  3. verify all the errors on lines 91-110 are caught correctly
+//  external non-view functions: initialize(), initializeWithoutMigration(), submitReportData(),
+//                               submitReportExtraDataEmpty(), submitReportExtraDataList()
+//  definitions                : SUBMIT_DATA_ROLE
+//                               EXTRA_DATA_TYPE_STUCK_VALIDATORS, EXTRA_DATA_TYPE_EXITED_VALIDATORS
+//                               EXTRA_DATA_FORMAT_EMPTY, EXTRA_DATA_FORMAT_LIST
+//  storage slots (state vars) : EXTRA_DATA_PROCESSING_STATE_POSITION
+// 
+//  1. verify all the reverting scenarios of submitReportData():
+//     a) The caller is not a member of the oracle committee and doesn't possess the SUBMIT_DATA_ROLE.
+//     b) The provided contract version is different from the current one.
+//     c) The provided consensus version is different from the expected one.
+//     d) The provided reference slot differs from the current consensus frame's one.
+//     e) The processing deadline for the current consensus frame is missed.
+//     f) The keccak256 hash of the ABI-encoded data is different from the last hash provided by the hash consensus contract.
+//     g) The provided data doesn't meet safety checks. (which?)
+//  2. verify submitReportData() does not revert outside of the allowed reverting scenarios (? - how?)
+//  3. verify all the errors on lines 91-110 are caught correctly (? - probably duplicates point 1 above)
 //  4. cannot call submitReportData() twice in the same e.block.timestamp
 //  5. If ReportData.extraDataFormat is not EXTRA_DATA_FORMAT_EMPTY=0 or EXTRA_DATA_FORMAT_LIST=1 => revert
 //  6. if the oracle report contains no extra data => ReportData.extraDataHash == 0
 //  7. if the oracle report contains no extra data => ReportData.extraDataItemsCount == 0
+//  8a.submitReportData(), submitReportExtraDataList(), submitReportExtraDataEmpty
+//     can be called only if msg.sender has the appropriate role SUBMIT_DATA_ROLE (same as 1a)
+//  9. Cannot initialize() or initializeWithoutMigration() twice
 
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/465e52d9e9344e8da1eba714a476c786/?anonymousKey=172d2e2c028297570752855bd2f2ae823fb649ee
@@ -179,6 +196,12 @@ rule correctRevertsOfSubmitReportData() {
 
 // rules for BaseOracle.sol:
 // ------------------------------------------------------------------------------------------
+//  external non-view functions: setConsensusVersion(), setConsensusContract(),
+//                               submitConsensusReport()
+//  definitions                : MANAGE_CONSENSUS_CONTRACT_ROLE, MANAGE_CONSENSUS_VERSION_ROLE
+//  storage slots (state vars) : CONSENSUS_CONTRACT_POSITION, CONSENSUS_VERSION_POSITION
+//                               LAST_PROCESSING_REF_SLOT_POSITION, CONSENSUS_REPORT_POSITION
+// 
 // 1a.setConsensusContract() can be called only if msg.sender has the appropriate role
 // 1b.setConsensusVersion() can be called only if msg.sender has the appropriate role
 // 2. Only Consensus contract can submit a report, i.e., call submitConsensusReport()
@@ -343,6 +366,7 @@ rule refSlotMustBeGreaterThanProcessingOne(method f)
 // 2. removing a roleR from a member should *decrease* the count of getRoleMemberCount(roleR) by one
 // 3. getRoleMemberCount(roleX) should not be affected by adding or removing roleR (roleR != roleX)
 
+// 1. adding a new role member with roleR should *increase* the count of getRoleMemberCount(roleR) by one
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
 rule countIncreaseByOneWhenGrantRole(method f) {
@@ -371,6 +395,7 @@ rule countIncreaseByOneWhenGrantRole(method f) {
     */
 }
 
+// 2. removing a roleR from a member should *decrease* the count of getRoleMemberCount(roleR) by one
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
 rule countDecreaseByOneWhenRenounceRole(method f) {
@@ -399,6 +424,7 @@ rule countDecreaseByOneWhenRenounceRole(method f) {
     */
 }
 
+// 3. getRoleMemberCount(roleX) should not be affected by adding or removing roleR (roleR != roleX)
 // If a member with roleR was added/removed, the count of members with roleX != roleR should not change
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
@@ -431,6 +457,7 @@ rule memberCountNonInterference(method f) {
 // 2. only admin or the account A itself can revoke the role R of account A (no matter the role)
 // 3. granting or revoking roleR from accountA should not affect any accountB
 
+// 1. only admin of role R can grant the role R to the account A (role R can be any role including the admin role)
 // Status: Fails
 // https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
 rule onlyAdminCanGrantRole(method f) {
@@ -450,6 +477,7 @@ rule onlyAdminCanGrantRole(method f) {
     assert (!hasRoleRBefore && hasRoleRAfter) => (isAdmin); 
 }
 
+// 2. only admin or the account A itself can revoke the role R of account A (no matter the role)
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
 rule onlyAdminOrSelfCanRevokeRole(method f) {
@@ -469,6 +497,7 @@ rule onlyAdminOrSelfCanRevokeRole(method f) {
     assert (hasRoleRBefore && !hasRoleRAfter) => (isAdmin || e.msg.sender == accountA); 
 }
 
+// 3. granting or revoking roleR from accountA should not affect any accountB
 // Status: Pass
 // Note: had to comment line 315 in BaseOracle.sol (to resolve the getProcessingState() dispatcher problem)
 // https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
@@ -506,6 +535,7 @@ rule nonInterferenceOfRolesAndAccounts(method f) {
 // Status: Fails (as expected, no issues)
 // https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
 rule sanity(method f) 
+filtered { f -> !f.isView }
 {
     require contractAddressesLinked();
     env e; calldataarg args;
