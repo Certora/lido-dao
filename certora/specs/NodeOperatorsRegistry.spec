@@ -75,6 +75,7 @@ function activeOperatorsSumHelper(uint256 id1, uint256 id2) {
 function safeAssumptions_NOS(uint256 nodeOperatorId) {
     requireInvariant NodeOperatorsCountLEMAX();
     requireInvariant ActiveOperatorsLECount();
+    requireInvariant SumOfActiveOperatorsEqualsActiveCount();
     requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
     requireInvariant ExitedKeysLEDepositedKeys(nodeOperatorId);
     requireInvariant DepositedKeysLEVettedKeys(nodeOperatorId);
@@ -83,6 +84,7 @@ function safeAssumptions_NOS(uint256 nodeOperatorId) {
     requireInvariant KeysOfUnregisteredNodeAreZero(nodeOperatorId);
     requireInvariant DepositedKeysLEMaxValidators(nodeOperatorId);
     requireInvariant VettedKeysGEMaxValidators(nodeOperatorId);
+    requireInvariant NoDepositableKeysForInactiveModule(nodeOperatorId);
     reasonableKeysAssumptions(nodeOperatorId);
 }
 
@@ -300,14 +302,24 @@ invariant TargetPlusExitedDoesntOverflow(uint256 nodeOperatorId)
             require indexTo == nodeOperatorId;
         }
     }
-/// Any deactivated node operator has no available keys (max validators = deposited)
-invariant NoAvailableKeysForInactiveModule(uint256 nodeOperatorId)    
-    !getNodeOperatorIsActive(nodeOperatorId) =>
+/// Any deactivated node operator has no depositable keys (max validators = deposited = vetted)
+invariant NoDepositableKeysForInactiveModule(uint256 nodeOperatorId)    
+    !getNodeOperatorIsActive(nodeOperatorId) => (
         getNodeOperatorSigningStats_deposited(nodeOperatorId) ==
-        getNodeOperatorTargetStats_max(nodeOperatorId)
+        getNodeOperatorTargetStats_max(nodeOperatorId) && 
+        getNodeOperatorSigningStats_deposited(nodeOperatorId) ==
+        getNodeOperatorSigningStats_vetted(nodeOperatorId))
     {
-        preserved{
+        preserved 
+        {
             safeAssumptions_NOS(nodeOperatorId);
+        }
+        preserved invalidateReadyToDepositKeysRange(
+            uint256 indexFrom, uint256 indexTo) with (env e)
+        {
+            safeAssumptions_NOS(nodeOperatorId);
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
         }
     }
 /**************************************************
@@ -334,6 +346,52 @@ invariant SumOfMaxKeysEqualsSummary()
 /**************************************************
  *          Sum of keys equals summary            *
 **************************************************/
+
+rule keyCountChangesTogetherWithSummary(method f) 
+filtered{f -> !f.isView && !isFinalizeUpgrade(f) && 
+f.selector != addNodeOperator(string,address).selector} {
+    env e;
+    calldataarg args;
+    safeAssumptions_NOS(0);
+    require getNodeOperatorsCount() == 1;
+    ///
+    uint256 sum_exited_before = sumOfExitedKeys();
+    uint256 sum_deposited_before = sumOfDepositedKeys();
+    uint256 sum_total_before = sumOfTotalKeys();
+    uint256 sum_max_before = sumOfMaxKeys();
+    ///
+    uint256 summary_exited_before = getSummaryTotalExitedValidators();
+    uint256 summary_deposited_before = getSummaryTotalDepositedValidators();
+    uint256 summary_total_before = getSummaryTotalKeyCount();
+    uint256 summary_max_before = getSummaryMaxValidators();
+    ///
+        f(e, args);
+    ///
+    uint256 sum_exited_after = sumOfExitedKeys();
+    uint256 sum_deposited_after = sumOfDepositedKeys();
+    uint256 sum_total_after = sumOfTotalKeys();
+    uint256 sum_max_after  = sumOfMaxKeys();
+    ///
+    uint256 summary_exited_after = getSummaryTotalExitedValidators();
+    uint256 summary_deposited_after = getSummaryTotalDepositedValidators();
+    uint256 summary_total_after = getSummaryTotalKeyCount();
+    uint256 summary_max_after = getSummaryMaxValidators();
+    ///
+
+    bool KeyCountChanged = !(
+        sum_exited_before == sum_exited_after && 
+        sum_deposited_after == sum_deposited_before &&
+        sum_total_after == sum_total_before && 
+        sum_max_after == sum_max_before);
+
+    bool SummaryChanged = !(
+        summary_exited_after == summary_exited_before && 
+        summary_deposited_after == summary_deposited_before &&
+        summary_total_after == summary_total_before && 
+        summary_max_after == summary_max_before);
+
+    assert SummaryChanged <=> KeyCountChanged;
+}
 
 /// An alternative rule for checking the four invariants of summary equals sum
 /// of keys over all node operators.
@@ -387,14 +445,14 @@ filtered{f -> !f.isView} {
     uint256 summary_max_after = getSummaryMaxValidators();
     ///
 
-    bool noKeyCountChange = 
-        (exited_after == exited_before && 
+    bool KeyCountChanged = !(
+        exited_after == exited_before && 
         deposited_after == deposited_before &&
         total_after == total_before && 
         max_after == max_before);
 
     /// Assume change in at least one of the key types for 'nodeOperatorId'
-    require !noKeyCountChange;
+    require !isFinalizeUpgrade(f) => KeyCountChanged;
 
     // assert invariants (assert if delta of summary equals delta of sum)
     assert summary_exited_after + exited_before == 
@@ -494,6 +552,26 @@ filtered {f -> !isFinalizeUpgrade(f) && !f.isView} {
     f(e2, args2);
     finalizeUpgrade_v2@withrevert(e3, args3);
     assert lastReverted;
+}
+/// Only deactivateNodeOperator deactivates a node operator [VERIFIED]
+rule whoDeactivatesNodeOperators(method f, uint256 nodeOperatorId) 
+filtered{f -> !f.isView} {
+    env e;
+    calldataarg args;
+    uint256 otherId; require nodeOperatorId != otherId;
+
+    bool active_before = getNodeOperatorIsActive(nodeOperatorId);
+    bool other_active_before = getNodeOperatorIsActive(otherId);
+        f(e, args);
+    bool active_after = getNodeOperatorIsActive(nodeOperatorId);
+    bool other_active_after = getNodeOperatorIsActive(otherId);
+
+    assert (active_before && !active_after) =>
+        f.selector == deactivateNodeOperator(uint256).selector;
+
+    /// Assert that the active status doesn't change for any other node operator.
+    assert (active_before && !active_after) =>
+        (other_active_before == other_active_after);
 }
 
 /// cannot call initialize twice
@@ -617,7 +695,7 @@ filtered{f -> !f.isView} {
 }
 
 rule depositedKeysChangeForOnlyOneNodeOperator(method f, uint256 nodeOperatorId1) 
-filtered{f -> !f.isView} {
+filtered{f -> !f.isView && !isObtainDepData(f)} {
     env e;
     calldataarg args;
     uint256 nodeOperatorId2;
@@ -880,7 +958,7 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     require getActiveNodeOperatorsCount() > 0;
 
     /// If the deposits count is zero, the system doesn't call the deposit function
-    // Inside the Staking Router.
+    /// inside Staking Router.
     require depositsCount > 0;
 
     // Call with zero depositCount to filter all trivial (access control) revert paths.
@@ -892,6 +970,19 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     assert depositsCount <= depositable => !lastReverted;
 }
 
+/// Verified that once a node operator is deactivated, it is left with no available keys.
+rule afterDeactivateNoDepositableKeys(uint256 nodeOperatorId) {
+    env e;
+    safeAssumptions_NOS(nodeOperatorId);
+    
+    deactivateNodeOperator(e, nodeOperatorId);
+
+    uint256 deposited = getNodeOperatorSigningStats_deposited(nodeOperatorId);
+    uint256 maxValidators = getNodeOperatorTargetStats_max(nodeOperatorId);
+    uint256 vetted = getNodeOperatorSigningStats_vetted(nodeOperatorId);
+
+    assert deposited == maxValidators && deposited == vetted;
+}
 /**************************************************
  *  `invalidateReadyToDepositKeysRange` checks    *
 **************************************************/

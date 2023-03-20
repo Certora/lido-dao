@@ -1,6 +1,8 @@
 import "./StakingRouterBase.spec"
 import "./NodeRegistryMethods.spec"
 
+using StakingRouterHarness as SR
+
 invariant modulesCountIsLastIndex()
     getLastStakingModuleId() == getStakingModulesCount()
 
@@ -107,6 +109,24 @@ invariant ZeroExitedValidatorsForUnRegisteredModule(uint256 moduleId)
             requireInvariant StakingModuleIdLELast(moduleId);
             requireInvariant StakingModuleIndexIsIdMinus1(moduleId);
             requireInvariant StakingModuleIndexIsIdMinus1(getStakingModulesCount());
+            requireInvariant StakingModuleId(moduleId);
+        }
+        preserved unsafeSetExitedValidatorsCount(
+            uint256 _moduleId, uint256 operatorId, bool trigger, SR.ValidatorsCountsCorrection correction) with (env e) {
+                requireInvariant modulesCountIsLastIndex();
+                requireInvariant StakingModuleIndexIsIdMinus1(_moduleId);
+                requireInvariant StakingModuleIndexIsIdMinus1(moduleId);
+                requireInvariant StakingModuleId(_moduleId);
+                requireInvariant StakingModuleId(moduleId);
+            }
+        preserved updateExitedValidatorsCountByStakingModule(uint256[] ids, uint256[] counts) with (env e) {
+            require ids.length == 2;
+            requireInvariant modulesCountIsLastIndex();
+            requireInvariant StakingModuleIndexIsIdMinus1(ids[0]);
+            requireInvariant StakingModuleIndexIsIdMinus1(ids[1]);
+            requireInvariant StakingModuleIndexIsIdMinus1(moduleId);
+            requireInvariant StakingModuleId(ids[0]);
+            requireInvariant StakingModuleId(ids[1]);
             requireInvariant StakingModuleId(moduleId);
         }
     }

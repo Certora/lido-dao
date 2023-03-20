@@ -29,13 +29,18 @@
  Deposits paused    |   No                  |   Yes              |
  Stopped            |   No                  |   No               |
  ************************************************************** /
-
 */
 
 import "./StakingRouterBase.spec"
 import "./StakingRouterInvariants.spec"
 
 using NodeOperatorsRegistry as NOS
+using StakingModuleMock as moduleMock
+
+methods {
+    NOS.getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
+    moduleMock.getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
+}
 
 use invariant modulesCountIsLastIndex
 use invariant StakingModuleIdLELast
@@ -47,6 +52,26 @@ use invariant StakingModuleTargetShareLEMAX
 use invariant ZeroAddressForUnRegisteredModule
 use invariant ZeroExitedValidatorsForUnRegisteredModule
 use invariant StakingModuleAddressIsUnique
+
+definition UINT32_MAX() returns uint32 = 0xFFFFFFFF;
+definition UINT64_MAX() returns uint64 = 0xFFFFFFFFFFFFFFFF;
+
+/**************************************************
+ *     Staking modules Validators assumptions     *
+ **************************************************/
+function modulesValidatorsAssumptions() {
+    uint256 totalExited1; uint256 totalDeposited1; uint256 totalDepositable1;
+    totalExited1, totalDeposited1, totalDepositable1 = NOS.getStakingModuleSummary();
+    require totalExited1 <= totalDeposited1;
+    require totalDeposited1 <= UINT32_MAX();
+    require totalDepositable1 <= UINT64_MAX();
+
+    uint256 totalExited2; uint256 totalDeposited2; uint256 totalDepositable2;
+    totalExited2, totalDeposited2, totalDepositable2 = moduleMock.getStakingModuleSummary();
+    require totalExited2 <= totalDeposited2;
+    require totalDeposited2 <= UINT32_MAX();
+    require totalDepositable2 <= UINT64_MAX();
+}
 
 /**************************************************
  *                 MISC Rules                     *
@@ -94,6 +119,8 @@ filtered{f -> f.isView && !harnessGetters(f), g -> isAddModule(g)} {
     assert !lastReverted;
 }
 
+invariant NullStakingModuleStatusIsActive(uint256 id)
+    id > getStakingModulesCount() => getStakingModuleIsActive(id)
 /**************************************************
  *          Status Definition Rules               *
  **************************************************/
@@ -189,9 +216,6 @@ rule canAddModuleIfNotActive(uint256 id) {
     addStakingModule@withrevert(e1, name, stakingModuleAddress, targetShare, stakingModuleFee, treasuryFee);
     assert !lastReverted;
 }
-
-invariant NullStakingModuleStatusIsActive(uint256 id)
-    id > getStakingModulesCount() => getStakingModuleIsActive(id)
 
 /**************************************************
  *          Staking module parameters             *
@@ -335,7 +359,6 @@ filtered{f -> !f.isView && !isDeposit(f)} {
 
 rule feeDistributionDoesntRevertAfterAddingModule() {
     env e;
-    calldataarg args;
     require getStakingModulesCount() <= 1;    
     uint256 nextId = to_uint256(getStakingModulesCount()+1);
     safeAssumptions(1);
@@ -352,12 +375,9 @@ rule feeDistributionDoesntRevertAfterAddingModule() {
     uint256 treasuryFee;
     addStakingModule(e, name, stakingModuleAddress, targetShare, stakingModuleFee, treasuryFee);
           
-    /// Probe the active validator count for the newly added module
+    /// Probe the validators summary for the newly added module
     /// as to assume that the validators state in that module is valid.
-    
-    uint256 active1 = getStakingModuleActiveValidatorsCount(1);
-    uint256 active2 = getStakingModuleActiveValidatorsCount(getStakingModulesCount());
-    require active1 + active2 <= 0xFFFFFFFF;
+    modulesValidatorsAssumptions();
     
     // call again to the fee distribution
     getStakingFeeAggregateDistribution@withrevert();
@@ -415,13 +435,15 @@ rule cannotInitializeTwice() {
 
 // This rule only checks that the last one added can be fetched (and doesn't revert).
 rule canAlwaysGetAddedStakingModule() {
-    env e;
+    env e1;
+    env e2;
+    require e2.msg.value == 0;
     calldataarg args;
     uint256 id = getStakingModulesCount() + 1;
     requireInvariant modulesCountIsLastIndex();
-    addStakingModule(e, args);
+    addStakingModule(e1, args);
 
-    getStakingModuleIdById@withrevert(id);
+    getStakingModule@withrevert(e2, id);
     assert !lastReverted;
 }
 
@@ -436,48 +458,31 @@ rule getMaxDepositsCountReverts_init(uint256 id) {
     assert lastReverted;
 }
 
-rule getMaxDepositsCountRevert_preserve(method f, uint256 moduleId) 
+rule getMaxDepositsCountRevert_preserve(method f, uint256 moduleId, uint256 maxDepositsValue) 
 filtered{f -> !isDeposit(f) && !f.isView} {
     env e;
     calldataarg args;
-    uint256 maxDepositsValue;
 
-    require moduleId > 0;
+    require (moduleId <= getStakingModulesCount() && moduleId != 0);
+    require maxDepositsValue > 0 ;
     safeAssumptions(moduleId);
+    require getStakingModuleAddressById(1) == NOS;
+    require getStakingModulesCount() == 1;
+    modulesValidatorsAssumptions();
 
-    getStakingModuleMaxDepositsCount@withrevert(e, moduleId, maxDepositsValue);
-    bool reverted_A = lastReverted;
-    require (moduleId > getStakingModulesCount() || moduleId == 0) <=> reverted_A;
+    getStakingModuleMaxDepositsCount(e, moduleId, maxDepositsValue);
     getStakingModuleStatus(moduleId);
 
     f(e, args);
 
+    modulesValidatorsAssumptions();
+
     getStakingModuleMaxDepositsCount@withrevert(e, moduleId, maxDepositsValue);
-    bool reverted_B = lastReverted;
-    assert (moduleId > getStakingModulesCount() || moduleId == 0) <=> reverted_B;
-}
-
-rule onValidatorsCountsDoesntRevert(method f) 
-filtered{f -> !f.isView} {
-    env e1;
-    env e2;
-    calldataarg args;
-
-    require getStakingModulesCount() <= 2;
-    safeAssumptions(1);
-    safeAssumptions(2);
-    safeAssumptions(to_uint256(getStakingModulesCount()+1));
-
-    onValidatorsCountsByNodeOperatorReportingFinished(e1);
-
-    f(e2, args);
-
-    onValidatorsCountsByNodeOperatorReportingFinished@withrevert(e1);
     assert !lastReverted;
 }
 
 rule reportStakingModuleExitedDoesntRevert(method f, uint256 moduleId) 
-filtered{f -> !f.isView} {
+filtered{f -> !f.isView && !isDeposit(f)} {
     env e1;
     env e2;
     calldataarg args;

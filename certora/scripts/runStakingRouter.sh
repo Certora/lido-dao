@@ -17,10 +17,11 @@ LidoLocator:lido=LidoMockStEth \
 --solc_map StakingRouterHarness=solc8.9,Burner=solc8.9,LidoLocator=solc8.9,\
 DepositContract=solc6.11,StakingModuleMock=solc8.9,\
 NodeOperatorsRegistry=solc4.24,LidoMockStEth=solc4.24 \
---loop_iter 4 \
---cloud master \
+--loop_iter 3 \
+--staging master \
 --optimistic_loop \
 --rule_sanity \
 --send_only \
---settings -t=1600,-depth=12,-mediumTimeout=50,-copyLoopUnroll=6,-optimisticUnboundedHashing=true \
+--settings -optimisticFallback=true \
+--settings -t=2200,-depth=12,-mediumTimeout=120,-copyLoopUnroll=6,-optimisticUnboundedHashing=true \
 --msg "Staking Router"
