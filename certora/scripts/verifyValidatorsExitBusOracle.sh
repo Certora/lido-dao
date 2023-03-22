@@ -9,7 +9,9 @@ then
 fi
 
 certoraRun \
-    contracts/0.8.9/oracle/ValidatorsExitBusOracle.sol \
+    certora/munged/0.8.9/oracle/ValidatorsExitBusOracle.sol \
+    certora/munged/0.8.9/sanity_checks/OracleReportSanityChecker.sol \
+    certora/munged/0.8.9/test_helpers/oracle/MockConsensusContract.sol \
     --verify ValidatorsExitBusOracle:certora/specs/ValidatorsExitBusOracle.spec \
     --solc solc8.9 \
     --optimistic_loop \

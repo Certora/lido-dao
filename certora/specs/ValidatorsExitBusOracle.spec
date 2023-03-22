@@ -1,4 +1,21 @@
-methods { }
+methods {
+    // IConsensusContract = MockConsensusContract.sol
+    getChainConfig() returns(uint256, uint256, uint256) => DISPATCHER(true)
+    getInitialRefSlot() returns(uint256) => DISPATCHER(true)
+    getIsMember(address) returns(bool) => DISPATCHER(true)
+    getCurrentFrame() returns(uint256, uint256) => DISPATCHER(true)
+
+    // Locator = LidoLocator.sol
+    stakingRouter() returns(address) => NONDET
+    oracleReportSanityChecker() returns(address) => NONDET
+    withdrawalQueue() returns(address) => NONDET
+
+    // OracleReportSanityChecker = OracleReportSanityChecker.sol
+    checkExitBusOracleReport(uint256) => DISPATCHER(true)
+    // checkNodeOperatorsPerExtraDataItemCount(uint256, uint256) => DISPATCHER(true)
+    // checkAccountingExtraDataListItemsCount(uint256) => DISPATCHER(true)
+    // checkExitedValidatorsRatePerDay(uint256) => DISPATCHER(true)
+}
 
 
 // need to understand syste more to resolve calls, however, they are just NONDET, so no need to resolve them until they cause false violations 
@@ -10,3 +27,10 @@ rule sanity(env e, method f) {
 }
 
 
+
+
+//------IDEAS-----//
+// can unpause
+// can't unpuse before time reached
+// only a user with specific role can unpause
+// admin != 0
