@@ -6,4 +6,4 @@ certoraRun certora/harness/WithdrawalQueueHarness.sol certora/mocks/StETHMock.so
     --staging \
     --loop_iter 3 \
     --settings -optimisticFallback=true \
-    --msg "WithdrawalQueue - new code"
+    --msg "WithdrawalQueue - all rules"

@@ -35,6 +35,7 @@ methods {
     claimWithdrawal(uint256, uint256)
     getFinalizedAndNotClaimedEth() returns (uint256) envfree
     finalizeSingleBatch(uint256, uint256)
+    calculateClaimableEther(uint256) returns (uint256) envfree
 
     // Getters:
     // WithdrawalQueueBase:
@@ -111,33 +112,34 @@ rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     assert reqOwner == owner; //&& to_uint40(e.block.timestamp) == timestamp;
 }
 
-// /** 
-// After calling claimWithdrawal, if the user’s ETH balance was increased then:
-//     1.The locked ETH amount should decreased
-//     2.The request’s claimed and finalized flags are on.
-//     3.The request-id is smaller than the last finalized request id
-// **/
-// rule integrityOfClaimWithdrawal(uint256 requestId) {
-//     env e;
-//     require requestId > 0;
-//     requireInvariant cantWithdrawLessThanMinWithdrawal(requestId);
-//     requireInvariant cumulativeEtherGreaterThamMinWithdrawal(requestId);
-//     bool isClaimedBefore = isRequestStatusClaimed(requestId);
-//     bool isFinalized = isRequestStatusFinalized(requestId);
-//     uint256 ethBalanceBefore = balanceOfEth(e.msg.sender);
-//     uint256 lockedEthBefore = getLockedEtherAmount();
+/** 
+After calling claimWithdrawal, if the user’s ETH balance was increased then:
+    1.The locked ETH amount should decreased
+    2.The request’s claimed and finalized flags are on.
+    3.The request-id is smaller than the last finalized request id
+**/
+rule integrityOfClaimWithdrawal(uint256 requestId) {
+    env e;
+    require requestId > 0;
+    requireInvariant cantWithdrawLessThanMinWithdrawal(requestId);
+    requireInvariant cumulativeEtherGreaterThamMinWithdrawal(requestId);
+    bool isClaimedBefore = isRequestStatusClaimed(requestId);
+    bool isFinalized = isRequestStatusFinalized(requestId);
+    uint256 ethBalanceBefore = balanceOfEth(e.msg.sender);
+    uint256 lockedEthBefore = getLockedEtherAmount();
+    require calculateClaimableEther(requestId) > 0;
     
-//     claimWithdrawal(e, requestId);
+    claimWithdrawal(e, requestId);
 
-//     uint256 ethBalanceAfter = balanceOfEth(e.msg.sender);
-//     uint256 lockedEthAfter = getLockedEtherAmount();
-//     bool isClaimedAfter = isRequestStatusClaimed(requestId);
+    uint256 ethBalanceAfter = balanceOfEth(e.msg.sender);
+    uint256 lockedEthAfter = getLockedEtherAmount();
+    bool isClaimedAfter = isRequestStatusClaimed(requestId);
 
-//     assert ethBalanceAfter > ethBalanceBefore && lockedEthBefore > lockedEthAfter && 
-//                                                  !isClaimedBefore && isClaimedAfter && isFinalized &&
-//                                                  (requestId <= getLastFinalizedRequestId());
-//     assert ethBalanceAfter - ethBalanceBefore == lockedEthBefore - lockedEthAfter;
-// }
+    assert ethBalanceAfter > ethBalanceBefore && lockedEthBefore > lockedEthAfter && 
+                                                 !isClaimedBefore && isClaimedAfter && isFinalized &&
+                                                 (requestId <= getLastFinalizedRequestId());
+    assert ethBalanceAfter - ethBalanceBefore == lockedEthBefore - lockedEthAfter;
+}
 
 /** 
 After calling finalize, the locked ETH amount is increased and the last finalized request-id should update accordingly.
@@ -147,7 +149,6 @@ rule integrityOfFinalize(uint256 lastIdToFinalize, uint256 maxShareRate) {
     uint256 lockedEtherAmountBefore = getLockedEtherAmount();
     uint256 lastFinalizedRequestIdBefore = getLastFinalizedRequestId();
 
-    // finalize(e, lastIdToFinalize);
     finalizeSingleBatch(e, lastIdToFinalize, maxShareRate);
 
     uint256 lockedEtherAmountAfter = getLockedEtherAmount();
@@ -162,50 +163,6 @@ rule integrityOfFinalize(uint256 lastIdToFinalize, uint256 maxShareRate) {
 // /**************************************************
 //  *                   HIGH LEVEL                   *
 //  **************************************************/
-
-// /**
-// Check how finalizing with defferent requests are affecting the finalization
-// **/
-// rule finalizeAloneVsFinalizeBatch(uint256 requestId1, uint256 requestId2, uint256 shareRate) {
-//     env eClaimWithdrawal;
-//     env e1;
-//     env e2;
-//     requireInvariant cumulativeEthMonotonocInc(requestId1);
-//     requireInvariant cumulativeEthMonotonocInc(requestId2);
-//     // e.msg.value == max_uint256;
-//     storage init = lastStorage;
-//     address owner = getRequestsStatusOwner(requestId1);
-
-//     require owner != e1.msg.sender;
-
-//     require requestId1 + 1 == requestId2;
-//     require requestId2 < getLastRequestId();
-//     require requestId1 > getLastFinalizedRequestId();
-
-//     uint256 lockedEtherBefore = getLockedEtherAmount();
-
-//     uint256 ethToLock;
-//     uint256 sharesToBurn;
-//     ethToLock, sharesToBurn = finalizationBatch(requestId1, shareRate);
-//     require e1.msg.value == ethToLock;
-//     finalize(e1, requestId1);
-//     claimWithdrawal(eClaimWithdrawal, requestId1);
-
-//     uint256 userEthBalanceSeperate = balanceOfEth(owner);
-
-//     uint256 ethToLock2;
-//     uint256 sharesToBurn2;
-
-//     ethToLock2, sharesToBurn2 = finalizationBatch(requestId2, shareRate) at init;
-//     require e2.msg.value == ethToLock2; 
-
-//     finalize(e2, requestId2);
-//     claimWithdrawal(eClaimWithdrawal, requestId1);
-
-//     uint256 userEthBalanceBatch = balanceOfEth(owner);
-
-//     assert userEthBalanceSeperate == userEthBalanceBatch;
-// }
 
 /** 
 If there is a new checkpoint index then the last finalized request id must have increased.
@@ -224,41 +181,33 @@ rule priceIndexFinalizedRequestsCounterCorelation(method f) {
     assert latestIndexAfter != latestIndexBefore => finalizedRequestsCounterAfter > finalizedRequestsCounterBefore;
 }
 
-// /**
-// If there is a new checkpoint index then the discount factor must have changed
-// **/
-// rule newDiscountFactor(uint256 requestIdToFinalize) {
-//     env e;
-//     calldataarg args;
+/**
+If there is a new checkpoint index then the Checkpoint's fromRequestId index should increase.
+**/
+rule newCheckpoint(uint256 requestIdToFinalize, uint256 maxShareRate) {
+    env e;
 
-//     requireInvariant cantWithdrawLessThanMinWithdrawal(requestIdToFinalize);
+    requireInvariant cantWithdrawLessThanMinWithdrawal(requestIdToFinalize);
+    requireInvariant CheckpointFromRequestIdisValid(getLastCheckpointIndex());
 
-//     uint256 amountOfEth = e.msg.value;
-//     uint256 lastFinilizedReqId = getLastFinalizedRequestId();
-//     uint256 amountOfStEth = getRequestCumulativeStEth(requestIdToFinalize) - getRequestCumulativeStEth(getLastFinalizedRequestId());
+    uint256 checkpointIndexLenBefore = getLastCheckpointIndex();
+    uint256 lastCheckpointFromRequestIdBefore = getCheckpointFromRequestId(checkpointIndexLenBefore);
 
-//     require amountOfStEth > 0; // avoid dev by zero
+    require checkpointIndexLenBefore < max_uint256 - 1;
 
-//     uint256 actualDiscountFactor = calculateDiscountFactor(amountOfStEth, amountOfEth);
+    finalizeSingleBatch(e, requestIdToFinalize, maxShareRate);
 
-//     uint256 lastDiscountFactorBefore = getDiscountFactorByIndex(getLastCheckpointIndex());
-//     uint256 checkpointIndexLenBefore = getLastCheckpointIndex();
+    uint256 checkpointIndexLenAfter = getLastCheckpointIndex();
+    uint256 lastCheckpointFromRequestIdAfter = getCheckpointFromRequestId(checkpointIndexLenAfter);
 
-//     require checkpointIndexLenBefore < max_uint256 - 1;
-
-//     finalize(e, requestIdToFinalize);
-
-//     uint256 lastDiscountFactorAfter = getDiscountFactorByIndex(getLastCheckpointIndex());
-//     uint256 checkpointIndexLenAfter = getLastCheckpointIndex();
-
-//     assert checkpointIndexLenAfter == checkpointIndexLenBefore + 1 <=> lastDiscountFactorAfter != lastDiscountFactorBefore;
-//     assert lastDiscountFactorAfter != lastDiscountFactorBefore => lastDiscountFactorAfter == actualDiscountFactor;
-// }
+    assert checkpointIndexLenAfter == checkpointIndexLenBefore + 1 <=> 
+        (lastCheckpointFromRequestIdAfter > lastCheckpointFromRequestIdBefore);
+}
 
 /**
-Discount history is preserved.
+Checkpoint history is preserved.
 **/
-rule preserveDiscountHistory(method f, uint256 index) 
+rule preserveCheckpointHistory(method f, uint256 index) 
     filtered{ f -> f.selector != initialize(address).selector } 
     {
     env e;
@@ -304,7 +253,6 @@ rule claimSameWithdrawalRequestTwice(uint256 requestId) {
 Claimed withdrawal request cant be unclaimed.
 **/
 rule onceClaimedAlwaysClaimed(method f, uint256 requestId) 
-    // filtered { f -> f.isView && f.selector != isRequestStatusClaimed(uint256).selector }
     {
     env e;
     calldataarg args;
@@ -343,8 +291,7 @@ invariant cantWithdrawLessThanMinWithdrawal(uint256 reqId)
                 requireInvariant cumulativeEtherGreaterThamMinWithdrawal(reqId);
                 require reqId > 1;
             }
-        }
-                            
+        }                    
 
 /**
 Each request’s cumulative ETH must be greater than the minimum withdrawal amount.
@@ -378,64 +325,130 @@ If a request is not claimed then it is not finalized.
 invariant claimedFinalizedFlagsCorrelation(uint256 requestId)
     isRequestStatusClaimed(requestId) => isRequestStatusFinalized(requestId)
 
-/**
-Locked ETH should always be greater or equal to finalized and not claimed ether amount 
+/** 
+Finaliztion FIFO order is preserved.
 **/
-invariant lockedEtherSolvency() 
-    getLockedEtherAmount() >= getFinalizedAndNotClaimedEth()
-        {
-            preserved 
-            {
-                requireInvariant cantWithdrawLessThanMinWithdrawal(getLastFinalizedRequestId());
-                require getRequestCumulativeStEth(0) == 0;
-                require getRequestCumulativeShares(0) == 0;
-            }
+invariant finalizationFifoOrder(uint256 requestId1, uint256 requestId2) 
+    (requestId2 <= getLastRequestId() && requestId1 >= 1 && requestId1 < requestId2) => (isRequestStatusFinalized(requestId2) => isRequestStatusFinalized(requestId1))
+
+/**
+Checkpoint's FromRequestId should always be less than the last finalized request-id.
+**/
+invariant CheckpointFromRequestIdisValid(uint256 checkpointIndex)
+    getCheckpointFromRequestId(checkpointIndex) <= getLastFinalizedRequestId()
+
+/**
+Checkpoint's FromRequestId is monotincally increasing.
+**/
+invariant CheckpointFromRequestIdMonotonic(uint256 checkpointIndex1, uint256 checkpointIndex2)
+    (checkpointIndex2 > checkpointIndex1) => (getCheckpointFromRequestId(checkpointIndex2) > getCheckpointFromRequestId(checkpointIndex1))
+    filtered { f -> f.selector != initialize(address).selector }
+    {
+        preserved {
+            requireInvariant CheckpointFromRequestIdisValid(checkpointIndex2);
         }
+    }
 
-rule lockedEtherSolvencyParametric(method f) {
-    env e;
-    calldataarg args;
+// /**
+// Timestamp is monotonic increasing. - is this even relevant?
+// **/
+// invariant timestampMonotonicInc(uint256 requestId1, uint256 requestId2, env e) 
+//     (requestId2 <= getLastRequestId() && requestId1 >= 1 && requestId1 < requestId2) => (getRequestTimestamp(requestId1) <= getRequestReportTimestamp(requestId2))
+//     {
+//         preserved {
+//             require e.block.timestamp >= getRequestTimestamp(getLastCheckpointIndex());
+//         }
+//     }
 
-    requireInvariant cantWithdrawLessThanMinWithdrawal(getLastFinalizedRequestId());
-    require getRequestCumulativeStEth(0) == 0;
-    require getRequestCumulativeShares(0) == 0;
+// /**
+// Locked ETH should always be greater or equal to finalized and not claimed ether amount 
+// **/
+// lockedEtherSolvencyParametric
+//     getLockedEtherAmount() >= getFinalizedAndNotClaimedEth()
+//         {
+//             preserved 
+//             {
+//                 requireInvariant cantWithdrawLessThanMinWithdrawal(getLastFinalizedRequestId());
+//                 require getRequestCumulativeStEth(0) == 0;
+//                 require getRequestCumulativeShares(0) == 0;
+//             }
+//         }
 
-    uint256 lockedAmountBefore = getLockedEtherAmount();
-    uint256 FinalizedAndNotClaimedEthBefore = getFinalizedAndNotClaimedEth();
+// rule lockedEtherSolvencyParametric(method f) {
+//     env e;
+//     calldataarg args;
 
-    require lockedAmountBefore >= FinalizedAndNotClaimedEthBefore;
+//     requireInvariant cantWithdrawLessThanMinWithdrawal(getLastFinalizedRequestId());
+//     require getRequestCumulativeStEth(0) == 0;
+//     require getRequestCumulativeShares(0) == 0;
 
-    f(e, args);
+//     uint256 lockedAmountBefore = getLockedEtherAmount();
+//     uint256 FinalizedAndNotClaimedEthBefore = getFinalizedAndNotClaimedEth();
 
-    uint256 lockedAmountAfter = getLockedEtherAmount();
-    uint256 FinalizedAndNotClaimedEthAfter = getFinalizedAndNotClaimedEth();
+//     require lockedAmountBefore >= FinalizedAndNotClaimedEthBefore;
 
-    assert lockedAmountAfter >= FinalizedAndNotClaimedEthAfter;
-}
+//     f(e, args);
+
+//     uint256 lockedAmountAfter = getLockedEtherAmount();
+//     uint256 FinalizedAndNotClaimedEthAfter = getFinalizedAndNotClaimedEth();
+
+//     assert lockedAmountAfter >= FinalizedAndNotClaimedEthAfter;
+// }
+
+/**
+Check how finalizing with defferent requests are affecting the finalization
+**/
+// rule finalizeAloneVsFinalizeBatch(uint256 requestId1, uint256 requestId2, uint256 shareRate) {
+//     env eClaimWithdrawal;
+//     env e1;
+//     env e2;
+//     requireInvariant cumulativeEthMonotonocInc(requestId1);
+//     requireInvariant cumulativeEthMonotonocInc(requestId2);
+//     // e.msg.value == max_uint256;
+//     storage init = lastStorage;
+//     address owner = getRequestsStatusOwner(requestId1);
+
+//     require owner != e1.msg.sender;
+
+//     require requestId1 + 1 == requestId2;
+//     require requestId2 < getLastRequestId();
+//     require requestId1 > getLastFinalizedRequestId();
+
+//     uint256 lockedEtherBefore = getLockedEtherAmount();
+
+//     uint256 ethToLock;
+//     uint256 sharesToBurn;
+//     ethToLock, sharesToBurn = finalizationBatch(requestId1, shareRate);
+//     require e1.msg.value == ethToLock;
+//     finalize(e1, requestId1);
+//     claimWithdrawal(eClaimWithdrawal, requestId1);
+
+//     uint256 userEthBalanceSeperate = balanceOfEth(owner);
+
+//     uint256 ethToLock2;
+//     uint256 sharesToBurn2;
+
+//     ethToLock2, sharesToBurn2 = finalizationBatch(requestId2, shareRate) at init;
+//     require e2.msg.value == ethToLock2; 
+
+//     finalize(e2, requestId2);
+//     claimWithdrawal(eClaimWithdrawal, requestId1);
+
+//     uint256 userEthBalanceBatch = balanceOfEth(owner);
+
+//     assert userEthBalanceSeperate == userEthBalanceBatch;
+// }
 
 
 // // RULES TO IMPLEMENT:
 
 // // rule for share rate: get min and max share rate within finalized batch, claim -> compute effective share rate and assert it is within range.
-// // hint monotonic increasing
 // // claim withdrawal with the wrong hint
 // // lockedEth >= finalized and not claimed
 // // finalize dont change fifo order of requests
-// // unique request ids.
 
 // // try to finalize more then ethBudget - budget comes from external call
 // // rule finalizeMoreThanETHBudget(uint256 requestIdToFinalize){
 // //     assert false;
 // // }
-// rule whoCanChangeUnfinalizedRequestsNumber(method f) {
-//     env e;
-//     calldataarg args;
 
-//     uint256 unfinalizedRequestNumberBefore = unfinalizedRequestNumber();
-
-//     f(e, args);
-
-//     uint256 unfinalizedRequestNumberAfter = unfinalizedRequestNumber();
-
-//     assert unfinalizedRequestNumberBefore == unfinalizedRequestNumberAfter;
-// }

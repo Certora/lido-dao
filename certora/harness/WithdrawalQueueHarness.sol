@@ -71,6 +71,8 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
 
     // Checkpoint Getters:
     function getCheckpointFromRequestId(uint256 checkpointIndex) public view returns (uint256) {
+        uint256 lastCheckpointIndex = getLastCheckpointIndex();
+        require (lastCheckpointIndex >= checkpointIndex);
         Checkpoint memory checkpoint = _getCheckpoints()[checkpointIndex];
         return checkpoint.fromRequestId;
     }
@@ -130,6 +132,11 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
         }
 
         return res;
+    }
+
+    function calculateClaimableEther(uint256 requestId) public view returns (uint256) {
+        WithdrawalRequest storage request = _getQueue()[requestId];
+        return _calculateClaimableEther(request, requestId, _findCheckpointHint(requestId, 1, getLastCheckpointIndex()));
     }
 
     // struct BatchesCalculationState {
