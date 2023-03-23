@@ -96,7 +96,7 @@ definition MANAGE_CONSENSUS_CONTRACT_ROLE() returns bytes32 = 0x04a0afbbd09d5ad3
 definition MANAGE_CONSENSUS_VERSION_ROLE() returns bytes32 = 0xc31b1e4b732c5173dc51d519dfa432bad95550ecc4b0f9a61c2a558a2a8e4341; //keccak256("MANAGE_CONSENSUS_VERSION_ROLE");
 definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd477fa3e328cf706640b0f68b1a285c5990da; //keccak256("SUBMIT_DATA_ROLE");
 
-// rule ideas for AccountingOracle (without inheritance):
+//  rule for AccountingOracle (without inheritance):
 // ------------------------------------------------------------------------------------------
 //  external non-view functions: initialize(), initializeWithoutMigration(), submitReportData(),
 //                               submitReportExtraDataEmpty(), submitReportExtraDataList()
@@ -114,17 +114,33 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 //     f) The keccak256 hash of the ABI-encoded data is different from the last hash provided by the hash consensus contract.
 //     g) The provided data doesn't meet safety checks. (in OracleReportSanityChecker.sol)
 //  5. If ReportData.extraDataFormat is not EXTRA_DATA_FORMAT_EMPTY=0 or EXTRA_DATA_FORMAT_LIST=1 => revert
-//  6. if the oracle report contains no extra data => ReportData.extraDataHash == 0
-//  7. if the oracle report contains no extra data => ReportData.extraDataItemsCount == 0
+//  6a.if the oracle report contains no extra data => ReportData.extraDataHash == 0
+//  6b.if the oracle report contains extra data => ReportData.extraDataHash != 0
+//  7a.if the oracle report contains no extra data => ReportData.extraDataItemsCount == 0
+//  7b.if the oracle report contains extra data => ReportData.extraDataItemsCount != 0
 //  8a.submitReportData(), submitReportExtraDataList(), submitReportExtraDataEmpty
 //     can be called only if msg.sender has the appropriate role SUBMIT_DATA_ROLE (same as 1a)
 //     or if the caller is a member of the oracle committee
-//  4. cannot call submitReportData() twice in the same e.block.timestamp
+//  4. Cannot submit any two reports (Data/ExtraDataList/Empty) at the same e.block.timestamp
+//  4b.Cannot submit the same reports (Data/ExtraDataList/Empty) twice
+// 12a.If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
+// 12b.If the reportExtraDataList() was processed you cannot submit again the same previous submitReportData()
+// 12c.If the reportExtraDataEmpty() was processed you cannot submit new ReportData for the same refSlot
+// 12d.If the reportExtraDataList() was processed you cannot submit new ReportData for the same refSlot
+// 11a.Cannot call submitReportExtraDataEmpty() if the report submitted with submitReportData()
+//     had report.extraDataFormat != EXTRA_DATA_FORMAT_EMPTY()
+// 11b.Cannot call submitReportExtraDataList() if the report submitted with submitReportData()
+//     had report.extraDataFormat != EXTRA_DATA_FORMAT_LIST()
+// 14. Cannot submit a new report if the extraData of the previous report was not supplied
+// 14b.Cannot submit a new report without calling the submitReportExtraDataEmpty() / submitReportExtraDataList() first
+// 14c.Only newer report, pointing to higher refSlot, can be submitted
 //  9. Cannot initialize() or initializeWithoutMigration() twice
 // 10. Cannot initialize() with empty addresses
 
+//  still needs to work on:
 //  2. verify submitReportData() does not revert outside of the allowed reverting scenarios (? - how?)
 //  3. verify all the errors on lines 91-110 are caught correctly (? - probably duplicates point 1 above)
+// 15. Cannot submit extraData before the main report
 
 //  1. verify all the reverting scenarios of submitReportData()
 //  5. If ReportData.extraDataFormat is not EXTRA_DATA_FORMAT_EMPTY=0 or EXTRA_DATA_FORMAT_LIST=1 => revert
@@ -133,7 +149,7 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 //  7a.if the oracle report contains no extra data => ReportData.extraDataItemsCount == 0
 //  7b.if the oracle report contains extra data => ReportData.extraDataItemsCount != 0
 // Status: Pass
-// https://vaas-stg.certora.com/output/80942/cb1f07e5bd85468589eb907a929b97ca/?anonymousKey=16237fd60a58dea6b21536a72e9d6a197aba8523
+// https://vaas-stg.certora.com/output/80942/bd32307a5a324b2881652d1b2258b601/?anonymousKey=b7d045ddc841e27f4a8eea9a7065d7edc0f3ce26
 rule correctRevertsOfSubmitReportData() {
     require contractAddressesLinked();
     env e; calldataarg args;
@@ -211,7 +227,7 @@ rule callerMustHaveSubmitDataRoleOrBeAConsensusMember(method f)
     assert (!hasSubmitDataRole && !callerIsConsensusMember) => lastReverted;
 }
 
-//  4. cannot call submitReportData() twice in the same e.block.timestamp
+//  4. Cannot submit any two reports (Data/ExtraDataList/Empty) at the same e.block.timestamp
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/a468b233b03f4f8d8382141d1d0a6eb6/?anonymousKey=f2e33c53956a1dea740d260ea93a234b0fdc8af4
 rule cannotSubmitReportDataTwiceAtSameTimestamp(method f) 
@@ -225,7 +241,24 @@ rule cannotSubmitReportDataTwiceAtSameTimestamp(method f)
     require e.block.timestamp == e2.block.timestamp;
 
     f(e,args);              // successfully submit a report at time == e.block.timestamp
-    f@withrevert(e2,args2); // same e.block.timestamp, any calldataarg
+    f@withrevert(e2,args2); // same e.block.timestamp, any calldataarg (i.e., any report)
+
+    assert lastReverted;
+}
+
+//  4b.Cannot submit the same reports (Data/ExtraDataList/Empty) twice
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/5ec12c1b2b8c4af8bf4cfd1edae6d148/?anonymousKey=a879498440112f8ef21cf466bfbf9579cc4e3002
+rule cannotSubmitTheSameReportDataTwice(method f) 
+    filtered { f -> f.selector == submitReportData((uint256,uint256,uint256,uint256,uint256[],uint256[],uint256,uint256,uint256,uint256,bool,uint256,bytes32,uint256),uint256).selector ||
+                    f.selector == submitReportExtraDataList(bytes).selector ||
+                    f.selector == submitReportExtraDataEmpty().selector }
+{    
+    require contractAddressesLinked();
+    env e; calldataarg args; env e2;
+
+    f(e,args);              // successfully submit a report at time == e.block.timestamp
+    f@withrevert(e2,args);  // time can be anytime e.2block.timestamp, but the SAME calldataarg (report)
 
     assert lastReverted;
 }
@@ -262,6 +295,248 @@ rule cannotInitializeWithEmptyAddresses() {
 
     assert (admin == 0 || consensusContract == 0) => lastReverted;
 }
+
+// 11a.Cannot call submitReportExtraDataEmpty() if the report submitted with submitReportData()
+//     had report.extraDataFormat != EXTRA_DATA_FORMAT_EMPTY()
+// Status: Pass without extra asserts
+// https://vaas-stg.certora.com/output/80942/3de063e6c4ef4386a703cc69b5193257/?anonymousKey=b886518a1ceaf175b1b3c553e2976d17ea1b6f77
+// Status: Timeouts with extra asserts
+// https://vaas-stg.certora.com/output/80942/99847ff728e043d99e3c0f3186c07792/?anonymousKey=d0f44d018c52a17dc9111a28655b8174168d9e2d
+rule cannotSubmitReportExtraDataEmptyWhenExtraDataIsNotEmpty() {
+    require contractAddressesLinked();
+    env e; calldataarg args; env e2;
+
+    uint256 consensusVersion; uint256 refSlot;
+    uint256 lastFinalizableWithdrawalRequestId; uint256 simulatedShareRate; bool isBunkerMode;
+    uint256 extraDataFormat; bytes32 extraDataHash; uint256 extraDataItemsCount;
+
+    uint256 contractVersion;
+
+    bytes32 submittedHash = helperCreateAndSubmitReportData( e,
+                                consensusVersion, refSlot,
+                                lastFinalizableWithdrawalRequestId, simulatedShareRate, isBunkerMode,
+                                extraDataFormat, extraDataHash, extraDataItemsCount,
+                                contractVersion );
+    
+    submitReportExtraDataEmpty@withrevert(e2);
+
+    bool submitReverted = lastReverted;
+
+    assert (extraDataFormat != EXTRA_DATA_FORMAT_EMPTY())   => submitReverted;
+    assert (extraDataItemsCount != 0)                       => submitReverted;  // causes timeout
+    assert (extraDataHash != 0)                             => submitReverted;  // causes timeout
+}
+
+// 11b.Cannot call submitReportExtraDataList() if the report submitted with submitReportData()
+//     had report.extraDataFormat != EXTRA_DATA_FORMAT_LIST()
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/c1df39d3d1f0469ab6383267518fc0b9/?anonymousKey=2a9b2bc84f79cd8307c7341583361091fb0b3b0a
+rule cannotSubmitReportExtraDataListWhenExtraDataIsEmpty() {
+    require contractAddressesLinked();
+    env e; calldataarg args; env e2;
+
+    uint256 consensusVersion; uint256 refSlot;
+    uint256 lastFinalizableWithdrawalRequestId; uint256 simulatedShareRate; bool isBunkerMode;
+    uint256 extraDataFormat; bytes32 extraDataHash; uint256 extraDataItemsCount;
+
+    uint256 contractVersion;
+
+    bytes32 submittedHash = helperCreateAndSubmitReportData( e,
+                                consensusVersion, refSlot,
+                                lastFinalizableWithdrawalRequestId, simulatedShareRate, isBunkerMode,
+                                extraDataFormat, extraDataHash, extraDataItemsCount,
+                                contractVersion );
+    
+    bytes dataItems;
+    submitReportExtraDataList@withrevert(e2, dataItems);
+
+    bool submitReverted = lastReverted;
+
+    assert (extraDataFormat != EXTRA_DATA_FORMAT_LIST())    => submitReverted;
+    assert (extraDataItemsCount == 0)                       => submitReverted;
+    assert (extraDataHash == 0)                             => submitReverted;
+}
+
+// 12a.If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/9024662237794b29996f1cccbd33ceb5/?anonymousKey=efb8e3194e19a36b1afee297e8bedf9045d82ee4
+rule cannotSubmitSameReportAfterSubmitExtraDataEmpty() {
+    require contractAddressesLinked();
+    env e; calldataarg args; env e2; env e3;
+
+    submitReportData(e,args);
+    submitReportExtraDataEmpty(e2);
+    submitReportData@withrevert(e3,args);  // same args (i.e., same report)
+
+    assert lastReverted;
+}
+
+// 12b.If the reportExtraDataList() was processed you cannot submit again the same previous submitReportData()
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/4493b0822e0b40eba098951f808f4582/?anonymousKey=e99cf27e983f10adbead8782445ff631bedbe253
+rule cannotSubmitSameReportAfterSubmitExtraDataList() {
+    require contractAddressesLinked();
+    env e; calldataarg args; env e2; calldataarg args2; env e3;
+
+    submitReportData(e,args);
+    submitReportExtraDataList(e2,args2);
+    submitReportData@withrevert(e3,args);  // same args (i.e., same report)
+
+    assert lastReverted;
+}
+
+// 12c.If the reportExtraDataEmpty() was processed you cannot submit new ReportData for the same refSlot
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/1459760d413f40c2b97854640dc21604/?anonymousKey=ca3edc0c9f759bf3112102983f1be6d28314b061
+rule cannotSubmitNewReportForSameRefSlotAfterSubmitExtraDataEmpty() {
+    require contractAddressesLinked();
+    env e; env e2; env e3;
+
+    uint256 refSlot; // we use the same refSlot for both reports
+
+    uint256 consensusVersion_1; 
+    uint256 lastFinalizableWithdrawalRequestId_1; uint256 simulatedShareRate_1; bool isBunkerMode_1;
+    uint256 extraDataFormat_1; bytes32 extraDataHash_1; uint256 extraDataItemsCount_1;
+    uint256 contractVersion_1;
+
+    bytes32 submittedHash1 = helperCreateAndSubmitReportData( e,
+                                consensusVersion_1, refSlot,
+                                lastFinalizableWithdrawalRequestId_1, simulatedShareRate_1, isBunkerMode_1,
+                                extraDataFormat_1, extraDataHash_1, extraDataItemsCount_1,
+                                contractVersion_1 );
+
+    submitReportExtraDataEmpty(e2);
+
+    uint256 consensusVersion_2;
+    uint256 lastFinalizableWithdrawalRequestId_2; uint256 simulatedShareRate_2; bool isBunkerMode_2;
+    uint256 extraDataFormat_2; bytes32 extraDataHash_2; uint256 extraDataItemsCount_2;
+    uint256 contractVersion_2;
+
+    bytes32 submittedHash2 = helperCreateAndSubmitReportData@withrevert( e3,
+                                consensusVersion_2, refSlot,              // diff report but same refSlot
+                                lastFinalizableWithdrawalRequestId_2, simulatedShareRate_2, isBunkerMode_2,
+                                extraDataFormat_2, extraDataHash_2, extraDataItemsCount_2,
+                                contractVersion_2 );
+
+    assert lastReverted;
+}
+
+// 12d.If the reportExtraDataList() was processed you cannot submit new ReportData for the same refSlot
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/642bacaa9ba94fb09b57f349a68e401a/?anonymousKey=964457fcf10ca07e82d4349cca3f15227b073ccd
+rule cannotSubmitNewReportForSameRefSlotAfterSubmitExtraDataList() {
+    require contractAddressesLinked();
+    env e; env e2; env e3;
+
+    uint256 refSlot; // we use the same refSlot for both reports
+
+    uint256 consensusVersion_1; 
+    uint256 lastFinalizableWithdrawalRequestId_1; uint256 simulatedShareRate_1; bool isBunkerMode_1;
+    uint256 extraDataFormat_1; bytes32 extraDataHash_1; uint256 extraDataItemsCount_1;
+    uint256 contractVersion_1;
+
+    bytes32 submittedHash1 = helperCreateAndSubmitReportData( e,
+                                consensusVersion_1, refSlot,
+                                lastFinalizableWithdrawalRequestId_1, simulatedShareRate_1, isBunkerMode_1,
+                                extraDataFormat_1, extraDataHash_1, extraDataItemsCount_1,
+                                contractVersion_1 );
+    
+    bytes dataItems;
+    submitReportExtraDataList(e2,dataItems);
+
+    uint256 consensusVersion_2;
+    uint256 lastFinalizableWithdrawalRequestId_2; uint256 simulatedShareRate_2; bool isBunkerMode_2;
+    uint256 extraDataFormat_2; bytes32 extraDataHash_2; uint256 extraDataItemsCount_2;
+    uint256 contractVersion_2;
+
+    bytes32 submittedHash2 = helperCreateAndSubmitReportData@withrevert( e3,
+                                consensusVersion_2, refSlot,              // diff report but same refSlot
+                                lastFinalizableWithdrawalRequestId_2, simulatedShareRate_2, isBunkerMode_2,
+                                extraDataFormat_2, extraDataHash_2, extraDataItemsCount_2,
+                                contractVersion_2 );
+
+    assert lastReverted;
+}
+
+// 12e. the processed refSlot can only increase
+// Status: Failed because of initialize(), all the other methods pass
+// https://vaas-stg.certora.com/output/80942/23877c2fb2914bdaa1b3b17976abf153/?anonymousKey=5ed91390c6f17f10961e4102cf2806669cff227c
+rule refSlotIsMonotonicallyIncreasing(method f) {
+    require contractAddressesLinked();
+    env e; env e2; env e3; calldataarg args2;
+
+    uint256 refSlotBefore = getLastProcessingRefSlot(e);
+        f(e2,args2);
+    uint256 refSlotAfter = getLastProcessingRefSlot(e3);
+
+    assert refSlotBefore <= refSlotAfter;
+}
+
+// 14. Cannot submit a new report if the extraData of the previous report was not supplied
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/4d4d2883ce884599a2209264066effd7/?anonymousKey=b9268227937612d1275a5f95eebf5b3e327de0ff
+rule cannotSubmitNewReportIfExtraDataOfPreviousReportWasNotProvided() {
+    require contractAddressesLinked();
+    env e; env e2;
+
+    uint256 consensusVersion_1; uint256 refSlot_1;
+    uint256 lastFinalizableWithdrawalRequestId_1; uint256 simulatedShareRate_1; bool isBunkerMode_1;
+    uint256 extraDataFormat_1; bytes32 extraDataHash_1; uint256 extraDataItemsCount_1;
+    uint256 contractVersion_1;
+
+    require extraDataFormat_1 == EXTRA_DATA_FORMAT_LIST();
+    bytes32 submittedHash1 = helperCreateAndSubmitReportData( e,
+                                consensusVersion_1, refSlot_1,
+                                lastFinalizableWithdrawalRequestId_1, simulatedShareRate_1, isBunkerMode_1,
+                                extraDataFormat_1, extraDataHash_1, extraDataItemsCount_1,
+                                contractVersion_1 );
+
+    uint256 consensusVersion_2; uint256 refSlot_2;
+    uint256 lastFinalizableWithdrawalRequestId_2; uint256 simulatedShareRate_2; bool isBunkerMode_2;
+    uint256 extraDataFormat_2; bytes32 extraDataHash_2; uint256 extraDataItemsCount_2;
+    uint256 contractVersion_2;
+
+    // submitting the next report without providing the extraData for the previous report
+    bytes32 submittedHash2 = helperCreateAndSubmitReportData@withrevert( e2,
+                                consensusVersion_2, refSlot_2,
+                                lastFinalizableWithdrawalRequestId_2, simulatedShareRate_2, isBunkerMode_2,
+                                extraDataFormat_2, extraDataHash_2, extraDataItemsCount_2,
+                                contractVersion_2 );
+
+    assert lastReverted;
+}
+
+// 14b.Cannot submit a new report without calling the submitReportExtraDataEmpty() / submitReportExtraDataList() first
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/7832a228a1bb4e4fa5025f1b8a69fecc/?anonymousKey=b47663803d6fd5cfb5069c2ec7aa7594e2d0d0d7
+rule cannotSubmitNewReportIfOldWasNotProcessedFirst() {
+    require contractAddressesLinked();
+    env e; calldataarg args; env e2; calldataarg args2;
+
+    submitReportData(e,args);
+    submitReportData@withrevert(e2,args2);
+
+    assert lastReverted;
+}
+
+// 14c.Only newer report, pointing to higher refSlot, can be submitted
+// Status: Sanity Failed
+// https://vaas-stg.certora.com/output/80942/ddb30afccee341e99f70642e921c5b63/?anonymousKey=e74a854391564c4d216173d865c3e487d9ff59db
+rule onlyNewerReportCanBeSubmitted() {
+    require contractAddressesLinked();
+    env e; calldataarg args; env e2; calldataarg args2; env e3; calldataarg args3;
+
+    submitReportData(e,args);
+    uint256 refSlotBefore = getLastProcessingRefSlot(e);
+
+    submitReportExtraDataEmpty(e2,args2);  // required for processing the first report
+
+    submitReportData(e3,args3);
+    uint256 refSlotAfter = getLastProcessingRefSlot(e3);
+
+    assert refSlotBefore < refSlotAfter; // must be higher
+}
+
 
 // rules for BaseOracle.sol:
 // ------------------------------------------------------------------------------------------
@@ -421,12 +696,6 @@ rule refSlotMustBeGreaterThanProcessingOne(method f)
 }
 */
 
-
-
-// rules for Versioned:
-
-
-// rules for UnstructuredStorage.sol:
 
 
 // rules for AccessControlEnumerable.sol
