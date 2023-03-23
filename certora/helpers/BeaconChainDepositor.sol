@@ -42,10 +42,10 @@ contract BeaconChainDepositorHarness is BeaconChainDepositor {
             //bytes32 deposit_data_root = 
             //_computeDepositDataRootCertora(_withdrawalCredentials, _publicKeyMap[_publicKeysBatch][i], _signatureMap[_signaturesBatch][i]);
             
-            uint amount = msg.value / 1 gwei;
+            //uint amount = msg.value / 1 gwei;
             // Compute deposit data root (`DepositData` hash tree root)
-            bytes32 pubkey_root = _publicKeyRoot[_publicKeyMap[_publicKeysBatch][i]];
-            bytes32 signature_root =  _signatureRoot[_signatureMap[_signaturesBatch][i]];
+            //bytes32 pubkey_root = _publicKeyRoot[_publicKeyMap[_publicKeysBatch][i]];
+            //bytes32 signature_root =  _signatureRoot[_signatureMap[_signaturesBatch][i]];
 
             //bytes32 node = sha256(abi.encodePacked(
             //    sha256(abi.encodePacked(pubkey_root, _withdrawalCredentials)),

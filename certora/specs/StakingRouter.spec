@@ -39,6 +39,8 @@ using StakingModuleMock as moduleMock
 
 methods {
     NOS.getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
+    NOS.obtainDepositData(uint256, bytes)
+    NOS.getActiveNodeOperatorsCount() returns (uint256) envfree
     moduleMock.getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
 }
 
@@ -99,7 +101,8 @@ rule stakingModulesCountIncrement(method f) {
     uint256 count1 = getStakingModulesCount();
         f(e, args);
     uint256 count2 = getStakingModulesCount();
-    assert count1 == count2 || count2 == count1 + 1;
+    assert !isAddModule(f) => count1 == count2;
+    assert isAddModule(f) => count2 == count1 + 1;
 }
 
 rule viewFunctionsThatNeverRevert(method f, method g) 
@@ -279,10 +282,10 @@ rule aggregatedFeeLT100Percent_preserve() {
     
     require getStakingModulesCount() <= 2;
     safeAssumptions(1);
-    safeAssumptions(getStakingModulesCount());
+    //safeAssumptions(getStakingModulesCount());
     
     string name; require name.length == 32;
-    address Address;
+    address Address = moduleMock;
     uint256 targetShare;
     uint256 ModuleFee;
     uint256 TreasuryFee;
@@ -291,7 +294,8 @@ rule aggregatedFeeLT100Percent_preserve() {
     modulesFee_, treasuryFee_, precision_ = getStakingFeeAggregateDistribution();
     require modulesFee_ <= precision_;
     require treasuryFee_ <= precision_;
-    
+
+    //modulesValidatorsAssumptions();
     addStakingModule(e, name, Address, targetShare, ModuleFee, TreasuryFee);
 
     uint96 _modulesFee; uint96 _treasuryFee; uint256 _precision;
@@ -351,6 +355,61 @@ filtered{f -> !f.isView && !isDeposit(f)} {
     // Assert that no underflow is possible.
     assert exitedSummary2 <= depositedSummary2;
     assert exitedModule2 <= depositedSummary2;
+}
+
+rule depositDoesntAlterStakingModules(uint256 moduleId) {
+    env e; calldataarg args;
+
+    uint8 status1 = getStakingModuleStatus(moduleId);
+    address stakingAddress1 = getStakingModuleAddressById(moduleId);
+    uint256 exited1 = getStakingModuleExitedValidatorsById(moduleId);
+    uint256 ID1 = getStakingModuleIdById(moduleId);
+    uint16 fee1 = getStakingModuleFeeById(moduleId);
+    uint16 treasuryFee1 = getStakingModuleTreasuryFeeById(moduleId);
+    uint16 targetShare1 = getStakingModuleTargetShareById(moduleId);
+    uint256 lastModuleID1 = getLastStakingModuleId();
+        deposit(e, args);
+    uint8 status2 = getStakingModuleStatus(moduleId);
+    address stakingAddress2 = getStakingModuleAddressById(moduleId);
+    uint256 exited2 = getStakingModuleExitedValidatorsById(moduleId);
+    uint256 ID2 = getStakingModuleIdById(moduleId);
+    uint16 fee2 = getStakingModuleFeeById(moduleId);
+    uint16 treasuryFee2 = getStakingModuleTreasuryFeeById(moduleId);
+    uint16 targetShare2 = getStakingModuleTargetShareById(moduleId);
+    uint256 lastModuleID2 = getLastStakingModuleId();
+
+    assert( 
+        status1 == status2 &&
+        stakingAddress1 == stakingAddress2 &&
+        exited1 == exited2 &&
+        ID1 == ID2 &&
+        fee1 == fee2 &&
+        treasuryFee1 == treasuryFee2 &&
+        targetShare1 == targetShare2 &&
+        lastModuleID1 == lastModuleID2);
+}
+
+rule afterDepositSummaryIsUpdatedCorrectly(uint256 moduleId, uint256 depositableEther) {
+    env e;
+
+    bytes calldata; require calldata.length == 32;
+    require getStakingModuleAddressById(moduleId) == NOS;
+    require NOS.getActiveNodeOperatorsCount() <= 3;    
+    uint256 depositCount = getStakingModuleMaxDepositsCount(e, moduleId, depositableEther);
+
+    uint256 exited_before; uint256 exited_after;
+    uint256 deposited_before; uint256 deposited_after;
+    uint256 depositable_before; uint256 depositable_after;
+    exited_before, deposited_before, depositable_before = 
+        NOS.getStakingModuleSummary();
+
+        NOS.obtainDepositData(e, depositCount, calldata);
+
+    exited_after, deposited_after, depositable_after = 
+        NOS.getStakingModuleSummary();
+
+    assert deposited_after == deposited_before + depositCount,
+    "The deposited keys count summary was not updated correctly";
 }
 
 /**************************************************
@@ -423,12 +482,16 @@ rule canAlwaysAddAnotherStakingModule() {
     assert !lastReverted;
 }
  
-rule cannotInitializeTwice() {
+rule cannotInitializeTwice(method f) 
+filtered{f-> !isDeposit(f) && f.selector != initialize(address,address,bytes32).selector} {
     env e1;
     env e2;
+    env e3;
     calldataarg args1;
     calldataarg args2;
+    calldataarg args3;
     initialize(e1, args1);
+    f(e3, args3);
     initialize@withrevert(e2, args2);
     assert lastReverted;
 }

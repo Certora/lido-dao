@@ -694,22 +694,18 @@ filtered{f -> !f.isView} {
     assert deposited_before <= deposited_after;
 }
 
-rule depositedKeysChangeForOnlyOneNodeOperator(method f, uint256 nodeOperatorId1) 
+rule depositedKeysDontChangeByOtherFunctions(method f, uint256 nodeOperatorId) 
 filtered{f -> !f.isView && !isObtainDepData(f)} {
     env e;
     calldataarg args;
-    uint256 nodeOperatorId2;
-    uint256 deposited_before_1 = getNodeOperatorSigningStats_deposited(nodeOperatorId1);
-    uint256 deposited_before_2 = getNodeOperatorSigningStats_deposited(nodeOperatorId2);
+    uint256 deposited_before = getNodeOperatorSigningStats_deposited(nodeOperatorId);
         if(isInvalidateUnused(f)){
-            invalidateReadyToDepositKeysRange(e, nodeOperatorId1, nodeOperatorId1);}
+            invalidateReadyToDepositKeysRange(e, nodeOperatorId, nodeOperatorId);}
         else{
             f(e, args);}
-    uint256 deposited_after_1 = getNodeOperatorSigningStats_deposited(nodeOperatorId1);
-    uint256 deposited_after_2 = getNodeOperatorSigningStats_deposited(nodeOperatorId2);
+    uint256 deposited_after = getNodeOperatorSigningStats_deposited(nodeOperatorId);
 
-    assert (deposited_before_1 != deposited_after_1 && deposited_before_2 != deposited_after_2) 
-        => nodeOperatorId1 == nodeOperatorId2;
+    assert (deposited_before == deposited_after);
 }
 
 rule totalKeysChangeIntegrity(method f, uint256 nodeOperatorId) 
@@ -790,25 +786,31 @@ filtered{f -> !f.isView && !isFinalizeUpgrade(f) } {
 /**************************************************
  *  Node Operator remove and adding keys rules  *
 **************************************************/
-rule canRemoveKeyAfterAdded(uint256 nodeOperatorId, uint256 keysCount) {
+rule keyCountChangeAfterKeysRemoval(uint256 nodeOperatorId, uint256 keysCount) {
     env e;
-    bytes publicKeys;
-    bytes signatures;
     uint256 index_from;
     require keysCount > 0;
-    require index_from + keysCount <= UINT32_MAX();
-
-    storage initState = lastStorage;
 
     safeAssumptions_NOS(nodeOperatorId);
     
-    //removeSigningKeys(e, nodeOperatorId, index_from, keysCount);
-
-    addSigningKeys(e, nodeOperatorId, keysCount, publicKeys, signatures) at initState;
+    uint256 vetted_before = getNodeOperatorSigningStats_vetted(nodeOperatorId);
+    uint256 max_before = getNodeOperatorTargetStats_max(nodeOperatorId);
+    uint256 deposited_before = getNodeOperatorSigningStats_deposited(nodeOperatorId);
+        removeSigningKeys(e, nodeOperatorId, index_from, keysCount);
+    uint256 vetted_after = getNodeOperatorSigningStats_vetted(nodeOperatorId);
+    uint256 max_after = getNodeOperatorTargetStats_max(nodeOperatorId);
+    uint256 deposited_after = getNodeOperatorSigningStats_deposited(nodeOperatorId);
     
-    removeSigningKeys@withrevert(e, nodeOperatorId, index_from + keysCount, keysCount);
-    
-    assert !lastReverted;
+    if(vetted_before < index_from) {
+        assert vetted_after == vetted_before;
+        assert max_after == max_before;
+        assert deposited_before == deposited_after;
+    }
+    else {
+        assert vetted_after <= vetted_before - keysCount;
+        assert max_after < max_before;
+        assert deposited_before == deposited_after;
+    }
 }
 
 /// For every node operators, it is always possible to add one more key
@@ -841,104 +843,14 @@ rule noRestrictionOnAddingKeys(uint256 nodeOperatorId) {
     assert !lastReverted;
 }
 
-/// @dev Timeout
-rule addSigningKeysAdditivity(uint256 nodeOperatorId) {
-    env e1;
-    env e2;
-    storage initState = lastStorage;
-
-    uint256 keysCount1;
-    uint256 keysCount2;
-    uint256 keysCount3 = keysCount1 + keysCount2;
-
-    safeAssumptions_NOS(nodeOperatorId);
-
-    bytes publicKeys1; bytes publicKeys2; bytes publicKeys3;
-    bytes signatures1; bytes signatures2; bytes signatures3;
-
-    /// This is the same require embedded in the code.
-    require keysCount1 * 48 == publicKeys1.length;
-    require keysCount1 * 96 == signatures1.length;
-    require keysCount2 * 48 == publicKeys2.length;
-    require keysCount2 * 96 == signatures2.length;
-    require keysCount3 * 48 == publicKeys3.length;
-    require keysCount3 * 96 == signatures3.length;
-
-    addSigningKeys(e1, nodeOperatorId, keysCount1, publicKeys1, signatures1);
-    addSigningKeys(e2, nodeOperatorId, keysCount2, publicKeys2, signatures2);
-
-    uint256 deposited_A = getNodeOperatorSigningStats_deposited(nodeOperatorId);
-    uint256 exited_A = getNodeOperatorSigningStats_exited(nodeOperatorId);
-    uint256 vetted_A = getNodeOperatorSigningStats_vetted(nodeOperatorId);
-    uint256 total_A = getNodeOperatorSigningStats_total(nodeOperatorId);
-    uint256 summaryDeposited_A = getSummaryTotalDepositedValidators();
-    uint256 summaryTotal_A = getSummaryTotalKeyCount();
-
-    addSigningKeys(e1, nodeOperatorId, keysCount3, publicKeys3, signatures3) at initState;
-
-    uint256 deposited_B = getNodeOperatorSigningStats_deposited(nodeOperatorId);
-    uint256 exited_B = getNodeOperatorSigningStats_exited(nodeOperatorId);
-    uint256 vetted_B = getNodeOperatorSigningStats_vetted(nodeOperatorId);
-    uint256 total_B = getNodeOperatorSigningStats_total(nodeOperatorId);
-    uint256 summaryDeposited_B = getSummaryTotalDepositedValidators();
-    uint256 summaryTotal_B = getSummaryTotalKeyCount();
-
-    assert (deposited_A == deposited_B, "Deposited keys for nodeOperator is not additive");
-    assert (exited_A == exited_B, "Exited keys for nodeOperator is not additive");
-    assert (vetted_A == vetted_B, "Vetted keys for nodeOperator is not additive");
-    assert (total_A == total_B, "Total keys for nodeOperator is not additive");
-    assert (summaryDeposited_A == summaryDeposited_B, "Summary of deposited keys  is not additive");
-    assert (summaryTotal_A == summaryTotal_B, "Summary of total keys is not additive");
-}
-
-/// @dev Timeout
-rule removeSigningKeysAdditivity(uint256 nodeOperatorId) {
-    env e1;
-    env e2;
-    storage initState = lastStorage;
-
-    uint256 keysCount1;
-    uint256 keysCount2 = 1;
-    uint256 keysCount3 = keysCount1 + keysCount2;
-    uint256 fromIndex;
-
-    safeAssumptions_NOS(nodeOperatorId);
-
-    removeSigningKeys(e1, nodeOperatorId, fromIndex, keysCount1);
-    removeSigningKeys(e2, nodeOperatorId, fromIndex + keysCount1, keysCount2);
-
-    uint256 deposited_A = getNodeOperatorSigningStats_deposited(nodeOperatorId);
-    uint256 exited_A = getNodeOperatorSigningStats_exited(nodeOperatorId);
-    uint256 vetted_A = getNodeOperatorSigningStats_vetted(nodeOperatorId);
-    uint256 total_A = getNodeOperatorSigningStats_total(nodeOperatorId);
-    uint256 summaryDeposited_A = getSummaryTotalDepositedValidators();
-    uint256 summaryTotal_A = getSummaryTotalKeyCount();
-
-    removeSigningKeys(e1, nodeOperatorId, fromIndex, keysCount3) at initState;
-
-    uint256 deposited_B = getNodeOperatorSigningStats_deposited(nodeOperatorId);
-    uint256 exited_B = getNodeOperatorSigningStats_exited(nodeOperatorId);
-    uint256 vetted_B = getNodeOperatorSigningStats_vetted(nodeOperatorId);
-    uint256 total_B = getNodeOperatorSigningStats_total(nodeOperatorId);
-    uint256 summaryDeposited_B = getSummaryTotalDepositedValidators();
-    uint256 summaryTotal_B = getSummaryTotalKeyCount();
-
-    assert (deposited_A == deposited_B, "Deposited keys for nodeOperator is not additive");
-    assert (exited_A == exited_B, "Exited keys for nodeOperator is not additive");
-    assert (vetted_A == vetted_B, "Vetted keys for nodeOperator is not additive");
-    assert (total_A == total_B, "Total keys for nodeOperator is not additive");
-    assert (summaryDeposited_A == summaryDeposited_B, "Summary of deposited keys  is not additive");
-    assert (summaryTotal_A == summaryTotal_B, "Summary of total keys is not additive");
-}
-
 /**************************************************
  *    Node Operator obtainDepositData           *
 **************************************************/
 /// The function should never revert for a valid deposit count input.
 /// and revert if the deposit count is larger than the depositable amount.
+/// https://vaas-stg.certora.com/output/41958/c12fac737f73407ab18b030f8046ebf2/?anonymousKey=87f87d83886c0727e16cf4139e61ce4862fdebf4
 rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     env e;
-    storage initState = lastStorage;
     bytes depositData; require depositData.length == 32;
 
     uint256 totalExited;
@@ -946,6 +858,7 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     uint256 depositable;
     requireInvariant SumOfMaxKeysEqualsSummary();
     requireInvariant SumOfDepositedKeysEqualsSummary();
+    requireInvariant SumOfExitedKeysEqualsSummary();
     totalExited, totalDeposited, depositable = getStakingModuleSummary();
 
     require depositable <= UINT32_MAX();
@@ -965,7 +878,7 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     obtainDepositData(e, 0, depositData);
     
     // Call again with an arbitraty depositCount
-    obtainDepositData@withrevert(e, depositsCount, depositData) at initState;
+    obtainDepositData@withrevert(e, depositsCount, depositData);
 
     assert depositsCount <= depositable => !lastReverted;
 }
@@ -1078,4 +991,36 @@ rule operatorPenaltyStatusAfterKeysUpdate(uint256 nodeOperatorId) {
     assert penalized_before && stuckAfter > refundedAfter => penalized_after;
     assert !penalized_before && stuckAfter <= refundedAfter => !penalized_after;
     assert !penalized_before && stuckAfter > refundedAfter => penalized_after;
+}
+
+/// Actually supposed to check that _updateSummaryMaxValidatorsCount doesn't 
+/// change the deposited keys count summary.
+rule clearingPenaltyDoesntChangeDepositSummary(uint256 nodeOperatorId) {
+    env e;
+    uint256 summaryDeposited1 = getSummaryTotalDepositedValidators();
+        clearNodeOperatorPenalty(e, nodeOperatorId);
+    uint256 summaryDeposited2 = getSummaryTotalDepositedValidators();
+    assert summaryDeposited2 == summaryDeposited1;
+}
+
+/// One shouldn't be able to call clearNodeOperatorPenalty on a non-existent node operator.
+rule cannotClearPenaltyForUnRegisteredOperators(method f, uint256 nodeOperatorId) 
+filtered{f -> !f.isView} {
+    env e1;
+    env e2; calldataarg args;
+    env e3;
+    requireInvariant UnregisteredOperatorIsNotPenalized(e1, nodeOperatorId);
+    requireInvariant UnregisteredOperatorIsNotPenalized(e3, nodeOperatorId);
+    require e1.block.timestamp <= e3.block.timestamp;
+    require e1.block.timestamp > 0;
+    
+    clearNodeOperatorPenalty@withrevert(e1, nodeOperatorId);
+    bool reverted_ = lastReverted;
+    require nodeOperatorId >= getNodeOperatorsCount() => reverted_;
+
+        f(e2, args);
+
+    clearNodeOperatorPenalty@withrevert(e3, nodeOperatorId);
+    bool _reverted = lastReverted;
+    assert nodeOperatorId >= getNodeOperatorsCount() => _reverted;
 }

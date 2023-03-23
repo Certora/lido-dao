@@ -83,19 +83,16 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
     }
 
     function getNodeOperator_stuckValidators(uint256 _nodeOperatorId) public view returns (uint256) {
-        _onlyExistedNodeOperator(_nodeOperatorId);
         Packed64x4.Packed memory stuckPenaltyStats = _loadOperatorStuckPenaltyStats(_nodeOperatorId);
         return stuckPenaltyStats.get(STUCK_VALIDATORS_COUNT_OFFSET);
     }
 
     function getNodeOperator_refundedValidators(uint256 _nodeOperatorId) public view returns (uint256) {
-        _onlyExistedNodeOperator(_nodeOperatorId);
         Packed64x4.Packed memory stuckPenaltyStats = _loadOperatorStuckPenaltyStats(_nodeOperatorId);
         return stuckPenaltyStats.get(REFUNDED_VALIDATORS_COUNT_OFFSET);
     }
 
     function getNodeOperator_endTimeStamp(uint256 _nodeOperatorId) public view returns (uint256) {
-        _onlyExistedNodeOperator(_nodeOperatorId);
         Packed64x4.Packed memory stuckPenaltyStats = _loadOperatorStuckPenaltyStats(_nodeOperatorId);
         return stuckPenaltyStats.get(STUCK_PENALTY_END_TIMESTAMP_OFFSET);
     }
