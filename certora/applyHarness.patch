@@ -1,5 +1,5 @@
---- ../contracts/0.8.9/StakingRouter.sol	2023-03-22 17:20:56.038891700 +0200
-+++ 	2023-03-23 13:51:53.312931900 +0200
+--- ../contracts/0.8.9/StakingRouter.sol	2023-03-26 11:18:15.138581500 +0300
++++ 	2023-03-26 11:36:31.079961400 +0300
 @@ -4,18 +4,18 @@
  /* See contracts/COMPILERS.md */
  pragma solidity 0.8.9;
@@ -27,7 +27,7 @@
      using UnstructuredStorage for bytes32;
  
      /// @dev events
-@@ -125,7 +125,7 @@
+@@ -126,7 +126,7 @@
      uint256 public constant MAX_STAKING_MODULES_COUNT = 32;
      uint256 public constant MAX_STAKING_MODULE_NAME_LENGTH = 32;
  
@@ -36,7 +36,7 @@
  
      /**
       * @dev proxy initialization
-@@ -133,7 +133,7 @@
+@@ -134,7 +134,7 @@
       * @param _lido Lido address
       * @param _withdrawalCredentials Lido withdrawal vault contract address
       */
@@ -45,7 +45,7 @@
          if (_admin == address(0)) revert ZeroAddress("_admin");
          if (_lido == address(0)) revert ZeroAddress("_lido");
  
-@@ -399,7 +399,7 @@
+@@ -470,7 +470,7 @@
          bool _triggerUpdateFinish,
          ValidatorsCountsCorrection memory _correction
      )
@@ -54,7 +54,7 @@
          onlyRole(UNSAFE_SET_EXITED_VALIDATORS_ROLE)
      {
          StakingModule storage stakingModule = _getStakingModuleById(_stakingModuleId);
-@@ -922,6 +922,7 @@
+@@ -1014,6 +1014,7 @@
                      stakingModuleFees[rewardedStakingModulesCount] = stakingModuleFee;
                  }
                  // else keep stakingModuleFees[rewardedStakingModulesCount] = 0, but increase totalFee
@@ -62,7 +62,7 @@
  
                  totalFee += (uint96((stakingModuleValidatorsShare * stakingModulesCache[i].treasuryFee) / TOTAL_BASIS_POINTS) + stakingModuleFee);
  
-@@ -938,14 +939,16 @@
+@@ -1030,14 +1031,16 @@
          if (totalFee >= precisionPoints) revert ValueOver100Percent("totalFee");
  
          /// @dev shrink arrays
@@ -85,7 +85,7 @@
  
      /// @notice Helper for Lido contract (DEPRECATED)
 --- ../contracts/0.8.9/BeaconChainDepositor.sol	2023-03-14 12:09:21.827860300 +0200
-+++ 	2023-03-14 13:53:56.737692600 +0200
++++ 	2023-03-26 11:36:31.079961400 +0300
 @@ -4,7 +4,7 @@
  // See contracts/COMPILERS.md
  pragma solidity 0.8.9;
@@ -113,8 +113,8 @@
      }
  
      /// @dev computes the deposit_root_hash required by official Beacon Deposit contract
---- ../contracts/0.4.24/nos/NodeOperatorsRegistry.sol	2023-03-14 13:48:58.520166100 +0200
-+++ 	2023-03-23 12:03:26.283583100 +0200
+--- ../contracts/0.4.24/nos/NodeOperatorsRegistry.sol	2023-03-26 11:18:13.568632600 +0300
++++ 	2023-03-26 11:36:31.079961400 +0300
 @@ -9,13 +9,13 @@
  import {SafeMath64} from "@aragon/os/contracts/lib/math/SafeMath64.sol";
  import {UnstructuredStorage} from "@aragon/os/contracts/common/UnstructuredStorage.sol";

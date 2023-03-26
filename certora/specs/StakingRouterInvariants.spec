@@ -136,10 +136,10 @@ function differentOrEqualToZero_Address(address a, address b) returns bool {
 
 function safeAssumptions(uint256 moduleId) {
     requireInvariant modulesCountIsLastIndex();
+    requireInvariant StakingModuleIndexIsIdMinus1(moduleId);
     if(moduleId > 0) {
         requireInvariant ZeroAddressForUnRegisteredModule(moduleId);
         requireInvariant StakingModuleIdLELast(moduleId);
-        requireInvariant StakingModuleIndexIsIdMinus1(moduleId);
         requireInvariant StakingModuleId(moduleId);
         requireInvariant StakingModuleAddressIsNeverZero(moduleId);
         requireInvariant StakingModuleTotalFeeLEMAX(moduleId);

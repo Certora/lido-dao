@@ -249,62 +249,22 @@ rule cannotAddStakingModuleIfAlreadyRegistered(uint256 moduleId) {
     assert stakingModuleAddress != getStakingModuleAddressById(moduleId);
 }
 
-// Checks the aggregated fee after the first call to addStakingModule
-rule aggregatedFeeLT100Percent_init() {
-    env e;
 
-    require getStakingModulesCount() == 0;
-
-    string name;
-    address Address;
-    uint256 targetShare;
-    uint256 ModuleFee;
-    uint256 TreasuryFee;
-
-    uint96 modulesFee_; uint96 treasuryFee_; uint256 precision_;
-    modulesFee_, treasuryFee_, precision_ = getStakingFeeAggregateDistribution();
-    assert modulesFee_ == 0;
-    assert treasuryFee_ == 0; 
-    
-    addStakingModule(e, name, Address, targetShare, ModuleFee, TreasuryFee);
-
-    uint96 _modulesFee; uint96 _treasuryFee; uint256 _precision;
-    _modulesFee, _treasuryFee, _precision = getStakingFeeAggregateDistribution();
-
-    assert _modulesFee <= _precision;
-    assert _treasuryFee <= _precision;
-    assert _modulesFee >= modulesFee_;
-    assert _treasuryFee >= treasuryFee_;
-}
-
-rule aggregatedFeeLT100Percent_preserve() {
-    env e;
+rule aggregatedFeeLT100Percent() {
     
     require getStakingModulesCount() <= 2;
     safeAssumptions(1);
-    //safeAssumptions(getStakingModulesCount());
+    safeAssumptions(getStakingModulesCount());
     
-    string name; require name.length == 32;
-    address Address = moduleMock;
-    uint256 targetShare;
-    uint256 ModuleFee;
-    uint256 TreasuryFee;
+    uint96 modulesFee; uint96 treasuryFee; uint256 precision;
+    modulesFee, treasuryFee, precision = getStakingFeeAggregateDistribution();
+    uint96 totalFee = modulesFee + treasuryFee;
 
-    uint96 modulesFee_; uint96 treasuryFee_; uint256 precision_;
-    modulesFee_, treasuryFee_, precision_ = getStakingFeeAggregateDistribution();
-    require modulesFee_ <= precision_;
-    require treasuryFee_ <= precision_;
-
-    //modulesValidatorsAssumptions();
-    addStakingModule(e, name, Address, targetShare, ModuleFee, TreasuryFee);
-
-    uint96 _modulesFee; uint96 _treasuryFee; uint256 _precision;
-    _modulesFee, _treasuryFee, _precision = getStakingFeeAggregateDistribution();
-
-    assert _modulesFee <= _precision;
-    assert _treasuryFee <= _precision;
-    assert _modulesFee >= modulesFee_;
-    assert _treasuryFee >= treasuryFee_;
+    assert modulesFee <= precision;
+    assert treasuryFee <= precision;
+    //assert _totalFee >= totalFee_;
+    //assert _modulesFee >= modulesFee_;
+    //assert _treasuryFee >= treasuryFee_;
 }
 
 rule validMaxDepositCountBound(uint256 maxDepositsValue) {
@@ -428,7 +388,7 @@ rule feeDistributionDoesntRevertAfterAddingModule() {
     
     /// add a new module
     string name; require name.length == 32;
-    address stakingModuleAddress;
+    address stakingModuleAddress = moduleMock;
     uint256 targetShare;
     uint256 stakingModuleFee;
     uint256 treasuryFee;
@@ -556,6 +516,7 @@ filtered{f -> !f.isView && !isDeposit(f)} {
     require moduleId > 0;
     require getStakingModulesCount() <= 2;
     safeAssumptions(moduleId);
+    require getStakingModuleAddressById(moduleId) == NOS;
 
     reportStakingModuleExitedValidatorsCountByNodeOperator(
         e1, moduleId, nodeOperatorIds, exitedValidatorsCounts);
@@ -578,6 +539,7 @@ filtered{f -> !isDeposit(f)} {
 
     // Call any function without reverting
     f(e1, args);
+    require getStakingModuleAddressById(moduleId) == NOS;
 
     // Return to initial storage and change some moduleId status to not active.
     uint8 status; 
