@@ -348,8 +348,7 @@ invariant SumOfMaxKeysEqualsSummary()
 **************************************************/
 
 rule keyCountChangesTogetherWithSummary(method f) 
-filtered{f -> !f.isView && !isFinalizeUpgrade(f) && 
-f.selector != addNodeOperator(string,address).selector} {
+filtered{f -> !f.isView && !isFinalizeUpgrade(f)} {
     env e;
     calldataarg args;
     safeAssumptions_NOS(0);
@@ -365,7 +364,19 @@ f.selector != addNodeOperator(string,address).selector} {
     uint256 summary_total_before = getSummaryTotalKeyCount();
     uint256 summary_max_before = getSummaryMaxValidators();
     ///
+    /// See cannotClearPenaltyForUnRegisteredOperators
+    if(f.selector == clearNodeOperatorPenalty(uint256).selector) {
+        uint256 nodeOperatorId;
+        require nodeOperatorId < getNodeOperatorsCount();
+        clearNodeOperatorPenalty(e, nodeOperatorId);
+    }
+    else if(f.selector == addNodeOperator(string,address).selector) {
+        requireInvariant KeysOfUnregisteredNodeAreZero(getNodeOperatorsCount());
+        addNodeOperator(e, args);
+    }
+    else {
         f(e, args);
+    }
     ///
     uint256 sum_exited_after = sumOfExitedKeys();
     uint256 sum_deposited_after = sumOfDepositedKeys();
