@@ -579,6 +579,7 @@ rule correctUpdateOfLastProcessingRefSlot() {
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/0e9e4a93a81945f3ac7dfc60d531817c/?anonymousKey=506b7ea379db5fed22a8fbdfc81477bedcf25010
 rule onlyManagerCanSetConsensusContract() {
+    require contractAddressesLinked();
     env e; calldataarg args;
 
     bytes32 roleManager = MANAGE_CONSENSUS_CONTRACT_ROLE();
@@ -597,6 +598,7 @@ rule onlyManagerCanSetConsensusContract() {
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/1dd3d3d2456441e5a4cb474b5f933881/?anonymousKey=250fe9c13081828347aaf5dedd477bb59f467554
 rule onlyManagerCanSetConsensusVersion() {
+    require contractAddressesLinked();
     env e; calldataarg args;
 
     bytes32 roleManager = MANAGE_CONSENSUS_VERSION_ROLE();
