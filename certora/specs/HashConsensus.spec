@@ -1,12 +1,5 @@
-// using MockConsensusContract as ConsensusContract
 // using AccountingOracle as AccountingOracleContract
-// using StakingRouter as StakingRouterContract
-// // using LidoLocator as LidoLocatorContract
-// using OracleReportSanityChecker as OracleReportSanityCheckerContract
-// using MockLidoForAccountingOracle as LidoContract
-// using MockWithdrawalQueueForAccountingOracle as WithdrawalQueueContract
-// using StakingModuleMock as StakingModuleContract
-// using LegacyOracle as LegacyOracleContract
+
 
 /**************************************************
  *               Methods Declaration              *
@@ -15,96 +8,38 @@ methods {
     submitConsensusReport(bytes32 report, uint256 refSlot, uint256 deadline) => NONDET
     getLastProcessingRefSlot() returns (uint256) => NONDET
     getConsensusVersion() returns (uint256) => NONDET
-
-    // LIDO() returns (address) envfree
-    // LOCATOR() returns (address) envfree
-    // LEGACY_ORACLE() returns (address) envfree
-
-    // EXTRA_DATA_FORMAT_EMPTY() returns (uint256) envfree
-    // EXTRA_DATA_FORMAT_LIST() returns (uint256) envfree
-
-    // // IConsensusContract = MockConsensusContract.sol
-    // getChainConfig() returns (uint256, uint256, uint256) => DISPATCHER(true)
-    // getCurrentFrame() returns (uint256, uint256) => DISPATCHER(true)
-    // getIsMember(address) returns (bool) => DISPATCHER(true)
-    // getFrameConfig() returns (uint256, uint256) => DISPATCHER(true)
-
-    // // Locator = LidoLocator.sol
-    // stakingRouter() returns(address) => NONDET
-    // oracleReportSanityChecker() returns(address) => NONDET
-    // withdrawalQueue() returns(address) => NONDET
-
-    // // StakingRouter = StakingRouter.sol
-    // reportStakingModuleExitedValidatorsCountByNodeOperator(uint256, bytes, bytes) => DISPATCHER(true)
-    // reportStakingModuleStuckValidatorsCountByNodeOperator(uint256, bytes, bytes) => DISPATCHER(true)
-    // onValidatorsCountsByNodeOperatorReportingFinished() => DISPATCHER(true)
-    // getExitedValidatorsCountAcrossAllModules() returns (uint256) => DISPATCHER(true)
-    // updateExitedValidatorsCountByStakingModule(uint256[], uint256[]) => DISPATCHER(true)
-
-    // // OracleReportSanityChecker = OracleReportSanityChecker.sol
-    // checkNodeOperatorsPerExtraDataItemCount(uint256, uint256) => DISPATCHER(true)
-    // checkAccountingExtraDataListItemsCount(uint256) => DISPATCHER(true)
-    // checkExitedValidatorsRatePerDay(uint256) => DISPATCHER(true)
-
-    // // LegacyOracle = MockLegacyOracle.sol
-    // getBeaconSpec() returns (uint64, uint64, uint64, uint64) => DISPATCHER(true) // might be able to simplify, only used for one check
-    // getLastCompletedEpochId() returns (uint256) => DISPATCHER(true)
-    // handleConsensusLayerReport(uint256, uint256, uint256) => DISPATCHER(true)
-    // getConsensusContract() returns (address) => DISPATCHER(true) //getConsensusContractCVL()
-    // getAccountingOracle() returns (address) => DISPATCHER(true) //getAccountingOracleContractCVL()
-
-    // // WithdrawalQueue = WithdrawalQueue.sol
-    // updateBunkerMode(bool, uint256) => DISPATCHER(true)
-
-    // // Lido = MockLidoForAccountingOracle.sol
-    // handleOracleReport(uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256) => DISPATCHER(true)
-
-    // // StakingModule = StakingModuleMock.sol
-    // getStakingModuleSummary() returns (uint256, uint256, uint256) => DISPATCHER(true)
-    // onExitedAndStuckValidatorsCountsUpdated() => DISPATCHER(true)
-    // updateExitedValidatorsCount(bytes, bytes) => DISPATCHER(true)
-    // updateStuckValidatorsCount(bytes, bytes) => DISPATCHER(true)
 }
 
 /**************************************************
  *                CVL FUNCS & DEFS                *
  **************************************************/
-// function getAccountingOracleContractCVL() returns address {
-//     return currentContract;
+// function saneTimeConfig() {
+  
 // }
 
-// function getConsensusContractCVL() returns address {
-//     return ConsensusContract;
-// }
-
-// // this function if required to be TRUE, ensures correct contract linking
-// function contractAddressesLinked() returns bool {
-//     env e0;
-//     address consensusContractAddress = getConsensusContract(e0);
-//     address accountingOracleAddress = LegacyOracleContract.getAccountingOracle(e0);
-    
-//     return  (consensusContractAddress == ConsensusContract) &&
-//             (accountingOracleAddress == AccountingOracleContract);
-// }
-
-// definition UINT64_MAX() returns uint64 = 0xFFFFFFFFFFFFFFFF;
-// definition UINT256_MAX() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+definition UINT64_MAX() returns uint64 = 0xFFFFFFFFFFFFFFFF;
+definition UINT256_MAX() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
 // definition DEFAULT_ADMIN_ROLE() returns bytes32 = 0x00;
-// definition MANAGE_MEMBERS_AND_QUORUM_ROLE() returns bytes32 = 0x66a484cf1a3c6ef8dfd59d24824943d2853a29d96f34a01271efc55774452a51; //keccak256("MANAGE_MEMBERS_AND_QUORUM_ROLE");
-// definition DISABLE_CONSENSUS_ROLE() returns bytes32 = 0x10b016346186602d93fc7a27ace09ba944baf9453611b186d36acd3d3d667dc0; //keccak256("DISABLE_CONSENSUS_ROLE");
-// definition MANAGE_FRAME_CONFIG_ROLE() returns bytes32 = 0x921f40f434e049d23969cbe68d9cf3ac1013fbe8945da07963af6f3142de6afe; //keccak256("MANAGE_FRAME_CONFIG_ROLE");
-// definition MANAGE_FAST_LANE_CONFIG_ROLE() returns bytes32 = 0x4af6faa30fabb2c4d8d567d06168f9be8adb583156c1ecb424b4832a7e4d6717; //keccak256("MANAGE_FAST_LANE_CONFIG_ROLE");
-// definition MANAGE_REPORT_PROCESSOR_ROLE() returns bytes32 = 0xc5219a8d2d0107a57aad00b22081326d173df87bad251126f070df2659770c3e; //keccak256("MANAGE_REPORT_PROCESSOR_ROLE");
+definition MANAGE_MEMBERS_AND_QUORUM_ROLE() returns bytes32 = 0x66a484cf1a3c6ef8dfd59d24824943d2853a29d96f34a01271efc55774452a51; //keccak256("MANAGE_MEMBERS_AND_QUORUM_ROLE");
+definition DISABLE_CONSENSUS_ROLE() returns bytes32 = 0x10b016346186602d93fc7a27ace09ba944baf9453611b186d36acd3d3d667dc0; //keccak256("DISABLE_CONSENSUS_ROLE");
+definition MANAGE_FRAME_CONFIG_ROLE() returns bytes32 = 0x921f40f434e049d23969cbe68d9cf3ac1013fbe8945da07963af6f3142de6afe; //keccak256("MANAGE_FRAME_CONFIG_ROLE");
+definition MANAGE_FAST_LANE_CONFIG_ROLE() returns bytes32 = 0x4af6faa30fabb2c4d8d567d06168f9be8adb583156c1ecb424b4832a7e4d6717; //keccak256("MANAGE_FAST_LANE_CONFIG_ROLE");
+definition MANAGE_REPORT_PROCESSOR_ROLE() returns bytes32 = 0xc5219a8d2d0107a57aad00b22081326d173df87bad251126f070df2659770c3e; //keccak256("MANAGE_REPORT_PROCESSOR_ROLE");
 // definition MANAGE_CONSENSUS_CONTRACT_ROLE() returns bytes32 = 0x04a0afbbd09d5ad397fc858789da4f8edd59f5ca5098d70faa490babee945c3b; //keccak256("MANAGE_CONSENSUS_CONTRACT_ROLE");
 // definition MANAGE_CONSENSUS_VERSION_ROLE() returns bytes32 = 0xc31b1e4b732c5173dc51d519dfa432bad95550ecc4b0f9a61c2a558a2a8e4341; //keccak256("MANAGE_CONSENSUS_VERSION_ROLE");
 // definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd477fa3e328cf706640b0f68b1a285c5990da; //keccak256("SUBMIT_DATA_ROLE");
+definition UNREACHABLE_QUORUM() returns uint256 = max_uint256; // type(uint256).max
+definition ZERO_HASH() returns bytes32 = 0; // bytes32(0)
 
 
 // rule ideas for HashConsensus (without inheritance):
 // ------------------------------------------------------------------------------------------
 //  external non-view functions: setFrameConfig(), setFastLaneLengthSlots(), addMember(), removeMember(),
 //                               setQuorum(), disableConsensus(), setReportProcessor(), submitReport()
+//  external view functions    : getChainConfig(), getFrameConfig(), getCurrentFrame(),
+//                               getIsMember(), getIsFastLaneMember(), getMembers(), getFastLaneMembers(),
+//                               getQuorum(), getConsensusState(), getReportVariants(), getConsensusStateForMember()
 //  definitions                : MANAGE_MEMBERS_AND_QUORUM_ROLE
 //                               DISABLE_CONSENSUS_ROLE, MANAGE_FRAME_CONFIG_ROLE,
 //                               MANAGE_FAST_LANE_CONFIG_ROLE, MANAGE_REPORT_PROCESSOR_ROLE,
@@ -114,7 +49,157 @@ methods {
 //                               _reportingState, _quorum, _reportVariants, _reportVariantsLength,
 //                               _reportProcessor
 
-//  1. Only ACL roles can call the functions: 
+//  1. All the external view functions cannot revert under any circumstance,
+//     especially getCurrentFrame() as it is used by LegacyOracle and BaseOracle
+//  2. Only ACL roles can call the external non-view functions:
+//      setFrameConfig() - MANAGE_FRAME_CONFIG_ROLE 
+//      setFastLaneLengthSlots() - MANAGE_FAST_LANE_CONFIG_ROLE
+//      addMember() - MANAGE_MEMBERS_AND_QUORUM_ROLE
+//      removeMember() - MANAGE_MEMBERS_AND_QUORUM_ROLE
+//      setQuorum() - MANAGE_MEMBERS_AND_QUORUM_ROLE, DISABLE_CONSENSUS_ROLE (only if disabling it)
+//      disableConsensus() - MANAGE_MEMBERS_AND_QUORUM_ROLE, DISABLE_CONSENSUS_ROLE
+//      setReportProcessor() - MANAGE_REPORT_PROCESSOR_ROLE
+//      submitReport() - only if getIsMember(msg.sender) == true
+//  3. setFrameConfig() updates epochsPerFrame in a way that either keeps the current reference slot
+//     the same or increases it by at least the minimum of old and new frame sizes
+//  4. setFastLaneLengthSlots() works as expected, setting it to zero disables the fast lane subset
+//  5. addMember() - cannot add an existing member
+//  6. addMember() - cannot add an empty address as a member
+//  7, addMember() - adding a member does not remove any other member
+//  8. addMember() - adding a member increases the total members by 1
+//  9. removeMember() - cannot remove a member that does not exists - reverts
+// 10. removeMember() - removing a member does not remove any other member
+// 11. removeMember() - removing a member decreases the total members by 1
+// 12. setQuorum() - acts as expectedly, verified by getQuorum()
+// 13. disableConsensus() - acts as expectedly, verified by getQuorum()
+// 14. setReportProcessor() - cannot set an empty address
+// 15. submitReport() - slot > max_uint64 => revert
+// 16. submitReport() - slot < currentRefSlot => revert
+// 17. submitReport() - slot <= lastProcessingRefSlot => revert
+// 18. submitReport() - reportHash == 0 => revert
+// 19. submitReport() - consensusVersion != getConsensusVersion() => revert
+// 20. submitReport() - after submitting a report, processingDeadlineTime > refSlot as returned by getConsensusReport()
+
+
+//  1. All the external view functions cannot revert under any circumstance,
+//     especially getCurrentFrame() as it is used by LegacyOracle and BaseOracle
+// Status: Fail
+// https://vaas-stg.certora.com/output/80942/985192ce8baf4725a8b6d29c1d0dc2af/?anonymousKey=f2574e5803ece9f5b8d734ecd68b1d9ac714c1d5
+rule viewFunctionsDoNotRevert(method f)
+    filtered { f -> f.isView }
+{
+    env e; calldataarg args;
+
+    require e.msg.value == 0; // view functions revert is you send eth
+
+    f@withrevert(e,args);
+    assert !lastReverted;
+}
+
+/// POTENTIAL ISSUE: SLOTS_PER_EPOCH, SECONDS_PER_SLOT, GENESIS_TIME can all be set to zero at constructor
+/// if the above are zero => getCurrentFrame() will revert
+// focus only on getCurrentFrame() and verify it does not revert
+// Status: Timeout! (without simplification)
+// https://vaas-stg.certora.com/output/80942/899cc6d765c7467c9e2af018ccca2ca5/?anonymousKey=ca1152175e66f3e61e7d2bffaded5098c62c3bbe
+// Status: Pass (with simplification)
+// https://vaas-stg.certora.com/output/80942/01ca967565ee4fc58101e7037160aaa1/?anonymousKey=fd302ac936356aa223eb706d466eeae5de7a155f
+rule getCurrentFrameDoesNotRevert() {
+    env e; calldataarg args;
+
+    require e.msg.value == 0;                       // view functions revert is you send eth
+    require e.block.timestamp > 1672531200;         // 01.01.2023 00:00:00
+    require e.block.timestamp < 2524608000;         // 01.01.2050 00:00:00
+
+    uint256 slotsPerEpoch; uint256 secondsPerSlot; uint256 genesisTime;
+    slotsPerEpoch, secondsPerSlot, genesisTime = getChainConfig(e);
+
+    require slotsPerEpoch > 0;                      // must be required at constructor
+    require slotsPerEpoch == 1;                     // simplification
+    require secondsPerSlot > 0;                     // must be required at constructor
+    require secondsPerSlot == 1;                    // simplification
+    require genesisTime < e.block.timestamp;        // must be required at constructor
+
+    uint256 initialEpoch; uint256 epochsPerFrame; uint256 fastLaneLengthSlots;
+    initialEpoch, epochsPerFrame, fastLaneLengthSlots = getFrameConfig(e);
+    require epochsPerFrame > 0;                     // constructor already ensures this
+    require epochsPerFrame < 31536000;              // assuming less than 1 year per frame
+
+    // assuming correct configuration of the frame, otherwise revert
+    require initialEpoch < (e.block.timestamp - genesisTime) / (secondsPerSlot * slotsPerEpoch);
+    require initialEpoch > 0;                       // must be required at constructor
+    // If initialEpoch == 0: revert! (line 545 in HashConsensus.sol), see run below:
+    // https://vaas-stg.certora.com/output/80942/8b0204bf08e141d88d92e71d7e2bc653/?anonymousKey=f687713b6e337e389628a70e970ec0dc47477838
+
+    // _computeSlotAtTimestamp:    (timestamp - GENESIS_TIME) / SECONDS_PER_SLOT
+    // _computeEpochAtSlot:        slot / SLOTS_PER_EPOCH;
+
+    getCurrentFrame@withrevert(e,args);
+    assert !lastReverted;
+}
+
+//  2. Only ACL roles can call the external non-view functions:
+//      setFrameConfig() - MANAGE_FRAME_CONFIG_ROLE 
+//      setFastLaneLengthSlots() - MANAGE_FAST_LANE_CONFIG_ROLE
+//      addMember() - MANAGE_MEMBERS_AND_QUORUM_ROLE
+//      removeMember() - MANAGE_MEMBERS_AND_QUORUM_ROLE
+//      setQuorum() - MANAGE_MEMBERS_AND_QUORUM_ROLE, DISABLE_CONSENSUS_ROLE (only if disabling it)
+//      disableConsensus() - MANAGE_MEMBERS_AND_QUORUM_ROLE, DISABLE_CONSENSUS_ROLE
+//      setReportProcessor() - MANAGE_REPORT_PROCESSOR_ROLE
+//      submitReport() - only if getIsMember(msg.sender) == true
+// Status: Fail (partially) because some functions can be called by more than one role
+// The verification will be done per function in separate rules
+// https://vaas-stg.certora.com/output/80942/b0aebafd7b554b3882fe688da319b9ba/?anonymousKey=4361d0b5bbd895ea4d92beeb16e0deda7cd095c7
+rule onlyAllowedRoleCanCallMethod(method f) 
+    filtered { f -> !f.isView }
+{
+    env e; calldataarg args;
+
+    bytes32 roleR;
+    bool hasRoleR = hasRole(e,roleR,e.msg.sender);
+    require hasRoleR == false;
+
+    bytes32 roleRAdmin = getRoleAdmin(e,roleR);
+    bool isAdmin = hasRole(e,roleRAdmin,e.msg.sender);
+    require isAdmin == false;
+
+    bool isMember = getIsMember(e,e.msg.sender);
+    require isMember == false;
+
+    f@withrevert(e,args);
+    bool callReverted = lastReverted;
+
+    assert ((f.selector == setFrameConfig(uint256,uint256).selector) &&
+            roleR == MANAGE_FRAME_CONFIG_ROLE()) => lastReverted;
+    
+    assert ((f.selector == setFastLaneLengthSlots(uint256).selector) &&
+            roleR == MANAGE_FAST_LANE_CONFIG_ROLE()) => lastReverted;
+    
+    assert ((f.selector == addMember(address,uint256).selector) &&
+            roleR == MANAGE_MEMBERS_AND_QUORUM_ROLE()) => lastReverted;
+    
+    assert ((f.selector == removeMember(address,uint256).selector) &&
+            roleR == MANAGE_MEMBERS_AND_QUORUM_ROLE()) => lastReverted;
+
+    assert ((f.selector == setQuorum(uint256).selector) &&
+            roleR == MANAGE_MEMBERS_AND_QUORUM_ROLE()) => lastReverted;
+    
+    assert ((f.selector == disableConsensus().selector) &&
+            roleR == MANAGE_MEMBERS_AND_QUORUM_ROLE()) => lastReverted;
+    
+    assert ((f.selector == setReportProcessor(address).selector) &&
+            roleR == MANAGE_REPORT_PROCESSOR_ROLE()) => lastReverted;
+    
+    assert (f.selector == submitReport(uint256,bytes32,uint256).selector) => lastReverted;
+
+    //assert (!hasRoleRBefore && hasRoleRAfter) => (isAdmin); 
+}
+
+
+
+
+
+
+
 
 
 // // rule ideas for AccountingOracle (without inheritance):
