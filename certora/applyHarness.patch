@@ -1,5 +1,5 @@
 --- ../contracts/0.8.9/StakingRouter.sol	2023-03-26 11:18:15.138581500 +0300
-+++ 	2023-03-26 11:36:31.079961400 +0300
++++ 	2023-03-27 16:26:42.762364500 +0300
 @@ -4,18 +4,18 @@
  /* See contracts/COMPILERS.md */
  pragma solidity 0.8.9;
@@ -114,7 +114,7 @@
  
      /// @dev computes the deposit_root_hash required by official Beacon Deposit contract
 --- ../contracts/0.4.24/nos/NodeOperatorsRegistry.sol	2023-03-26 11:18:13.568632600 +0300
-+++ 	2023-03-26 11:36:31.079961400 +0300
++++ 	2023-03-28 20:57:35.530090000 +0300
 @@ -9,13 +9,13 @@
  import {SafeMath64} from "@aragon/os/contracts/lib/math/SafeMath64.sol";
  import {UnstructuredStorage} from "@aragon/os/contracts/common/UnstructuredStorage.sol";
@@ -130,7 +130,7 @@
 +import {MinFirstAllocationStrategy} from "../../contracts/common/lib/MinFirstAllocationStrategy.sol";
 +import {ILidoLocator} from "../../contracts/common/interfaces/ILidoLocator.sol";
 +import {IBurner} from "../../contracts/common/interfaces/IBurner.sol";
-+import {SigningKeys} from "../../contracts/0.4.24/lib/SigningKeys.sol";
++import {SigningKeys} from "./SigningKeys.sol";
 +import {Packed64x4} from "../../contracts/0.4.24/lib/Packed64x4.sol";
 +import {Versioned} from "../../contracts/0.4.24/utils/Versioned.sol";
  
@@ -213,3 +213,51 @@
          view
          returns (
              bool isTargetLimitActive,
+--- ../contracts/0.4.24/lib/SigningKeys.sol	2023-03-28 20:56:28.428258200 +0300
++++ 	2023-03-28 20:57:12.759268000 +0300
+@@ -114,21 +114,41 @@
+             if (i < _totalKeysCount) {
+                 lastOffset = _position.getKeyOffset(_nodeOperatorId, _totalKeysCount - 1);
+                 // move last key to deleted key index
+-                for (j = 0; j < 5;) {
++                // Certora : unroll loop
++                //for (j = 0; j < 5;) {
++                    j = 0;
+                     assembly {
+                         sstore(add(curOffset, j), sload(add(lastOffset, j)))
+                         j := add(j, 1)
++                        sstore(add(curOffset, j), sload(add(lastOffset, j)))
++                        j := add(j, 1)
++                        sstore(add(curOffset, j), sload(add(lastOffset, j)))
++                        j := add(j, 1)
++                        sstore(add(curOffset, j), sload(add(lastOffset, j)))
++                        j := add(j, 1)
++                        sstore(add(curOffset, j), sload(add(lastOffset, j)))
++                        j := add(j, 1)
+                     }
+-                }
++                //}
+                 curOffset = lastOffset;
+             }
+             // clear storage
+-            for (j = 0; j < 5;) {
++            // Certora : unroll loop
++            //for (j = 0; j < 5;) {
++                j = 0;
+                 assembly {
+                     sstore(add(curOffset, j), 0)
+                     j := add(j, 1)
++                    sstore(add(curOffset, j), 0)
++                    j := add(j, 1)
++                    sstore(add(curOffset, j), 0)
++                    j := add(j, 1)
++                    sstore(add(curOffset, j), 0)
++                    j := add(j, 1)
++                    sstore(add(curOffset, j), 0)
++                    j := add(j, 1)
+                 }
+-            }
++            //}
+             assembly {
+                 _totalKeysCount := sub(_totalKeysCount, 1)
+                 i := sub(i, 1)

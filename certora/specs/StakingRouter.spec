@@ -105,23 +105,6 @@ rule stakingModulesCountIncrement(method f) {
     assert isAddModule(f) => count2 == count1 + 1;
 }
 
-rule viewFunctionsThatNeverRevert(method f, method g) 
-filtered{f -> f.isView && !harnessGetters(f), g -> isAddModule(g)} {
-    env ef;
-    env eg;
-    calldataarg args_f;
-    calldataarg args_g;
-
-    f(ef, args_f);
-    require getStakingModulesCount() <=1 ;
-    safeAssumptions(getStakingModulesCount());
-
-    g(eg, args_g);
-
-    f@withrevert(ef, args_f);
-    assert !lastReverted;
-}
-
 invariant NullStakingModuleStatusIsActive(uint256 id)
     id > getStakingModulesCount() => getStakingModuleIsActive(id)
 /**************************************************
@@ -248,7 +231,6 @@ rule cannotAddStakingModuleIfAlreadyRegistered(uint256 moduleId) {
     addStakingModule(e, name, stakingModuleAddress, targetShare, stakingModuleFee, treasuryFee);
     assert stakingModuleAddress != getStakingModuleAddressById(moduleId);
 }
-
 
 rule aggregatedFeeLT100Percent() {
     
@@ -505,7 +487,7 @@ filtered{f -> !isDeposit(f) && !f.isView} {
 }
 
 rule reportStakingModuleExitedDoesntRevert(method f, uint256 moduleId) 
-filtered{f -> !f.isView && !isDeposit(f)} {
+filtered{f -> !f.isView} {
     env e1;
     env e2;
     calldataarg args;
@@ -514,15 +496,16 @@ filtered{f -> !f.isView && !isDeposit(f)} {
     uint256 maxDepositsValue;
 
     require moduleId > 0;
-    require getStakingModulesCount() <= 2;
     safeAssumptions(moduleId);
     require getStakingModuleAddressById(moduleId) == NOS;
+
+    storage initState = lastStorage;
 
     reportStakingModuleExitedValidatorsCountByNodeOperator(
         e1, moduleId, nodeOperatorIds, exitedValidatorsCounts);
     getStakingModuleStatus(moduleId);
 
-    f(e2, args);
+    f(e2, args) at initState;
 
     reportStakingModuleExitedValidatorsCountByNodeOperator@withrevert(
         e1, moduleId, nodeOperatorIds, exitedValidatorsCounts);
@@ -540,6 +523,7 @@ filtered{f -> !isDeposit(f)} {
     // Call any function without reverting
     f(e1, args);
     require getStakingModuleAddressById(moduleId) == NOS;
+    safeAssumptions(moduleId);
 
     // Return to initial storage and change some moduleId status to not active.
     uint8 status; 

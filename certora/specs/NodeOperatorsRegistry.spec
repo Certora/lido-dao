@@ -1,5 +1,7 @@
 import "./NodeRegistryMethods.spec"
 
+using NodeOperatorsRegistryHarness as nos
+
 methods {
     getNodeOperatorsCount() returns (uint256) envfree
     getActiveNodeOperatorsCount() returns (uint256) envfree
@@ -8,7 +10,7 @@ methods {
     getRewardsDistributionShare(uint256, uint256) returns (uint256, uint256)
     getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
     getStuckPenaltyDelay() returns(uint256) envfree
-    getNodeOperatorSummary(uint256) envfree
+    nos.getNodeOperatorSummary(uint256) envfree
 
     /// Node operator registry summary of node operators
     getSummaryTotalExitedValidators() returns (uint256) envfree
@@ -97,6 +99,51 @@ function reasonableKeysAssumptions(uint256 nodeOperatorId) {
     require getSummaryMaxValidators() <= UINT32_MAX();
     require getSummaryTotalDepositedValidators() <= UINT32_MAX();
     require getSummaryTotalExitedValidators() <= UINT32_MAX();
+    require getNodeOperatorTargetStats_target(nodeOperatorId) <= UINT64_MAX();
+}
+
+function keysInvariants(uint256 nodeOperatorId) returns bool {
+    bool limitActive;
+    uint256 target;
+    uint256 stuck;
+    uint256 refunded;
+    uint256 stuckPenaltyEnd;
+    uint256 exited;
+    uint256 deposited;
+    uint256 depositable;
+    
+    limitActive, target, stuck, refunded, stuckPenaltyEnd,
+    exited, deposited, depositable = nos.getNodeOperatorSummary(nodeOperatorId);
+
+    uint256 maxKeys = depositable + deposited;
+    uint256 vetted = getNodeOperatorSigningStats_vetted(nodeOperatorId);
+    uint256 total = getNodeOperatorSigningStats_total(nodeOperatorId);
+    uint256 count = getNodeOperatorsCount();
+
+    bool Invariant = 
+        exited <= deposited &&
+        deposited <= vetted &&
+        vetted <= total &&
+        maxKeys <= vetted &&
+        deposited <= maxKeys &&
+        target + exited <= max_uint;
+
+    bool unregisteredOperatorKeys = 
+        nodeOperatorId >= count => total == 0; 
+
+    return unregisteredOperatorKeys && Invariant;
+}
+
+invariant KeysCount(uint256 nodeOperatorId) keysInvariants(nodeOperatorId)
+{
+    preserved{
+        reasonableKeysAssumptions(nodeOperatorId);
+        requireInvariant NodeOperatorsCountLEMAX();
+        requireInvariant ActiveOperatorsLECount();
+        requireInvariant SumOfActiveOperatorsEqualsActiveCount();
+        requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
+    }
+
 }
 
 /**************************************************
@@ -193,12 +240,7 @@ invariant DepositedKeysLEVettedKeys(uint256 nodeOperatorId)
     getNodeOperatorSigningStats_vetted(nodeOperatorId)
     {
         preserved{
-            requireInvariant NodeOperatorsCountLEMAX();
-            requireInvariant ExitedKeysLEDepositedKeys(nodeOperatorId);
-            requireInvariant VettedKeysLETotalKeys(nodeOperatorId);
-            requireInvariant VettedKeysGEMaxValidators(nodeOperatorId);
-            requireInvariant DepositedKeysLEMaxValidators(nodeOperatorId);
-            reasonableKeysAssumptions(nodeOperatorId);
+            safeAssumptions_NOS(nodeOperatorId);
         }
 
         preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
@@ -238,6 +280,12 @@ invariant VettedKeysGEMaxValidators(uint256 nodeOperatorId)
     {
         preserved {
             safeAssumptions_NOS(nodeOperatorId);
+        }
+        preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
+        {
+            safeAssumptions_NOS(nodeOperatorId);
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
         }
     }
 
@@ -288,12 +336,13 @@ invariant KeysOfUnregisteredNodeAreZero(uint256 nodeOperatorId)
 /// Required for preventing unexpected reverts.
 invariant TargetPlusExitedDoesntOverflow(uint256 nodeOperatorId)
     getNodeOperatorSigningStats_exited(nodeOperatorId) +
-    getNodeOperatorTargetStats_target(nodeOperatorId) <= UINT64_MAX()
+    getNodeOperatorTargetStats_target(nodeOperatorId) <= max_uint
     {
         preserved{
             requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
             requireInvariant ActiveOperatorsLECount();
             requireInvariant NodeOperatorsCountLEMAX();
+            reasonableKeysAssumptions(nodeOperatorId);
         }
         preserved invalidateReadyToDepositKeysRange(uint256 indexFrom, uint256 indexTo) with (env e)
         {
@@ -894,7 +943,7 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     assert depositsCount <= depositable => !lastReverted;
 }
 
-/// Verified that once a node operator is deactivated, it is left with no available keys.
+/// Verifies that once a node operator is deactivated, it is left with no available keys.
 rule afterDeactivateNoDepositableKeys(uint256 nodeOperatorId) {
     env e;
     safeAssumptions_NOS(nodeOperatorId);
@@ -955,7 +1004,8 @@ filtered{f -> !f.isView} {
     f(e, args);
     bool penalized_after = isOperatorPenalized(e, nodeOperatorId);
 
-    assert penalized_before == penalized_after;
+    assert f.selector == clearNodeOperatorPenalty(uint256).selector =>
+        penalized_before == penalized_after;
 }
 
 /// Checks that the penalty of nodeOperatorId is cleared.

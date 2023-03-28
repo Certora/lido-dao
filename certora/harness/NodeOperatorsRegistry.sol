@@ -11,6 +11,7 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
     using Packed64x4 for Packed64x4.Packed;
 
     uint256 public test_nodeId;
+    uint256[] public activeKeyCountsAfterAllocation;
 
     /// @dev DEPRECATED use addSigningKeys instead
     function addSigningKeysOperatorBH(uint256, uint256, bytes, bytes) external {}
@@ -34,6 +35,23 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
 
     function _canPerformNoParams(address sender, bytes32 ) private view returns (bool) {
         return sender != 0;
+    }
+
+    function loadAllocatedSigningKeys(
+        uint256 _keysCountToLoad) public returns (uint256, uint256) {
+        uint256 count = getNodeOperatorsCount();
+        uint256[] memory nodeOperatorIds = new uint256[](count);
+        uint256[] memory _activeKeyCountsAfterAllocation = new uint256[](count);
+        //require activeKeyCountsAfterAllocation.length == count;
+        for (uint256 i; i < count; ++i) {
+            uint64 exited = getNodeOperatorSigningStats_exited(i);
+            uint64 maxKeys = getNodeOperatorTargetStats_max(i);
+            nodeOperatorIds[i] = i;
+            require(activeKeyCountsAfterAllocation[i] <= uint256(maxKeys-exited));
+            _activeKeyCountsAfterAllocation[i] = activeKeyCountsAfterAllocation[i];
+        }
+        (bytes memory pubkeys, bytes memory signatures) = _loadAllocatedSigningKeys(_keysCountToLoad,nodeOperatorIds,_activeKeyCountsAfterAllocation);
+        return (pubkeys.length, signatures.length);
     }
 
     function updateExitedValidatorsCount(uint256 nodeOperatorId, uint64 validatorsCount) external {
@@ -99,17 +117,17 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
 
     function getNodeOperatorSigningStats_exited(uint256 _nodeOperatorId) public view returns (uint64) {
         Packed64x4.Packed memory signingKeysStats = _loadOperatorSigningKeysStats(_nodeOperatorId);
-        return signingKeysStats.get(EXITED_KEYS_COUNT_OFFSET);
+        return signingKeysStats.get(TOTAL_EXITED_KEYS_COUNT_OFFSET);
     }
 
     function getNodeOperatorSigningStats_vetted(uint256 _nodeOperatorId) public view returns (uint64) {
         Packed64x4.Packed memory signingKeysStats = _loadOperatorSigningKeysStats(_nodeOperatorId);
-        return signingKeysStats.get(VETTED_KEYS_COUNT_OFFSET);
+        return signingKeysStats.get(TOTAL_VETTED_KEYS_COUNT_OFFSET);
     }
 
     function getNodeOperatorSigningStats_deposited(uint256 _nodeOperatorId) public view returns (uint64) {
        Packed64x4.Packed memory signingKeysStats = _loadOperatorSigningKeysStats(_nodeOperatorId);
-       return signingKeysStats.get(DEPOSITED_KEYS_COUNT_OFFSET);
+       return signingKeysStats.get(TOTAL_DEPOSITED_KEYS_COUNT_OFFSET);
     }
 
     function getNodeOperatorSigningStats_total(uint256 _nodeOperatorId) public view returns (uint64) {
