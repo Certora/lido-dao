@@ -63,6 +63,7 @@ definition ZERO_HASH() returns bytes32 = 0; // bytes32(0)
 //  3. setFrameConfig() updates epochsPerFrame in a way that either keeps the current reference slot
 //     the same or increases it by at least the minimum of old and new frame sizes
 //  4. setFastLaneLengthSlots() works as expected, setting it to zero disables the fast lane subset
+//     verify with getFrameConfig() and check that fastLaneLengthSlots < frameConfig.epochsPerFrame * SLOTS_PER_EPOCH
 //  5. addMember() - cannot add an existing member
 //  6. addMember() - cannot add an empty address as a member
 //  7, addMember() - adding a member does not remove any other member
@@ -78,7 +79,13 @@ definition ZERO_HASH() returns bytes32 = 0; // bytes32(0)
 // 17. submitReport() - slot <= lastProcessingRefSlot => revert
 // 18. submitReport() - reportHash == 0 => revert
 // 19. submitReport() - consensusVersion != getConsensusVersion() => revert
-// 20. submitReport() - after submitting a report, processingDeadlineTime > refSlot as returned by getConsensusReport()
+// 20. submitReport() - verify that _computeTimestampAtSlot(frame.reportProcessingDeadlineSlot) > TimeOf(frame.refSlot)
+//                             that the deadline is explicitly == TimeOf(refslot+FrameSize)
+// 21. submitReport() - revert if same oracle reports the same slot+hash (cannot double vote for same report)
+// 22. submitReport() - single call to submit report increases only one support for one variant
+//                      sum of supports of all variants < total members,
+//                      because if Oracle member changes its mind, its previous support is removed
+// 23. submitReport() - all variants should be removed when new frame starts
 
 
 //  1. All the external view functions cannot revert under any circumstance,
@@ -194,6 +201,66 @@ rule onlyAllowedRoleCanCallMethod(method f)
     //assert (!hasRoleRBefore && hasRoleRAfter) => (isAdmin); 
 }
 
+
+// 3a. setFrameConfig() ACL check
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/af309b535e244a3ca748f0b80f4f301c/?anonymousKey=a0280547905d76770006b8415c1340d089a21f75
+rule setFrameConfigACL() {
+    env e; calldataarg args;
+
+    bytes32 roleR = MANAGE_FRAME_CONFIG_ROLE();
+    bool hasRoleR = hasRole(e,roleR,e.msg.sender);
+
+    bytes32 roleRAdmin = getRoleAdmin(e,roleR);
+    bool isAdmin = hasRole(e,roleRAdmin,e.msg.sender);
+
+    uint256 epochsPerFrame; uint256 fastLaneLengthSlots;
+    setFrameConfig@withrevert(e, epochsPerFrame, fastLaneLengthSlots);
+    bool callReverted = lastReverted;
+
+    assert (!hasRoleR && !isAdmin) => callReverted;
+}
+
+//  3. setFrameConfig() updates epochsPerFrame in a way that either keeps the current reference slot
+//     the same or increases it by at least the minimum of old and new frame sizes
+// Status: Fails (need to work on)
+// https://vaas-stg.certora.com/output/80942/b8aa709fcefc4b2bb039c2513f17ddd6/?anonymousKey=a19462454ae831311d10d01fdd3a7f4dbe331812
+rule setFrameConfigCorrectness() {
+    env e; calldataarg args;
+
+    // Get state before
+    uint256 refSlot1; uint256 reportProcessingDeadlineSlot1;
+    refSlot1, reportProcessingDeadlineSlot1 = getCurrentFrame(e);
+    
+    uint256 initialEpoch1; uint256 epochsPerFrame1; uint256 fastLaneLengthSlots1;
+    initialEpoch1, epochsPerFrame1, fastLaneLengthSlots1 = getFrameConfig(e);
+
+    uint256 epochsPerFrame; uint256 fastLaneLengthSlots;
+    setFrameConfig(e, epochsPerFrame, fastLaneLengthSlots);
+
+    // Get state after
+    uint256 refSlot2; uint256 reportProcessingDeadlineSlot2;
+    refSlot2, reportProcessingDeadlineSlot2 = getCurrentFrame(e);
+
+    uint256 initialEpoch2; uint256 epochsPerFrame2; uint256 fastLaneLengthSlots2;
+    initialEpoch2, epochsPerFrame2, fastLaneLengthSlots2 = getFrameConfig(e);
+
+    // verify getter returns updated values
+    assert epochsPerFrame == epochsPerFrame2;
+    assert fastLaneLengthSlots == fastLaneLengthSlots2;
+
+    // verify the comment of the function:
+    // keeps the current reference slot the same or
+    // increases it by at least the minimum of old and new frame sizes
+    uint256 slotsPerEpoch; uint256 secondsPerSlot; uint256 genesisTime;
+    slotsPerEpoch, secondsPerSlot, genesisTime = getChainConfig(e);
+
+    assert (epochsPerFrame2 >= epochsPerFrame1) =>
+                (refSlot1 == refSlot2) || (refSlot2 >= refSlot1 + epochsPerFrame1 * slotsPerEpoch);
+    
+    assert (epochsPerFrame2 <= epochsPerFrame1) =>
+                (refSlot1 == refSlot2) || (refSlot2 >= refSlot1 + epochsPerFrame2 * slotsPerEpoch);
+}
 
 
 
