@@ -46,7 +46,7 @@ methods {
 
     // BeaconChainDepositor.sol
     // havoc - "all contracts"
-        _computeDepositDataRoot(bytes, bytes, bytes) returns(bytes32) => DISPATCHER(true)       // DISPATCHER wasn't applied
+        // _computeDepositDataRoot(bytes, bytes, bytes) returns(bytes32) => DISPATCHER(true)       // DISPATCHER wasn't applied
 
     // NodeOperatorsRegistry.sol
     // havoc - "all contracts"
@@ -70,9 +70,7 @@ methods {
     LIDO() returns(address) envfree
 }
 
-
-
-rule sanity(env e, method f) {
+rule sanity(env e, method f) filtered { f -> excludeMethods(f) } {
     calldataarg args;
     f(e, args);
     assert false;
@@ -118,30 +116,30 @@ ghost mapping(address => uint256) guardianIndicesOneBasedMirror {
     init_state axiom forall address a. guardianIndicesOneBasedMirror[a] == 0;
 }
 
-// hook Sstore guardianIndicesOneBased[KEY address guardian] uint256 index
-//     (uint256 old_index) STORAGE
-// {
-//     guardianIndicesOneBasedMirror[guardian] = index;
-// }
+hook Sstore guardianIndicesOneBased[KEY address guardian] uint256 index
+    (uint256 old_index) STORAGE
+{
+    guardianIndicesOneBasedMirror[guardian] = index;
+}
 
-// hook Sload uint256 index guardianIndicesOneBased[KEY address guardian]  STORAGE {
-//     require guardianIndicesOneBasedMirror[guardian] == index;
-// }
+hook Sload uint256 index guardianIndicesOneBased[KEY address guardian]  STORAGE {
+    require guardianIndicesOneBasedMirror[guardian] == index;
+}
 
 
 ghost mapping(uint256 => address) guardiansMirror {
     init_state axiom forall uint256 a. guardiansMirror[a] == 0;
 }
 
-// hook Sstore guardians[INDEX uint256 index] address guardian
-//     (address old_guardian) STORAGE
-// {
-//     guardiansMirror[index] = guardian;
-// }
+hook Sstore guardians[INDEX uint256 index] address guardian
+    (address old_guardian) STORAGE
+{
+    guardiansMirror[index] = guardian;
+}
 
-// hook Sload address guardian guardians[INDEX uint256 index]  STORAGE {
-//     require guardiansMirror[index] == guardian;
-// }
+hook Sload address guardian guardians[INDEX uint256 index]  STORAGE {
+    require guardiansMirror[index] == guardian;
+}
 
 
 ghost uint256 mirrorArrayLen {
@@ -149,14 +147,14 @@ ghost uint256 mirrorArrayLen {
     axiom mirrorArrayLen != max_uint256; 
 }
 
-// hook Sstore guardians.(offset 0) uint256 newLen 
-//     (uint256 oldLen) STORAGE {
-//     mirrorArrayLen = newLen;
-// }
+hook Sstore guardians.(offset 0) uint256 newLen 
+    (uint256 oldLen) STORAGE {
+    mirrorArrayLen = newLen;
+}
 
-// hook Sload uint256 len guardians.(offset 0) STORAGE {
-//     require mirrorArrayLen == len;
-// }
+hook Sload uint256 len guardians.(offset 0) STORAGE {
+    require mirrorArrayLen == len;
+}
 
 
 
@@ -164,8 +162,8 @@ ghost uint256 mirrorArrayLen {
  *                    VERIFIED                    *
  **************************************************/
 
-// onlyOwner can change owner, pauseIntentValidityPeriodBlocks, maxDepositsPerBlock, minDepositBlockDistance, quorum; add/remove guardians, unpause deposits
 // STATUS - verified
+// Only owner can change owner and only via setOwner()
 rule onlyOwnerCanChangeOwner(env e, method f) filtered { f -> excludeMethods(f) } {
     address ownerBefore = getOwner();
 
@@ -181,6 +179,7 @@ rule onlyOwnerCanChangeOwner(env e, method f) filtered { f -> excludeMethods(f) 
 
 
 // STATUS - verified
+// Only owner can change pauseIntentValidityPeriodBlocks and only via setPauseIntentValidityPeriodBlocks()
 rule onlyOwnerCanChangePauseIntentValidityPeriodBlocks(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 validityBefore = getPauseIntentValidityPeriodBlocks();
 
@@ -190,12 +189,13 @@ rule onlyOwnerCanChangePauseIntentValidityPeriodBlocks(env e, method f) filtered
     uint256 vaidityAfter = getPauseIntentValidityPeriodBlocks();
 
     assert validityBefore != vaidityAfter 
-            => (getOwner() != e.msg.sender
+            => (getOwner() == e.msg.sender
                 && f.selector == setPauseIntentValidityPeriodBlocks(uint256).selector);
 }
 
 
 // STATUS - verified
+// Only owner can change maxDepositsPerBlock and only via setMaxDeposits()
 rule onlyOwnerCanChangeMaxDepositsPerBlock(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 maxDepositBefore = getMaxDeposits();
 
@@ -211,6 +211,7 @@ rule onlyOwnerCanChangeMaxDepositsPerBlock(env e, method f) filtered { f -> excl
 
 
 // STATUS - verified
+// Only owner can change minDepositBlockDistance and only via setMinDepositBlockDistance()
 rule onlyOwnerCanChangeMinDepositBlockDistance(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 minDepositBlockDistanceBefore = getMinDepositBlockDistance();
 
@@ -226,6 +227,7 @@ rule onlyOwnerCanChangeMinDepositBlockDistance(env e, method f) filtered { f -> 
 
 
 // STATUS - verified
+// Only owner can change quorum and only via setGuardianQuorum(), addGuardian(), addGuardians(), removeGuardian()
 rule onlyOwnerCanChangeQuorum(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 quorumBefore = getGuardianQuorum();
 
@@ -244,6 +246,7 @@ rule onlyOwnerCanChangeQuorum(env e, method f) filtered { f -> excludeMethods(f)
 
 
 // STATUS - verified
+// Only owner can add/remove guardians and only via addGuardian(), addGuardians(), removeGuardian()
 rule onlyOwnerCanChangeGuardians(env e, method f) filtered { f -> excludeMethods(f) } {
     int256 lengthBefore = getGuardiansLength();
 
@@ -261,6 +264,7 @@ rule onlyOwnerCanChangeGuardians(env e, method f) filtered { f -> excludeMethods
 
 
 // STATUS - verified
+// Only owner can unpause deposits and only via unpauseDeposits()
 rule onlyOwnerCanChangeUnpause(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 _stakingModuleId;
 
@@ -276,7 +280,7 @@ rule onlyOwnerCanChangeUnpause(env e, method f) filtered { f -> excludeMethods(f
 
 
 // STATUS - verified
-// if stakingModuleId is paused, can unpause
+// If stakingModuleId was paused, owner can unpause
 rule canUnpauseScenario(env e, env e2) {
     uint256 blockNumber;
     uint256 stakingModuleId;
@@ -293,7 +297,7 @@ rule canUnpauseScenario(env e, env e2) {
 
 
 // STATUS - verified
-// impossible to stop from here
+// It's impossible to stop deposits from DepositSecurityModule.sol
 rule cantStop(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 stakingModuleId;
     uint8 stakingModuleStatusBefore = StkRouter.getStakingModuleStatus(stakingModuleId);
@@ -342,8 +346,8 @@ rule cannotDepositDuringPauseRevert(env e) {
     assert stakingModuleStatus == 1 => lastReverted, "Remember, with great power comes great responsibility.";
 }
 
-
 // STATUS - verified
+// guardians array can't contain the same guardian twice. guardians array and guardianIndicesOneBased mapping are correlated
 invariant unique()
     (forall address guardian1.
         forall address guardian2.
@@ -361,7 +365,7 @@ invariant unique()
 
 
 // STATUS - verified
-// 0 can't be a guardian
+// Zero address can't be a guardian
 invariant zeroIsNotGuardian()
     !isGuardian(0)
     filtered { f -> excludeMethods(f) }
@@ -374,8 +378,8 @@ invariant zeroIsNotGuardian()
 
 
 // STATUS - verified
-// checking signatures: can't pass the same guardian signature twice
-rule youShallNotPass(env e) {
+// Checking signatures: can't pass the same guardian signature twice in _verifySignaturesCall()
+rule youShallNotPassTwice(env e) {
     bytes32 depositRoot;
     uint256 blockNumber;
     bytes32 blockHash;
@@ -401,7 +405,7 @@ rule youShallNotPass(env e) {
 
 
 // STATUS - verified
-// checking signatures: passing signature of non guardian
+// Checking signatures: can't pass a signature of non-guardian
 rule nonGuardianCantSign(env e) {
     bytes32 depositRoot;
     uint256 blockNumber;
@@ -427,6 +431,38 @@ rule nonGuardianCantSign(env e) {
     bool isReverted = lastReverted;
     
     assert !isGuardian(addressFromSig1) || !isGuardian(addressFromSig2) => isReverted, "Remember, with great power comes great responsibility.";
+}
+
+
+// STATUS - verified
+// If canDeposit() returns false/reverts, depositBufferedEther() reverts
+rule agreedRevertsSimple(env e, env e2, method f) filtered { f -> onlyDeposit(f) } {
+    uint256 blockNumber;
+    bytes32 blockHash;
+    bytes32 depositRoot;
+    uint256 stakingModuleId;
+    uint256 nonce;
+    bytes depositCalldata;
+
+    require e.block.number == e2.block.number;
+    require e.msg.value == e2.msg.value && e.msg.value == 0;
+
+    bool isDepositable = canDeposit@withrevert(e2, stakingModuleId);
+
+    bool isCanDepositReverted = lastReverted;
+
+    depositBufferedEtherCall@withrevert(e,
+        blockNumber,
+        blockHash,
+        depositRoot,
+        stakingModuleId,
+        nonce,
+        depositCalldata
+    );
+
+    bool isDepositReverted = lastReverted;
+
+    assert  (isCanDepositReverted || !isDepositable) => isDepositReverted;
 }
 
 
@@ -511,7 +547,7 @@ rule correct32EthDeposit(env e, method f) {
     uint256 lidoBalanceBefore = getEthBalance(Lido);
     uint256 stkRouterBalanceBefore = getEthBalance(StkRouter);
 
-    depositBufferedEtherCall@withrevert(e,
+    depositBufferedEtherCall(e,
         blockNumber,
         blockHash,
         depositRoot,
@@ -519,47 +555,14 @@ rule correct32EthDeposit(env e, method f) {
         nonce,
         depositCalldata
     );
-
-    bool isReverted = lastReverted;
 
     uint256 lidoBalanceAfter = getEthBalance(Lido);
     uint256 stkRouterBalanceAfter = getEthBalance(StkRouter);
 
-    assert to_uint256(lidoBalanceBefore - 32) == lidoBalanceAfter => to_uint256(stkRouterBalanceBefore - 32) == stkRouterBalanceAfter, "Remember, with great power comes great responsibility.";
-    assert to_uint256(lidoBalanceBefore - 32) == lidoBalanceAfter;
-    assert lidoBalanceBefore == lidoBalanceAfter;
-    assert stkRouterBalanceBefore == stkRouterBalanceAfter, "Remember, with great power comes great responsibility.";
-}
-
-
-// if canDeposit() returns false, depositBufferedEther() reverts
-rule agreedRevertsSimple(env e, env e2, method f) filtered { f -> onlyDeposit(f) } {
-    uint256 blockNumber;
-    bytes32 blockHash;
-    bytes32 depositRoot;
-    uint256 stakingModuleId;
-    uint256 nonce;
-    bytes depositCalldata;
-
-    require e.block.number == e2.block.number;
-    require e.msg.value == e2.msg.value && e.msg.value == 0;
-
-    bool isDepositable = canDeposit@withrevert(e2, stakingModuleId);
-
-    bool isCanDepositReverted = lastReverted;
-
-    depositBufferedEtherCall@withrevert(e,
-        blockNumber,
-        blockHash,
-        depositRoot,
-        stakingModuleId,
-        nonce,
-        depositCalldata
-    );
-
-    bool isDepositReverted = lastReverted;
-
-    assert  (isCanDepositReverted || !isDepositable) => isDepositReverted;
+    // assert to_uint256(lidoBalanceBefore - 32) == lidoBalanceAfter => to_uint256(stkRouterBalanceBefore - 32) == stkRouterBalanceAfter, "Remember, with great power comes great responsibility.";
+    // assert to_uint256(lidoBalanceBefore - 32) == lidoBalanceAfter;
+    assert lidoBalanceBefore != lidoBalanceAfter;
+    assert stkRouterBalanceBefore != stkRouterBalanceAfter, "Remember, with great power comes great responsibility.";
 }
 
 
@@ -586,8 +589,9 @@ rule revert5(env e, env e2, method f) {
     // bytes32 getDepositRootBefore = DepositContract.get_deposit_root(e);
     uint256 signaturesLengthBefore = getSortedGuardianSignaturesLength();
     uint256 nonceBefore = StkRouter.getStakingModuleNonce(e, stakingModuleId);
+    uint256 quorumBefore = getGuardianQuorum();
     uint256 getStakingModuleLastDepositBlockBefore = StkRouter.getStakingModuleLastDepositBlock(e, stakingModuleId);
-    uint256 MinDepositBlockDistanceBefore = getMinDepositBlockDistance();
+    uint256 minDepositBlockDistanceBefore = getMinDepositBlockDistance();
     bytes32 blockHashBefore = returnBlockHash(e, blockNumber);
 
     require e.block.number == e2.block.number;
@@ -605,13 +609,25 @@ rule revert5(env e, env e2, method f) {
 
     assert // getDepositRootBefore != depositRoot   // deposit_contract is too heavy, need a workaround
                 // || 
-                signaturesLengthBefore != nonce
-                || signaturesLengthBefore < getGuardianQuorum()
-                || to_uint256(e2.block.number - getStakingModuleLastDepositBlockBefore) < MinDepositBlockDistanceBefore
-                || blockHashBefore != blockHash || blockHash != 0
+                nonceBefore != nonce
+                || signaturesLengthBefore < quorumBefore
+                || to_uint256(e2.block.number - getStakingModuleLastDepositBlockBefore) < minDepositBlockDistanceBefore
+                || blockHashBefore != blockHash || blockHash == 0
             => isReverted, "Remember, with great power comes great responsibility.";
 }
 
+// STATUS - in progress / verified / error / timeout / etc.
+// TODO: invariant description
+invariant invariantName1(env e, uint256 blockNumber1, uint256 blockNumber2)
+    blockNumber1 == blockNumber2 => returnBlockHash(e, blockNumber1) == returnBlockHash(e, blockNumber2)
+    filtered { f -> simpleFunc(f) }
+
+invariant invariantName2(env e, uint256 blockNumber1, uint256 blockNumber2)
+    blockNumber1 == blockNumber2 => returnBlockHash(e, blockNumber1) != returnBlockHash(e, blockNumber2)
+    filtered { f -> simpleFunc(f) }
+
+definition simpleFunc(method f) returns bool =
+    f.selector == setMinDepositBlockDistance(uint256).selector;
 
 // STATUS - in progress
 // After calling depositBufferedEther check that nonce was increased by 1

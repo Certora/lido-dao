@@ -5,7 +5,7 @@
 pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts-v4.4/utils/structs/EnumerableSet.sol";
-import {UnstructuredStorage} from "../../contracts/0.8.9/lib/UnstructuredStorage.sol";
+import {UnstructuredStorage} from "./lib/UnstructuredStorage.sol";
 
 /// @title Queue to store and manage WithdrawalRequests.
 /// @dev Use an optimizations to store max share rates for finalized requests heavily inspired
@@ -181,7 +181,7 @@ abstract contract WithdrawalQueueBase {
         /// @notice flag that is `true` if returned state is final and `false` if more invokations required
         bool finished;
         /// @notice static array to store all the batches ending request id
-        uint256[36] batches;        // HARNESS: from using a const to 36
+        uint256[36] batches;                                            // HARNESS: from using a const to 36
         /// @notice length of the filled part of `batches` array
         uint256 batchesLength;
     }

@@ -4,7 +4,7 @@
 /* See contracts/COMPILERS.md */
 pragma solidity 0.8.9;
 
-import {ECDSA} from "../../contracts/common/lib/ECDSA.sol";
+import {ECDSA} from "../common/lib/ECDSA.sol";
 
 interface ILido {
     function deposit(
@@ -313,6 +313,8 @@ contract DepositSecurityModule {
         emit GuardianRemoved(addr);
     }
 
+    Signature signa;
+
     /**
      * Pauses deposits for staking module given that both conditions are satisfied (reverts otherwise):
      *
@@ -347,7 +349,7 @@ contract DepositSecurityModule {
 
         if (guardianIndex == -1) {
             bytes32 msgHash = keccak256(abi.encodePacked(PAUSE_MESSAGE_PREFIX, blockNumber, stakingModuleId));
-            guardianAddr = ECDSA.recover(msgHash, sig.r, sig.vs);
+            guardianAddr = ECDSA.recover(msgHash, signa.r, signa.vs);
             guardianIndex = _getGuardianIndex(guardianAddr);
             if (guardianIndex == -1) revert InvalidSignature();
         }

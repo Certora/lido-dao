@@ -4,7 +4,7 @@
 /* See contracts/COMPILERS.md */
 pragma solidity 0.8.9;
 
-import "../munged/DepositSecurityModule.sol";
+import "../munged/0.8.9/DepositSecurityModule.sol";
 
 
 contract DepositSecurityModuleHarness is DepositSecurityModule {
@@ -59,7 +59,7 @@ contract DepositSecurityModuleHarness is DepositSecurityModule {
         Signature memory sig
     ) external view returns (address) {
         bytes32 msgHash = keccak256(abi.encodePacked(PAUSE_MESSAGE_PREFIX, blockNumber, stakingModuleId));
-        return ECDSA.recover(msgHash, sig.r, sig.vs);
+        return ECDSA.recover(msgHash, signa.r, signa.vs);
     }
 
     function getEthBalance(address addr) external view returns (uint256) {
