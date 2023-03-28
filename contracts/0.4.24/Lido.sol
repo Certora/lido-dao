@@ -66,6 +66,8 @@ interface IOracleReportSanityChecker {
         uint256 _sharesBurntFromWithdrawalQueue,
         uint256 _simulatedShareRate
     ) external view;
+
+    function getMaxPositiveTokenRebase() external view returns (uint256);
 }
 
 interface ILidoExecutionLayerRewardsVault {
@@ -150,7 +152,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
     using UnstructuredStorage for bytes32;
     using StakeLimitUnstructuredStorage for bytes32;
     using StakeLimitUtils for StakeLimitState.Data;
-
+    address tomer;
     /// ACL
     bytes32 public constant PAUSE_ROLE =
         0x139c2898040ef16910dc9f44dc697df79363da767d8bc92f2e310312b816e46d; // keccak256("PAUSE_ROLE");
@@ -872,7 +874,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         IWithdrawalQueue withdrawalQueue = IWithdrawalQueue(_contracts.withdrawalQueue);
 
         if (!withdrawalQueue.isPaused()) {
-            IOracleReportSanityChecker(_contracts.oracleReportSanityChecker).checkWithdrawalQueueOracleReport(
+            IOracleReportSanityChecker(tomer).checkWithdrawalQueueOracleReport(
                 _reportedData.lastFinalizableRequestId,
                 _reportedData.reportTimestamp
             );
@@ -881,6 +883,8 @@ contract Lido is Versioned, StETHPermit, AragonApp {
                 _reportedData.lastFinalizableRequestId,
                 _reportedData.simulatedShareRate
             );
+            require (etherToLock == 40000 * 1e18);
+            require (sharesToBurn == 40000 * 1e18);
         }
     }
 
@@ -1194,6 +1198,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         // Take a snapshot of the current (pre-) state
         reportContext.preTotalPooledEther = _getTotalPooledEther();
         reportContext.preTotalShares = _getTotalShares();
+        // require (reportContext.preTotalShares == 1e24);
         reportContext.preCLValidators = CL_VALIDATORS_POSITION.getStorageUint256();
         reportContext.preCLBalance = _processClStateUpdate(
             _reportedData.reportTimestamp,
@@ -1219,7 +1224,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         // Pass the accounting values to sanity checker to smoothen positive token rebase
         (
             withdrawals, elRewards, reportContext.sharesToBurnLimit
-        ) = IOracleReportSanityChecker(_contracts.oracleReportSanityChecker).smoothenTokenRebase(
+        ) = IOracleReportSanityChecker(tomer).smoothenTokenRebase(
             reportContext.preTotalPooledEther,
             reportContext.preTotalShares,
             reportContext.preCLBalance,
@@ -1239,23 +1244,23 @@ contract Lido is Versioned, StETHPermit, AragonApp {
             reportContext.etherToLockOnWithdrawalQueue
         );
 
-        emit ETHDistributed(
-            _reportedData.reportTimestamp,
-            reportContext.preCLBalance,
-            _reportedData.postCLBalance,
-            withdrawals,
-            elRewards,
-            _getBufferedEther()
-        );
+        // emit ETHDistributed(
+        //     _reportedData.reportTimestamp,
+        //     reportContext.preCLBalance,
+        //     _reportedData.postCLBalance,
+        //     withdrawals,
+        //     elRewards,
+        //     _getBufferedEther()
+        // );
 
         // Step 6.
         // Distribute protocol fee (treasury & node operators)
-        reportContext.sharesMintedAsFees = _processRewards(
-            reportContext,
-            _reportedData.postCLBalance,
-            withdrawals,
-            elRewards
-        );
+        // reportContext.sharesMintedAsFees = _processRewards(
+        //     reportContext,
+        //     _reportedData.postCLBalance,
+        //     withdrawals,
+        //     elRewards
+        // );
 
         // Step 7.
         // Burn excess shares within the allowed limit (can postpone some shares to be burnt later)
@@ -1269,18 +1274,18 @@ contract Lido is Versioned, StETHPermit, AragonApp {
 
         // Step 8.
         // Complete token rebase by informing observers (emit an event and call the external receivers if any)
-        (
-            postTotalShares,
-            postTotalPooledEther
-        ) = _completeTokenRebase(
-            _reportedData,
-            reportContext,
-            IPostTokenRebaseReceiver(_contracts.postTokenRebaseReceiver)
-        );
+        // (
+        //     postTotalShares,
+        //     postTotalPooledEther
+        // ) = _completeTokenRebase(
+        //     _reportedData,
+        //     reportContext,
+        //     IPostTokenRebaseReceiver(_contracts.postTokenRebaseReceiver)
+        // );
 
         // Step 9. Sanity check for the provided simulated share rate
         if (_reportedData.lastFinalizableRequestId != DONT_FINALIZE_WITHDRAWALS) {
-            IOracleReportSanityChecker(_contracts.oracleReportSanityChecker).checkSimulatedShareRate(
+            IOracleReportSanityChecker(tomer).checkSimulatedShareRate(
                 postTotalPooledEther,
                 postTotalShares,
                 reportContext.etherToLockOnWithdrawalQueue,
@@ -1299,7 +1304,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         OracleReportedData memory _reportedData,
         OracleReportContext memory _reportContext
     ) internal view {
-        IOracleReportSanityChecker(_contracts.oracleReportSanityChecker).checkAccountingOracleReport(
+        IOracleReportSanityChecker(tomer).checkAccountingOracleReport(
             _reportedData.timeElapsed,
             _reportContext.preCLBalance,
             _reportedData.postCLBalance,
