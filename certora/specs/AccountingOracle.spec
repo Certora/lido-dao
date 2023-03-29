@@ -131,8 +131,7 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 //     had report.extraDataFormat != EXTRA_DATA_FORMAT_EMPTY()
 // 13. Cannot call submitReportExtraDataList() if the report submitted with submitReportData()
 //     had report.extraDataFormat != EXTRA_DATA_FORMAT_LIST()
-// 14. New: cannot submit again the same previous submitReportData()
-//     even if any function was called after the first successful submit
+// 14. New: no function, except submitReportData(), can change the value in LAST_PROCESSING_REF_SLOT_POSITION
 // 14. If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
 // 15. If the reportExtraDataList() was processed you cannot submit again the same previous submitReportData()
 // 16. If the reportExtraDataEmpty() was processed you cannot submit new ReportData for the same refSlot
@@ -358,19 +357,25 @@ rule cannotSubmitReportExtraDataListWhenExtraDataIsEmpty() {
     assert (extraDataHash == 0)                             => submitReverted;
 }
 
-// 14. New: cannot submit again the same previous submitReportData()
-//     even if any function was called after the first successful submit
-// Status: -
-// 
-rule cannotSubmitSameReportTwiceAfterOtherCall(method f) {
+// 14. New: no function, except submitReportData(), can change the value in LAST_PROCESSING_REF_SLOT_POSITION
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/a7bbd21f04d84a688c1c3c5288e1563c/?anonymousKey=0eb3200a4c0c8bec41ba4d76415a7678c51bfd57
+rule nobodyCanChangeLastProcessingRefSlotExceptSubmitReportData(method f)
+    filtered { f -> f.selector != submitReportData((uint256,uint256,uint256,uint256,uint256[],uint256[],uint256,uint256,uint256,uint256,bool,uint256,bytes32,uint256),uint256).selector &&
+                    f.selector != helperCreateAndSubmitReportData(uint256,uint256,uint256,uint256,bool,uint256,bytes32,uint256,uint256).selector && 
+                    f.selector != initialize(address,address,uint256).selector &&
+                    f.selector != initializeWithoutMigration(address,address,uint256,uint256).selector }
+                    // filtering the calls to submitReportData()
+                    // and to initializer functions that cannot be called twice
+{
     require contractAddressesLinked();
     env e; calldataarg args; env e2; calldataarg args2; env e3;
 
-    submitReportData(e,args);               // submit the report successfully
-    f(e2,args2);                            // call to any method is possible
-    submitReportData@withrevert(e3,args);   // try to submit the same report (same args)
+    uint256 lastProcessingRefSlotBefore = getLastProcessingRefSlot(e);
+        f(e2,args2);
+    uint256 lastProcessingRefSlotAfter = getLastProcessingRefSlot(e3);
 
-    assert lastReverted;
+    assert lastProcessingRefSlotBefore == lastProcessingRefSlotAfter;
 }
 
 // 14. Old: If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
