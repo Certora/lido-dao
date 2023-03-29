@@ -716,7 +716,7 @@ rule reportHashCannotBeZero() {
 // 1. adding a new role member with roleR should *increase* the count of getRoleMemberCount(roleR) by one
 // Status: Old: Pass
 // Old: https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
-// Status: New: -
+// Status: New: Pass
 // New: https://vaas-stg.certora.com/output/80942/3407af04b4844c2c9eb4b7f96f929846/?anonymousKey=8ba5d954259341810fa2c5676001cc22eee4e999
 rule countIncreaseByOneWhenGrantRole(/*method f*/) {
     require contractAddressesLinked();
@@ -744,7 +744,7 @@ rule countIncreaseByOneWhenGrantRole(/*method f*/) {
 // 2. removing a roleR from a member should *decrease* the count of getRoleMemberCount(roleR) by one
 // Status: Old: Pass
 // Old: https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
-// Status: New: -
+// Status: New: Pass
 // https://vaas-stg.certora.com/output/80942/fa6bd7a1c03c4e3994b792e50a44ac51/?anonymousKey=e6580b3e50550e85539f57773742057ff99ed81e
 rule countDecreaseByOneWhenRenounceRole(/*method f*/) {
     require contractAddressesLinked();
