@@ -131,6 +131,8 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 //     had report.extraDataFormat != EXTRA_DATA_FORMAT_EMPTY()
 // 13. Cannot call submitReportExtraDataList() if the report submitted with submitReportData()
 //     had report.extraDataFormat != EXTRA_DATA_FORMAT_LIST()
+// 14. New: cannot submit again the same previous submitReportData()
+//     even if any function was called after the first successful submit
 // 14. If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
 // 15. If the reportExtraDataList() was processed you cannot submit again the same previous submitReportData()
 // 16. If the reportExtraDataEmpty() was processed you cannot submit new ReportData for the same refSlot
@@ -356,8 +358,23 @@ rule cannotSubmitReportExtraDataListWhenExtraDataIsEmpty() {
     assert (extraDataHash == 0)                             => submitReverted;
 }
 
-// 14. If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
-// Status: Pass
+// 14. New: cannot submit again the same previous submitReportData()
+//     even if any function was called after the first successful submit
+// Status: -
+// 
+rule cannotSubmitSameReportTwiceAfterOtherCall(method f) {
+    require contractAddressesLinked();
+    env e; calldataarg args; env e2; calldataarg args2; env e3;
+
+    submitReportData(e,args);               // submit the report successfully
+    f(e2,args2);                            // call to any method is possible
+    submitReportData@withrevert(e3,args);   // try to submit the same report (same args)
+
+    assert lastReverted;
+}
+
+// 14. Old: If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
+// Status: Pass 
 // https://vaas-stg.certora.com/output/80942/9024662237794b29996f1cccbd33ceb5/?anonymousKey=efb8e3194e19a36b1afee297e8bedf9045d82ee4
 rule cannotSubmitSameReportAfterSubmitExtraDataEmpty() {
     require contractAddressesLinked();
@@ -510,7 +527,7 @@ rule cannotSubmitNewReportIfExtraDataOfPreviousReportWasNotProvided() {
 */
 
 // 20. Cannot submit a new report without calling the submitReportExtraDataEmpty() / submitReportExtraDataList() first
-// Status: Fail
+// Status: Fail - we know that it should fail as there is currently no check that extraData was not submitted
 // https://vaas-stg.certora.com/output/80942/3eaa9a099efd4e1fb5b99ab8a4b851ec/?anonymousKey=6acc7a21a75a6c55e103376d7139b40d98fd9753
 rule cannotSubmitNewReportIfOldWasNotProcessedFirst() {
     require contractAddressesLinked();
@@ -662,6 +679,7 @@ rule refSlotMustBeGreaterThanProcessingOne() {
 }
 
 // 6. Cannot submitConsensusReport() if its deadline <= refSlot
+// This rule is WRONG as deadline and refslot have different units!
 // Status: Fail
 // https://vaas-stg.certora.com/output/80942/8c323c10f71b4dafb6b754ba1a4ec865/?anonymousKey=e4b06b987f42ac8c5f9088aa491740d37b475bde
 rule deadlineMustBeAfterRefSlotBaseOracle() {    
@@ -696,9 +714,11 @@ rule reportHashCannotBeZero() {
 // 3. getRoleMemberCount(roleX) should not be affected by adding or removing roleR (roleR != roleX)
 
 // 1. adding a new role member with roleR should *increase* the count of getRoleMemberCount(roleR) by one
-// Status: Pass
-// https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
-rule countIncreaseByOneWhenGrantRole(method f) {
+// Status: Old: Pass
+// Old: https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
+// Status: New: -
+// New: https://vaas-stg.certora.com/output/80942/3407af04b4844c2c9eb4b7f96f929846/?anonymousKey=8ba5d954259341810fa2c5676001cc22eee4e999
+rule countIncreaseByOneWhenGrantRole(/*method f*/) {
     require contractAddressesLinked();
     env e; calldataarg args;
     
@@ -710,19 +730,23 @@ rule countIncreaseByOneWhenGrantRole(method f) {
     uint256 countRoleRMembersBefore = getRoleMemberCount(e,roleR);
     require countRoleRMembersBefore < UINT256_MAX();  // reasonable there are not so many role members
 
-    // grantRole(e,roleR,accountA);
-    f(e,args);
+    grantRole(e,roleR,accountA);
+    // f(e,args);  //old
 
     bool hasRoleRAccountAAfter = hasRole(e,roleR,accountA);
     uint256 countRoleRMembersAfter = getRoleMemberCount(e,roleR);
 
-    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleRMembersBefore - countRoleRMembersAfter == 1;
+    assert countRoleRMembersAfter == countRoleRMembersBefore + 1; // new
+
+    //assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleRMembersBefore - countRoleRMembersAfter == 1; // old
 }
 
 // 2. removing a roleR from a member should *decrease* the count of getRoleMemberCount(roleR) by one
-// Status: Pass
-// https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
-rule countDecreaseByOneWhenRenounceRole(method f) {
+// Status: Old: Pass
+// Old: https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
+// Status: New: -
+// https://vaas-stg.certora.com/output/80942/fa6bd7a1c03c4e3994b792e50a44ac51/?anonymousKey=e6580b3e50550e85539f57773742057ff99ed81e
+rule countDecreaseByOneWhenRenounceRole(/*method f*/) {
     require contractAddressesLinked();
     env e; calldataarg args;
     
@@ -734,13 +758,15 @@ rule countDecreaseByOneWhenRenounceRole(method f) {
     uint256 countRoleRMembersBefore = getRoleMemberCount(e,roleR);
     require countRoleRMembersBefore > 0;  // there is at least one account with roleR
     
-    // renounceRole(e,roleR,accountA);
-    f(e,args);
+    renounceRole(e,roleR,accountA); // new
+    // f(e,args); // old
 
     bool hasRoleRAccountAAfter = hasRole(e,roleR,accountA);
     uint256 countRoleRMembersAfter = getRoleMemberCount(e,roleR);
 
-    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleRMembersBefore - countRoleRMembersAfter == 1;
+    assert countRoleRMembersAfter == countRoleRMembersBefore - 1; // new
+
+    //assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => countRoleRMembersBefore - countRoleRMembersAfter == 1; // old
 }
 
 // 3. getRoleMemberCount(roleX) should not be affected by adding or removing roleR (roleR != roleX)
@@ -779,9 +805,15 @@ rule memberCountNonInterference(method f) {
 // 3. granting or revoking roleR from accountA should not affect any accountB
 
 // 1. only admin of role R can grant the role R to the account A (role R can be any role including the admin role)
-// Status: Fails
+// Status: Fails only on initialize() and initializeWithoutMigration() which can only be called once, so we can filter them
 // https://vaas-stg.certora.com/output/80942/ea773d7513c64b3eb13469903a91dbbc/?anonymousKey=7c4acab781c5df59e5a45ffae8c7d442f3643323
-rule onlyAdminCanGrantRole(method f) {
+// Status: Pass
+// https://vaas-stg.certora.com/output/80942/e4baa987a34240d18a2531301e772a53/?anonymousKey=231eba328d8c01c657a6494688b8d9eb1ba1368d
+rule onlyAdminCanGrantRole(method f)
+    filtered { f -> f.selector != initialize(address,address,uint256).selector &&
+                    f.selector != initializeWithoutMigration(address,address,uint256,uint256).selector }
+    // safe filtering as the above methods can be called only once
+{
     require contractAddressesLinked();
     env e; calldataarg args;
 
