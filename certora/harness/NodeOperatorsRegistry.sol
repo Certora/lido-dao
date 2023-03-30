@@ -11,7 +11,6 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
     using Packed64x4 for Packed64x4.Packed;
 
     uint256 public test_nodeId;
-    uint256[] public activeKeyCountsAfterAllocation;
 
     /// @dev DEPRECATED use addSigningKeys instead
     function addSigningKeysOperatorBH(uint256, uint256, bytes, bytes) external {}
@@ -37,18 +36,28 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
         return sender != 0;
     }
 
+    function getSigningKeysAllocationDataPerNode(
+        uint256 _depositsCount, uint256 index) 
+        public view returns(uint256, uint256) {
+        (
+             ,
+            uint256[] memory nodeOperatorIds,
+            uint256[] memory activeKeysCountAfterAllocation
+        ) = _getSigningKeysAllocationData(_depositsCount);
+        
+        return (nodeOperatorIds[index], activeKeysCountAfterAllocation[index]);
+    }
+
     function loadAllocatedSigningKeys(
-        uint256 _keysCountToLoad) public returns (uint256, uint256) {
+        uint256 _keysCountToLoad,
+        uint256[] memory _activeKeyCountsAfterAllocation) public returns (uint256, uint256) {
         uint256 count = getNodeOperatorsCount();
         uint256[] memory nodeOperatorIds = new uint256[](count);
-        uint256[] memory _activeKeyCountsAfterAllocation = new uint256[](count);
-        //require activeKeyCountsAfterAllocation.length == count;
+        require (_activeKeyCountsAfterAllocation.length == count);
         for (uint256 i; i < count; ++i) {
-            uint64 exited = getNodeOperatorSigningStats_exited(i);
-            uint64 maxKeys = getNodeOperatorTargetStats_max(i);
+            (uint256 maxSigningKeysCount, uint256 exitedSigningKeysCount,) = _getNodeOperator(i);
             nodeOperatorIds[i] = i;
-            require(activeKeyCountsAfterAllocation[i] <= uint256(maxKeys-exited));
-            _activeKeyCountsAfterAllocation[i] = activeKeyCountsAfterAllocation[i];
+            require(_activeKeyCountsAfterAllocation[i] <= maxSigningKeysCount-exitedSigningKeysCount);
         }
         (bytes memory pubkeys, bytes memory signatures) = _loadAllocatedSigningKeys(_keysCountToLoad,nodeOperatorIds,_activeKeyCountsAfterAllocation);
         return (pubkeys.length, signatures.length);

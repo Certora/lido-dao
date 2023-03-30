@@ -3,7 +3,7 @@ certoraRun \
 ./contracts/0.4.24/test_helpers/DepositContractMock.sol \
 ./certora/helpers/StakingModuleA.sol \
 ./certora/helpers/StakingModuleB.sol \
---verify StakingRouterHarness:certora/specs/StakingRouter.spec \
+--verify StakingRouterHarness:certora/specs/StakingRouter/StakingRouter.spec \
 \
 \
 --link StakingRouterHarness:DEPOSIT_CONTRACT=DepositContractMock \

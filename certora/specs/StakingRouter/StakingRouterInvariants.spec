@@ -1,5 +1,5 @@
 import "./StakingRouterBase.spec"
-import "./NodeRegistryMethods.spec"
+import "../NodeOperatorsRegistry/NodeRegistryMethods.spec"
 
 using StakingRouterHarness as SR
 
@@ -8,7 +8,6 @@ invariant modulesCountIsLastIndex()
 
 invariant StakingModuleIdLELast(uint256 moduleId)
     getStakingModuleIdById(moduleId) <= getLastStakingModuleId()
-    filtered{f -> !isDeposit(f)}
 
 invariant StakingModuleIndexIsIdMinus1(uint256 moduleId)
     ((moduleId <= getStakingModulesCount() && moduleId > 0)
@@ -20,7 +19,6 @@ invariant StakingModuleIndexIsIdMinus1(uint256 moduleId)
     ((moduleId > getStakingModulesCount() || moduleId == 0)
         => 
     (getStakingModuleIndexOneBased(moduleId) == 0))
-    filtered{f -> !isDeposit(f)}
     {
         preserved{
             requireInvariant StakingModuleIdLELast(moduleId);
@@ -33,7 +31,6 @@ invariant StakingModuleId(uint256 moduleId)
     (moduleId <= getStakingModulesCount() => getStakingModuleIdById(moduleId) == moduleId)
     &&
     (moduleId > getStakingModulesCount() => getStakingModuleIdById(moduleId) == 0)
-    filtered{f -> !isDeposit(f)}
     {
         preserved{
             requireInvariant StakingModuleIndexIsIdMinus1(moduleId);
@@ -51,7 +48,6 @@ invariant StakingModuleAddressIsNeverZero(uint256 moduleId)
     moduleId > 0 =>
     ((moduleId <= getLastStakingModuleId()) <=>
     getStakingModuleAddressById(moduleId) != 0)
-    filtered{f -> !isDeposit(f)}
     {
         preserved{
             requireInvariant StakingModuleId(moduleId);
@@ -63,7 +59,6 @@ invariant StakingModuleAddressIsNeverZero(uint256 moduleId)
 
 invariant ZeroAddressForUnRegisteredModule(uint256 moduleId)
     moduleId > getStakingModulesCount() => getStakingModuleAddressById(moduleId) == 0
-    filtered{f -> !isDeposit(f)}
     {
         preserved {
             requireInvariant modulesCountIsLastIndex();
@@ -75,7 +70,6 @@ invariant ZeroAddressForUnRegisteredModule(uint256 moduleId)
 invariant StakingModuleAddressIsUnique(uint256 moduleId1, uint256 moduleId2)
     moduleId1 != moduleId2 =>
     differentOrEqualToZero_Address(getStakingModuleAddressById(moduleId1),getStakingModuleAddressById(moduleId2))
-    filtered{f -> !isDeposit(f)}
     {
         preserved{
             requireInvariant StakingModuleId(moduleId1); 
@@ -90,19 +84,15 @@ invariant StakingModuleAddressIsUnique(uint256 moduleId1, uint256 moduleId2)
 
 invariant StakingModuleTargetShareLEMAX(uint256 moduleId) 
     getStakingModuleTargetShareById(moduleId) <= TOTAL_BASIS_POINTS()
-    filtered{f -> !isDeposit(f)}
 
 invariant StakingModuleTotalFeeLEMAX(uint256 moduleId)
     getStakingModuleFeeById(moduleId) + getStakingModuleTreasuryFeeById(moduleId) <= TOTAL_BASIS_POINTS()
-    filtered{f -> !isDeposit(f)}
 
 invariant UnRegisteredStakingModuleIsActive(uint256 moduleId)
     moduleId > getStakingModulesCount() => getStakingModuleIsActive(moduleId)
-    filtered{f -> !isDeposit(f)}
 
 invariant ZeroExitedValidatorsForUnRegisteredModule(uint256 moduleId)
     moduleId > getStakingModulesCount() => getStakingModuleExitedValidatorsById(moduleId) == 0 
-    filtered{f -> !isDeposit(f)}
     {
         preserved {
             requireInvariant modulesCountIsLastIndex();

@@ -5,7 +5,7 @@ certoraRun \
 ./contracts/0.8.9/Burner.sol \
 ./contracts/0.8.9/LidoLocator.sol \
 ./certora/harness/LidoMockStEth.sol \
---verify StakingRouterHarness:certora/specs/StakingRouter.spec \
+--verify StakingRouterHarness:certora/specs/StakingRouter/StakingRouter.spec \
 \
 \
 --link StakingRouterHarness:DEPOSIT_CONTRACT=DepositContractMock \

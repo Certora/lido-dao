@@ -2,7 +2,7 @@ certoraRun \
 ./certora/harness/NodeOperatorsRegistry.sol:NodeOperatorsRegistryHarness \
 ./contracts/0.8.9/Burner.sol \
 ./certora/harness/LidoMockStEth.sol \
---verify NodeOperatorsRegistryHarness:certora/specs/NodeOperatorsRegistry.spec \
+--verify NodeOperatorsRegistryHarness:certora/specs/NodeOperatorsRegistry/NodeOperatorsRegistry.spec \
 \
 \
 \
@@ -12,5 +12,5 @@ certoraRun \
 --optimistic_loop \
 --send_only \
 --rule_sanity \
---settings -t=2300,-mediumTimeout=150,-depth=12,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
+--settings -t=2000,-mediumTimeout=100,-depth=13,-copyLoopUnroll=5,-optimisticUnboundedHashing=true \
 --msg "NodeOperatorsRegistry" 

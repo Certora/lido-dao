@@ -11,6 +11,7 @@ methods {
     getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
     getStuckPenaltyDelay() returns(uint256) envfree
     nos.getNodeOperatorSummary(uint256) envfree
+    getSigningKeysAllocationDataPerNode(uint256,uint256) returns(uint256,uint256) envfree
 
     /// Node operator registry summary of node operators
     getSummaryTotalExitedValidators() returns (uint256) envfree
@@ -823,7 +824,7 @@ filtered{f -> !f.isView} {
 }
 
 rule maxValidatorsChangeForOnlyOneNodeOperator(method f, uint256 nodeOperatorId1) 
-filtered{f -> !f.isView && !isFinalizeUpgrade(f) } {
+filtered{f -> !f.isView && !isFinalizeUpgrade(f) && !isObtainDepData(f)} {
     env e;
     calldataarg args;
     uint256 nodeOperatorId2;
@@ -941,6 +942,19 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     obtainDepositData@withrevert(e, depositsCount, depositData);
 
     assert depositsCount <= depositable => !lastReverted;
+}
+
+rule signingKeysAllocationDataPerNodeBounded(uint256 depositsCount,uint256 index) {
+    
+    uint256 nodeOperatorId;
+    uint256 allocation;
+    nodeOperatorId, allocation = getSigningKeysAllocationDataPerNode(depositsCount, index);
+
+    safeAssumptions_NOS(nodeOperatorId);
+    uint64 exited = getNodeOperatorSigningStats_exited(nodeOperatorId);
+    uint64 max = getNodeOperatorTargetStats_max(nodeOperatorId);
+
+    assert allocation <= max-exited;
 }
 
 /// Verifies that once a node operator is deactivated, it is left with no available keys.

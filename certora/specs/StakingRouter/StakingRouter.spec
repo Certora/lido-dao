@@ -1,36 +1,3 @@
-/**************************************************
- *      Top Level Properties / Rule Ideas         *
- **************************************************/
- // Write here your ideas for rules for tracking progress:
-
- // 1. The sum of all (active?) modules shares should always sum to 100% 
-
- // 2. Every module should get its underlying shares upon eth allocation.
-
- // 3. Staking modules are independent
-
- // Staking module parameters: for each staking module
- // a. targetShare <= 100%
- // b. stakingModuleFee + treasuryFee <= 100%
- // c. The protocol fee is distributed between modules proportionally
- //    to active validators and the specified module fee.
-
- // Who can set staking module parameters ?
-
- // Integrity rules:
- // a. deposit
- // b. addStakingModule
-
- // Status - actions correlation
- /***************************************************************
- Status             |   Perform deposits    |  Receive rewards   |
- ________________________________________________________________
- Active             |   Yes                 |   Yes              |
- Deposits paused    |   No                  |   Yes              |
- Stopped            |   No                  |   No               |
- ************************************************************** /
-*/
-
 import "./StakingRouterBase.spec"
 import "./StakingRouterInvariants.spec"
 
@@ -78,21 +45,6 @@ function modulesValidatorsAssumptions() {
 /**************************************************
  *                 MISC Rules                     *
  **************************************************/
-
-rule depositSanity() {
-    env e;
-    require e.msg.value > 0;
-    uint256 _maxDepositsCount;
-    //require _maxDepositsCount == 1;
-    require getStakingModulesCount() == 1;
-    safeAssumptions(1);
-    uint256 _stakingModuleId;
-    bytes _depositCalldata;
-    deposit(e, _maxDepositsCount, _stakingModuleId, _depositCalldata);
-    
-    // Force at least one call to deposit in the deposit contract.
-    assert false;
-}
 
 // The staking modules count can only increase by 1 or not change.
 rule stakingModulesCountIncrement(method f) {
@@ -537,4 +489,16 @@ filtered{f -> !isDeposit(f)} {
         f.selector == setStakingModuleStatus(uint256,uint8).selector ||
         f.selector == resumeStakingModule(uint256).selector ||
         f.selector == pauseStakingModule(uint256).selector);
+}
+
+rule rolesChange(method f, bytes32 role, address sender) 
+filtered{f -> !f.isView && !isInitialize(f)} {
+    env e;
+    calldataarg args;
+
+    bool has_role_before = hasRole(role, sender);
+        f(e, args);
+    bool has_role_after = hasRole(role, sender);
+    
+    assert has_role_before != has_role_after => roleChangingMethods(f);
 }

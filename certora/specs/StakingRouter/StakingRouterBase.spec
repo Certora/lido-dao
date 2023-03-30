@@ -25,6 +25,11 @@ methods {
     getNodeOperatorIsActive(uint256) returns (bool) => DISPATCHER(true)
     getNodeOperatorIds(uint256, uint256) returns (uint256[]) => DISPATCHER(true)
 
+    hasRole(bytes32, address) returns (bool) envfree
+    getRoleAdmin(bytes32) returns (bytes32) envfree
+    getRoleMember(bytes32, uint256) returns (address) envfree
+    getRoleMemberCount(bytes32) returns (uint256) envfree
+
     // StakingRouter
     getStakingModulesCount() returns (uint256) envfree
     getStakingModuleStatus(uint256) returns (uint8) envfree
@@ -60,6 +65,14 @@ definition isDeposit(method f) returns bool =
 definition isAddModule(method f) returns bool = 
     f.selector == addStakingModule(string,address,uint256,uint256,uint256).selector;
 
+definition isInitialize(method f) returns bool = 
+    f.selector == initialize(address,address,bytes32).selector;
+
+definition roleChangingMethods(method f) returns bool = 
+    f.selector == revokeRole(bytes32,address).selector ||
+    f.selector == renounceRole(bytes32,address).selector ||
+    f.selector == grantRole(bytes32,address).selector;
+
 // Staking module status constants are based on the code StakingModuleStatus.
 definition ACTIVE() returns uint8 = 0; 
 definition PAUSED() returns uint8 = 1; 
@@ -75,6 +88,3 @@ definition harnessGetters(method f) returns bool =
     f.selector == getStakingModuleTargetShareById(uint256).selector ||
     f.selector == getStakingModuleNameLengthByIndex(uint256).selector ||
     f.selector == getStakingModuleIndexOneBased(uint256).selector;
-
-// Signature and public key batch count
-definition keyCount() returns uint256 = 4;
