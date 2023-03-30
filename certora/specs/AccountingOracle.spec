@@ -132,15 +132,14 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 // 13. Cannot call submitReportExtraDataList() if the report submitted with submitReportData()
 //     had report.extraDataFormat != EXTRA_DATA_FORMAT_LIST()
 // 14. New: no function, except submitReportData(), can change the value in LAST_PROCESSING_REF_SLOT_POSITION
-// 14. If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
-// 15. If the reportExtraDataList() was processed you cannot submit again the same previous submitReportData()
-// 16. If the reportExtraDataEmpty() was processed you cannot submit new ReportData for the same refSlot
-// 17. If the reportExtraDataList() was processed you cannot submit new ReportData for the same refSlot
-// 18. The processed refSlot can only increase
-// 19. Cannot submit a new report if the extraData of the previous report was not supplied
-// 20. Cannot submit a new report without calling the submitReportExtraDataEmpty() / submitReportExtraDataList() first
-// 21. After successfully processing a consensus report, the LastProcessingRefSlot is updated correctly
-// 22. Only newer report, pointing to higher refSlot, can be submitted
+//      14. Old: *DON'T INCLUDE IN REPORT* If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
+//      15. Old: *DON'T INCLUDE IN REPORT* If the reportExtraDataList() was processed you cannot submit again the same previous submitReportData()
+//      16. Old: *DON'T INCLUDE IN REPORT* If the reportExtraDataEmpty() was processed you cannot submit new ReportData for the same refSlot
+//      17. Old: *DON'T INCLUDE IN REPORT* If the reportExtraDataList() was processed you cannot submit new ReportData for the same refSlot
+// 15. The processed refSlot can only increase
+// 16. After successfully processing a consensus report, the LastProcessingRefSlot is updated correctly
+// 17. Only newer report, pointing to higher refSlot, can be submitted
+// 18. Cannot submit a new report without calling the submitReportExtraDataEmpty() / submitReportExtraDataList() first
 
 //  1. Cannot initialize() or initializeWithoutMigration() twice
 // Status: Pass
@@ -242,7 +241,7 @@ rule correctRevertsOfSubmitReportData() {
 }
 
 //  9. submitReportData(), submitReportExtraDataList(), submitReportExtraDataEmpty
-//     can be called only if msg.sender has the appropriate role SUBMIT_DATA_ROLE (same as 1a)
+//     can be called only if msg.sender has the appropriate role SUBMIT_DATA_ROLE (same as 3a)
 //     or if the caller is a member of the oracle committee
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/f4905a42c92847038aa32718403b9c8a/?anonymousKey=7bd858eae6586c20777b7c372fa7dec65ce0ed87
@@ -380,7 +379,8 @@ rule nobodyCanChangeLastProcessingRefSlotExceptSubmitReportData(method f)
     assert lastProcessingRefSlotBefore == lastProcessingRefSlotAfter;
 }
 
-// 14. Old: If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
+/*
+// 14. Old: *DON'T INCLUDE IN REPORT* If the reportExtraDataEmpty() was processed you cannot submit again the same previous submitReportData()
 // Status: Pass 
 // https://vaas-stg.certora.com/output/80942/9024662237794b29996f1cccbd33ceb5/?anonymousKey=efb8e3194e19a36b1afee297e8bedf9045d82ee4
 rule cannotSubmitSameReportAfterSubmitExtraDataEmpty() {
@@ -394,7 +394,7 @@ rule cannotSubmitSameReportAfterSubmitExtraDataEmpty() {
     assert lastReverted;
 }
 
-// 15. If the reportExtraDataList() was processed you cannot submit again the same previous submitReportData()
+// 15. Old: *DON'T INCLUDE IN REPORT* If the reportExtraDataList() was processed you cannot submit again the same previous submitReportData()
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/4493b0822e0b40eba098951f808f4582/?anonymousKey=e99cf27e983f10adbead8782445ff631bedbe253
 rule cannotSubmitSameReportAfterSubmitExtraDataList() {
@@ -408,7 +408,7 @@ rule cannotSubmitSameReportAfterSubmitExtraDataList() {
     assert lastReverted;
 }
 
-// 16. If the reportExtraDataEmpty() was processed you cannot submit new ReportData for the same refSlot
+// 16. Old: *DON'T INCLUDE IN REPORT* If the reportExtraDataEmpty() was processed you cannot submit new ReportData for the same refSlot
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/87383be6d5ee4b01ac17cfa4ea55d492/?anonymousKey=e1f10de81c79c99da99ab16045f7a879591d9d68
 rule cannotSubmitNewReportForSameRefSlotAfterSubmitExtraDataEmpty() {
@@ -439,7 +439,7 @@ rule cannotSubmitNewReportForSameRefSlotAfterSubmitExtraDataEmpty() {
     assert lastReverted;
 }
 
-// 17. If the reportExtraDataList() was processed you cannot submit new ReportData for the same refSlot
+// 17. Old: *DON'T INCLUDE IN REPORT* If the reportExtraDataList() was processed you cannot submit new ReportData for the same refSlot
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/df36aedf6cb54a08b7d797167fd1fc18/?anonymousKey=5a280e0a093566efad2194759d8cd6f80c002c8c
 rule cannotSubmitNewReportForSameRefSlotAfterSubmitExtraDataList() {
@@ -470,8 +470,9 @@ rule cannotSubmitNewReportForSameRefSlotAfterSubmitExtraDataList() {
     
     assert lastReverted;
 }
+*/
 
-// 18. The processed refSlot can only increase
+// 15. New: The processed refSlot can only increase
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/727a22b111d747c2b79ff2f75669e29f/?anonymousKey=9b484f5aef39cbb662af10826b9cef40a32ef38d
 rule refSlotIsMonotonicallyIncreasing(method f) 
@@ -533,27 +534,8 @@ rule cannotSubmitNewReportIfExtraDataOfPreviousReportWasNotProvided() {
 }
 */
 
-// 20. Cannot submit a new report without calling the submitReportExtraDataEmpty() / submitReportExtraDataList() first
-// Status: Fail - we know that it should fail as there is currently no check that extraData was not submitted
-// https://vaas-stg.certora.com/output/80942/3eaa9a099efd4e1fb5b99ab8a4b851ec/?anonymousKey=6acc7a21a75a6c55e103376d7139b40d98fd9753
-rule cannotSubmitNewReportIfOldWasNotProcessedFirst() {
-    require contractAddressesLinked();
-    env e; calldataarg args; env e2; calldataarg args2; env e3; calldataarg args3;
-
-    // step 1 - submit a report (#1) to AccountingOracle
-    submitReportData(e,args);
-
-    // step 2 - submit the next consensus report (#2) to BaseOracle
-    submitConsensusReport(e2,args2);
-
-    // step 3 - submit the next report (#2) to AccountingOracle
-    submitReportData@withrevert(e3,args3);
-
-    assert lastReverted;
-}
-
-// 21. After successfully processing a consensus report, the LastProcessingRefSlot is updated correctly
-// 22. Only newer report, pointing to higher refSlot, can be submitted
+// 16. After successfully processing a consensus report, the LastProcessingRefSlot is updated correctly
+// 17. Only newer report, pointing to higher refSlot, can be submitted
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/94ea622344854a4cbb90860bc11607cd/?anonymousKey=3e2feb3f2d205463e0fa314e0a4dc9f8b93d4e4b
 rule correctUpdateOfLastProcessingRefSlot() {
@@ -577,8 +559,27 @@ rule correctUpdateOfLastProcessingRefSlot() {
 
     uint256 lastProcessingRefSlotAfter = getLastProcessingRefSlot(e3);
 
-    assert lastProcessingRefSlotAfter == refSlot_1;                     // rule 21
-    assert lastProcessingRefSlotBefore < lastProcessingRefSlotAfter;    // rule 22
+    assert lastProcessingRefSlotAfter == refSlot_1;                     // rule 16
+    assert lastProcessingRefSlotBefore < lastProcessingRefSlotAfter;    // rule 17
+}
+
+// 18. Cannot submit a new report without calling the submitReportExtraDataEmpty() / submitReportExtraDataList() first
+// Status: Fail - we know that it should fail as there is currently no check that extraData was not submitted
+// https://vaas-stg.certora.com/output/80942/3eaa9a099efd4e1fb5b99ab8a4b851ec/?anonymousKey=6acc7a21a75a6c55e103376d7139b40d98fd9753
+rule cannotSubmitNewReportIfOldWasNotProcessedFirst() {
+    require contractAddressesLinked();
+    env e; calldataarg args; env e2; calldataarg args2; env e3; calldataarg args3;
+
+    // step 1 - submit a report (#1) to AccountingOracle
+    submitReportData(e,args);
+
+    // step 2 - submit the next consensus report (#2) to BaseOracle
+    submitConsensusReport(e2,args2);
+
+    // step 3 - submit the next report (#2) to AccountingOracle
+    submitReportData@withrevert(e3,args3);
+
+    assert lastReverted;
 }
 
 
