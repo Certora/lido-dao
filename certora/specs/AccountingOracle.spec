@@ -145,16 +145,18 @@ definition SUBMIT_DATA_ROLE() returns bytes32 = 0x65fa0c17458517c727737e4153dd47
 //  1. Cannot initialize() or initializeWithoutMigration() twice
 // Status: Pass
 // https://vaas-stg.certora.com/output/80942/e04fba855b5641f682cb05edb5362213/?anonymousKey=163260b76cb1479de139f7b547b37bea891bfccb
-rule cannotInitializeTwice(method f) 
+rule cannotInitializeTwice(method f, method g) 
     filtered { f -> f.selector == initialize(address,address,uint256).selector ||
-                    f.selector == initializeWithoutMigration(address,address,uint256,uint256).selector }
+                    f.selector == initializeWithoutMigration(address,address,uint256,uint256).selector,
+               g -> g.selector == initialize(address,address,uint256).selector ||
+                    g.selector == initializeWithoutMigration(address,address,uint256,uint256).selector}
 {    
     require contractAddressesLinked();
     env e; calldataarg args;
     env e2; calldataarg args2;
 
     f(e,args);
-    f@withrevert(e2,args2);
+    g@withrevert(e2,args2);
 
     assert lastReverted;
 }
