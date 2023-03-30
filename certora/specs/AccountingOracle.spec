@@ -878,13 +878,13 @@ rule nonInterferenceOfRolesAndAccounts(method f) {
 
     require (roleR != roleX) && (accountA != accountB);
 
-    assert (!hasRoleRAccountABefore && hasRoleRAccountAAfter) => 
-            (hasRoleXAccountBBefore && hasRoleXAccountBAfter) || 
-            (!hasRoleXAccountBBefore && !hasRoleXAccountBAfter);
+    assert (!hasRoleRAccountABefore && hasRoleRAccountAAfter) =>                // if roleR was granted to AccountA
+                (   (hasRoleXAccountBBefore && hasRoleXAccountBAfter)   ||      // then NO change of RoleX
+                   (!hasRoleXAccountBBefore && !hasRoleXAccountBAfter)    );    //      of AccountB
     
-    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) => 
-            (hasRoleXAccountBBefore && hasRoleXAccountBAfter) || 
-            (!hasRoleXAccountBBefore && !hasRoleXAccountBAfter);
+    assert (hasRoleRAccountABefore && !hasRoleRAccountAAfter) =>                // if roleR was revoked from AccountA
+                (   (hasRoleXAccountBBefore && hasRoleXAccountBAfter)   ||      // then NO change of RoleX
+                   (!hasRoleXAccountBBefore && !hasRoleXAccountBAfter)     );   //      of AccountB
 }
 
 
