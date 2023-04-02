@@ -126,7 +126,7 @@ contract OracleReportSanityChecker is AccessControlEnumerable {
 
     ILidoLocator private immutable LIDO_LOCATOR;
 
-    LimitsListPacked private _limits;
+    LimitsListPacked public _limits;   // HARNESS: private -> public
 
     struct ManagersRoster {
         address[] allLimitsManagers;
@@ -178,7 +178,7 @@ contract OracleReportSanityChecker is AccessControlEnumerable {
     }
 
     /// @notice Returns the limits list for the Lido's oracle report sanity checks
-    function getOracleReportLimits() public view returns (LimitsList memory) {
+    function getOracleReportLimits() external view returns (LimitsList memory) {    // HARNESS: public -> external
         return _limits.unpack();
     }
 

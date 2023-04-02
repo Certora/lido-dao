@@ -9,16 +9,17 @@ then
 fi
 
 certoraRun \
-    certora/munged/0.8.9/oracle/ValidatorsExitBusOracle.sol \
+    certora/harnesses/ValidatorsExitBusOracleHarness.sol \
     certora/munged/0.8.9/sanity_checks/OracleReportSanityChecker.sol \
     certora/munged/0.8.9/test_helpers/oracle/MockConsensusContract.sol \
-    --verify ValidatorsExitBusOracle:certora/specs/ValidatorsExitBusOracle.spec \
+    --verify ValidatorsExitBusOracleHarness:certora/specs/ValidatorsExitBusOracle.spec \
     --solc solc8.9 \
     --optimistic_loop \
     --loop_iter 3 \
     --send_only \
     --rule_sanity \
-    --staging master \
+    --staging pre_cvl2 \
+    --settings -optimisticUnboundedHashing=true \
     $RULE \
     --msg "ValidatorsExitBusOracle: $RULE $MSG"
 

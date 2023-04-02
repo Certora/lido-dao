@@ -13,7 +13,20 @@ import { BaseOracle } from "./BaseOracle.sol";
 
 
 interface IOracleReportSanityChecker {
+    struct LimitsList {
+    uint256 churnValidatorsPerDayLimit;
+    uint256 oneOffCLBalanceDecreaseBPLimit;
+    uint256 annualBalanceIncreaseBPLimit;
+    uint256 simulatedShareRateDeviationBPLimit;
+    uint256 maxValidatorExitRequestsPerReport;
+    uint256 maxAccountingExtraDataListItemsCount;
+    uint256 maxNodeOperatorsPerExtraDataItemCount;
+    uint256 requestTimestampMargin;
+    uint256 maxPositiveTokenRebase;
+}
+
     function checkExitBusOracleReport(uint256 _exitRequestsCount) external view;
+    function getOracleReportLimits() external view returns (LimitsList memory);
 }
 
 
@@ -215,7 +228,7 @@ contract ValidatorsExitBusOracle is BaseOracle, PausableUntil {
     /// - The provided data doesn't meet safety checks.
     ///
     function submitReportData(ReportData calldata data, uint256 contractVersion)
-        external whenResumed
+        public whenResumed       // HARNESS: external -> public
     {
         _checkMsgSenderIsAllowedToSubmitData();
         _checkContractVersion(contractVersion);
@@ -277,10 +290,10 @@ contract ValidatorsExitBusOracle is BaseOracle, PausableUntil {
         /// reporting frame.
         uint256 requestsSubmitted;
     }
-
+    
     /// @notice Returns data processing state for the current reporting frame.
     /// @return result See the docs for the `ProcessingState` struct.
-    ///
+    ///    
     function getProcessingState() external view returns (ProcessingState memory result) {
         ConsensusReport memory report = _storageConsensusReport().value;
         result.currentFrameRefSlot = _getCurrentRefSlot();
