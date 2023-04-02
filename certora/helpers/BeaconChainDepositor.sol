@@ -9,8 +9,23 @@ import {BeaconChainDepositor} from "../munged/BeaconChainDepositor.sol";
 contract BeaconChainDepositorHarness is BeaconChainDepositor {
 
     // Certora replacements for MemUtils
+    // signatures batch => index => signature
+    mapping(bytes => mapping(uint256 => Signature)) private signatures;
+    // public keys batch => index => public key
+    mapping(bytes => mapping(uint256 => PublicKey)) private public_keys;
     mapping(bytes => bytes32) private _publicKeyRoot;
     mapping(bytes => bytes32) private _signatureRoot;
+
+    struct Signature {
+        bytes32 a;
+        bytes32 b;
+        bytes32 c;
+    }
+
+    struct PublicKey {
+        bytes32 a;
+        bytes16 b;
+    }
 
     constructor(address _depositContract) BeaconChainDepositor(_depositContract) {}
 
@@ -34,11 +49,15 @@ contract BeaconChainDepositorHarness is BeaconChainDepositor {
         }
 
         for (uint256 i; i < _keysCount;) {
-            
+            PublicKey memory pubkStruct = public_keys[_publicKeysBatch][i];
+            Signature memory sigStruct = signatures[_signaturesBatch][i];
+
+            bytes memory publicKey = abi.encodePacked(pubkStruct.a, pubkStruct.b);
+            bytes memory signature = abi.encodePacked(sigStruct.a, sigStruct.b, sigStruct.c);
+
             DEPOSIT_CONTRACT.deposit{value: DEPOSIT_SIZE}(
-                _publicKeysBatch, _withdrawalCredentials, _signaturesBatch,
-                _computeDepositDataRootCertora(_withdrawalCredentials, _publicKeysBatch, _signaturesBatch)
-                //_publicKeyMap[_publicKeysBatch][i], _signatureMap[_signaturesBatch][i])
+                publicKey, _withdrawalCredentials, signature,
+                _computeDepositDataRootCertora(_withdrawalCredentials, publicKey, signature)
             );
             
             unchecked {

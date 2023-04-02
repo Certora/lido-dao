@@ -45,6 +45,14 @@ function modulesValidatorsAssumptions() {
 /**************************************************
  *                 MISC Rules                     *
  **************************************************/
+rule depositSanity() {
+    env e;
+    bytes _depositCalldata; require _depositCalldata.length == 32;
+    uint256 stakingModuleId;
+    uint256 keyCount = 1;
+    deposit(e, keyCount, stakingModuleId, _depositCalldata);
+    assert false;
+}
 
 // The staking modules count can only increase by 1 or not change.
 rule stakingModulesCountIncrement(method f) {
