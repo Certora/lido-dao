@@ -1,0 +1,199 @@
+digraph G {
+  graph [ ratio = "auto", page = "40" ];
+
+  "Pausable.sol" -> "StETH.sol";
+
+  "Packed64x4.sol" -> "NodeOperatorsRegistry.sol";
+
+  "SigningKeys.sol" -> "NodeOperatorsRegistry.sol";
+  // "SigningKeys.sol" -> "SiginigKyesMock.sol";
+
+  "StakeLimitUtils.sol" -> "Lido.sol";
+  // "StakeLimitUtils.sol" -> "StakeLimitUtilsMock.sol";
+
+  "NodeOperatorsRegistry.sol"; // <---
+  // "NodeOperatorsRegistry.sol" -> "NodeOperatorsRegistryMock.sol";
+
+  "LegacyOracle.sol"; // <---
+  // "LegacyOracle.sol" -> "MockLegacyOracle.sol";
+
+  "Versioned.sol" -> "Lido.sol";
+  "Versioned.sol" -> "NodeOperatorsRegistry.sol";
+  "Versioned.sol" -> "LegacyOracle.sol";
+  "Versioned.sol" -> "StakingRouter.sol";
+  "Versioned.sol" -> "WithdrawalQueue.sol";
+  "Versioned.sol" -> "WithdrawalVault.sol";
+  "Versioned.sol" -> "BaseOracle.sol";
+
+  "Lido.sol"; // <---
+  // "Lido.sol" -> "LidoTemplate.sol";
+  // "Lido.sol" -> "LidoMock.sol";
+  // "Lido.sol" -> "LidoPushableMock.sol";
+
+  "StETH.sol" -> "StETHPermit.sol";
+  // "StETH.sol" -> "StETHMock.sol";
+
+  "StETHPermit.sol" -> "Lido.sol";
+  
+  "deposit_contract.sol"; // <---
+  // "deposit_contract.sol" -> "BeaconChainDepositor.sol";
+
+  "IStETH.sol" -> "WstETH.sol";
+  // "IStETH.sol" -> "WstETHMock.sol";
+
+  // "WstETH.sol" -> "WstETHMock.sol";
+  "WstETH.sol" -> "WithdrawalQueue.sol";
+
+  "IStakingModule.sol" -> "StakingRouter.sol";
+  // "IStakingModule.sol" -> "ModuleSolo.sol";
+  // "IStakingModule.sol" -> "StakingModuleMock.sol";
+
+  "Math.sol" -> "Packed64x4.sol";
+  "Math.sol" -> "Burner.sol";
+  "Math.sol" -> "Math256.sol";
+  "Math.sol" -> "HashConsensus.sol";
+
+  "PositiveTokenRebaseLimiter.sol";
+  "PositiveTokenRebaseLimiter.sol" -> "OracleReportSanityChecker.sol";
+  // "PositiveTokenRebaseLimiter.sol" -> "PositiveTokenRebaseLimiterMock.sol";
+
+  "OracleReportSanityChecker.sol";
+  
+  "IOracleReportSanityChecker.sol" -> "OracleReportSanityChecker.sol";
+  "IOracleReportSanityChecker.sol" -> "Lido.sol";
+  "IOracleReportSanityChecker.sol" -> "AccountingOracle.sol";
+  "IOracleReportSanityChecker.sol" -> "ValidatorsExitBusOracle.sol";
+  // "IOracleReportSanityChecker.sol" -> "ILidoLocator.sol";
+
+
+  "UnstructuredStorage.sol" -> "StETH.sol";
+  "UnstructuredStorage.sol" -> "StETHPermit.sol";
+  "UnstructuredStorage.sol" -> "StakeLimitUtils.sol";
+  "UnstructuredStorage.sol" -> "NodeOperatorsRegistry.sol";
+  "UnstructuredStorage.sol" -> "Pausable.sol";
+  "UnstructuredStorage.sol" -> "Versioned.sol";
+  "UnstructuredStorage.sol" -> "StakingRouter.sol";
+  "UnstructuredStorage.sol" -> "WithdrawalQueue.sol";
+  "UnstructuredStorage.sol" -> "WithdrawalQueueBase.sol";
+  "UnstructuredStorage.sol" -> "WithdrawalQueueERC721.sol";
+  "UnstructuredStorage.sol" -> "AccountingOracle.sol";
+  "UnstructuredStorage.sol" -> "BaseOracle.sol";
+  "UnstructuredStorage.sol" -> "ValidatorsExitBusOracle.sol";
+  // "UnstructuredStorage.sol" -> "StakingRouterMock.sol";
+  // "UnstructuredStorage.sol" -> "AccountingOracleTimeTravellable.sol";
+  // "UnstructuredStorage.sol" -> "BaseOracleTimeTravellable.sol";
+  // "UnstructuredStorage.sol" -> "ValidatorsExitBusTimeTravellable.sol";
+  "UnstructuredStorage.sol" -> "PausableUntil.sol";
+  "UnstructuredStorage.sol" -> "Versioned.sol";
+
+  "UnstructuredRefStorage.sol" -> "WithdrawalQueueBase.sol";
+  "UnstructuredRefStorage.sol" -> "WithdrawalQueueERC721.sol";
+
+  "AccountingOracle.sol"; // <---
+
+  "BaseOracle.sol" -> "AccountingOracle.sol";
+  "BaseOracle.sol" -> "ValidatorsExitBusOracle.sol";
+
+  "HashConsensus.sol" -> "BaseOracle.sol";
+
+  "ValidatorsExitBusOracle.sol"; // <---
+
+  "AccessControl.sol" -> "AccessControlEnumerable.sol";
+
+  "AccessControlEnumerable.sol" -> "Burner.sol";
+  "AccessControlEnumerable.sol" -> "OracleDaemonConfig.sol";
+  "AccessControlEnumerable.sol" -> "StakingRouter.sol";
+  "AccessControlEnumerable.sol" -> "WithdrawalQueue.sol";
+  "AccessControlEnumerable.sol" -> "WithdrawalQueueERC721.sol";
+  "AccessControlEnumerable.sol" -> "BaseOracle.sol";
+  "AccessControlEnumerable.sol" -> "HashConsensus.sol";
+  "AccessControlEnumerable.sol" -> "OracleReportSanityChecker.sol";
+
+  "PausableUntil.sol" -> "WithdrawalQueue.sol";
+  "PausableUntil.sol" -> "ValidatorsExitBusOracle.sol";
+
+  "Versioned.sol" -> "Lido.sol";
+  "Versioned.sol" -> "NodeOperatorsRegistry.sol";
+  "Versioned.sol" -> "LegacyOracle.sol";
+  "Versioned.sol" -> "StakingRouter.sol";
+  "Versioned.sol" -> "WithdrawalQueue.sol";
+  "Versioned.sol" -> "WithdrawalVault.sol";
+  "Versioned.sol" -> "BaseOracle.sol";
+
+  "BeaconChainDepositor.sol" -> "StakingRouter.sol";
+
+  "DepositSecurityModule.sol"; // <---
+
+  "EIP712StETH.sol"; // <---
+  "IEIP712StETH.sol" -> "EIP712StETH.sol";
+  "IEIP712StETH.sol" -> "StETHPermit.sol";
+
+  "LidoExecutionLayerRewardsVault.sol"; // <---
+  // "LidoExecutionLayerRewardsVault.sol" -> "Lido.sol";
+
+  "LidoLocator.sol"; // <---
+
+  "ILidoLocator.sol" -> "Lido.sol";
+  "ILidoLocator.sol" -> "NodeOperatorsRegistry.sol";
+  "ILidoLocator.sol" -> "LegacyOracle.sol";
+  "ILidoLocator.sol" -> "LidoLocator.sol";
+  "ILidoLocator.sol" -> "AccountingOracle.sol";
+  "ILidoLocator.sol" -> "ValidatorsExitBusOracle.sol";
+  "ILidoLocator.sol" -> "OracleReportSanityChecker.sol";
+
+  "OracleDaemonConfig.sol"; // <---
+  // "OracleDaemonConfig.sol" -> "LidoLocator.sol";
+
+  "Burner.sol"; // <---
+  // "Burner.sol" -> "LidoLocator.sol";
+
+  "IBurner.sol" -> "Burner.sol";
+  "IBurner.sol" -> "Lido.sol";
+  "IBurner.sol" -> "NodeOperatorsRegistry.sol";
+
+  "StakingRouter.sol"; // <---
+
+  "IStakingRouter.sol" -> "StakingRouter.sol";
+  "IStakingRouter.sol" -> "Lido.sol";
+  // "StakingRouter.sol" -> "NodeOperatorsRegistry.sol";
+  // "StakingRouter.sol" -> "LidoLocator.sol";
+  "IStakingRouter.sol" -> "DepositSecurityModule.sol";
+  "IStakingRouter.sol" -> "AccountingOracle.sol";
+  // "StakingRouter.sol" -> "IStakingModule.sol";
+
+  "WithdrawalQueueERC721.sol"; // <---
+
+  "WithdrawalQueue.sol" -> "WithdrawalQueueERC721.sol";
+
+  "IWithdrawalQueue.sol" -> "WithdrawalQueue.sol";
+  "IWithdrawalQueue.sol" -> "Lido.sol";
+  "IWithdrawalQueue.sol" -> "AccountingOracle.sol";
+  // "WithdrawalQueue.sol" -> "LidoLocator.sol";
+  // "WithdrawalQueue.sol" -> "WithdrawalQueueBase.sol";  
+
+  "WithdrawalQueueBase.sol" -> "WithdrawalQueue.sol";
+
+  "WithdrawalVault.sol"; // <---
+
+  "IWithdrawalVault.sol" -> "WithdrawalVault.sol";
+  "IWithdrawalVault.sol" -> "Lido.sol";
+  // "WithdrawalVault.sol" -> "LidoLocator.sol";
+  // "WithdrawalVault.sol" -> "AccountingOracle.sol";
+
+  "ECDSA.sol" -> "StETHPermit.sol";
+  "ECDSA.sol" -> "DepositSecurityModule.sol";
+  "ECDSA.sol" -> "EIP712StETH.sol";
+
+  "Math256.sol" -> "Lido.sol";
+  "Math256.sol" -> "NodeOperatorsRegistry.sol";
+  "Math256.sol" -> "StakingRouter.sol";
+  "Math256.sol" -> "PositiveTokenRebaseLimiter.sol";
+  "Math256.sol" -> "ValidatorsExitBusOracle.sol";
+  "Math256.sol" -> "MinFirstAllocationStrategy.sol";
+  "Math256.sol" -> "OracleReportSanityChecker.sol";
+
+  "MemUtils.sol" -> "BeaconChainDepositor.sol";
+
+  "MinFirstAllocationStrategy.sol" -> "NodeOperatorsRegistry.sol";
+  "MinFirstAllocationStrategy.sol" -> "StakingRouter.sol";
+}

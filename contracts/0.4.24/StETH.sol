@@ -1,5 +1,4 @@
-// SPDX-FileCopyrightText: 2020 Lido <info@lido.fi>
-
+// SPDX-FileCopyrightText: 2023 Lido <info@lido.fi>
 // SPDX-License-Identifier: GPL-3.0
 
 /* See contracts/COMPILERS.md */
@@ -8,7 +7,7 @@ pragma solidity 0.4.24;
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import "@aragon/os/contracts/common/UnstructuredStorage.sol";
 import "@aragon/os/contracts/lib/math/SafeMath.sol";
-import "./lib/Pausable.sol";
+import "./utils/Pausable.sol";
 
 /**
  * @title Interest-bearing ERC20-like token for Lido Liquid Stacking protocol.
@@ -50,6 +49,8 @@ import "./lib/Pausable.sol";
 contract StETH is IERC20, Pausable {
     using SafeMath for uint256;
     using UnstructuredStorage for bytes32;
+
+    address constant internal INITIAL_TOKEN_HOLDER = 0xdead;
 
     /**
      * @dev StETH balances are dynamic and are calculated based on the accounts' shares
@@ -114,7 +115,7 @@ contract StETH is IERC20, Pausable {
     /**
      * @return the name of the token.
      */
-    function name() public pure returns (string) {
+    function name() external pure returns (string) {
         return "Liquid staked Ether 2.0";
     }
 
@@ -122,14 +123,14 @@ contract StETH is IERC20, Pausable {
      * @return the symbol of the token, usually a shorter version of the
      * name.
      */
-    function symbol() public pure returns (string) {
+    function symbol() external pure returns (string) {
         return "stETH";
     }
 
     /**
      * @return the number of decimals for getting user representation of a token amount.
      */
-    function decimals() public pure returns (uint8) {
+    function decimals() external pure returns (uint8) {
         return 18;
     }
 
@@ -139,7 +140,7 @@ contract StETH is IERC20, Pausable {
      * @dev Always equals to `_getTotalPooledEther()` since token amount
      * is pegged to the total amount of Ether controlled by the protocol.
      */
-    function totalSupply() public view returns (uint256) {
+    function totalSupply() external view returns (uint256) {
         return _getTotalPooledEther();
     }
 
@@ -148,7 +149,7 @@ contract StETH is IERC20, Pausable {
      *
      * @dev The sum of all ETH balances in the protocol, equals to the total supply of stETH.
      */
-    function getTotalPooledEther() public view returns (uint256) {
+    function getTotalPooledEther() external view returns (uint256) {
         return _getTotalPooledEther();
     }
 
@@ -158,7 +159,7 @@ contract StETH is IERC20, Pausable {
      * @dev Balances are dynamic and equal the `_account`'s share in the amount of the
      * total Ether controlled by the protocol. See `sharesOf`.
      */
-    function balanceOf(address _account) public view returns (uint256) {
+    function balanceOf(address _account) external view returns (uint256) {
         return getPooledEthByShares(_sharesOf(_account));
     }
 
@@ -177,7 +178,7 @@ contract StETH is IERC20, Pausable {
      *
      * @dev The `_amount` argument is the amount of tokens, not shares.
      */
-    function transfer(address _recipient, uint256 _amount) public returns (bool) {
+    function transfer(address _recipient, uint256 _amount) external returns (bool) {
         _transfer(msg.sender, _recipient, _amount);
         return true;
     }
@@ -188,7 +189,7 @@ contract StETH is IERC20, Pausable {
      *
      * @dev This value changes when `approve` or `transferFrom` is called.
      */
-    function allowance(address _owner, address _spender) public view returns (uint256) {
+    function allowance(address _owner, address _spender) external view returns (uint256) {
         return allowances[_owner][_spender];
     }
 
@@ -201,11 +202,10 @@ contract StETH is IERC20, Pausable {
      * Requirements:
      *
      * - `_spender` cannot be the zero address.
-     * - the contract must not be paused.
      *
      * @dev The `_amount` argument is the amount of tokens, not shares.
      */
-    function approve(address _spender, uint256 _amount) public returns (bool) {
+    function approve(address _spender, uint256 _amount) external returns (bool) {
         _approve(msg.sender, _spender, _amount);
         return true;
     }
@@ -230,7 +230,7 @@ contract StETH is IERC20, Pausable {
      *
      * @dev The `_amount` argument is the amount of tokens, not shares.
      */
-    function transferFrom(address _sender, address _recipient, uint256 _amount) public returns (bool) {
+    function transferFrom(address _sender, address _recipient, uint256 _amount) external returns (bool) {
         uint256 currentAllowance = allowances[_sender][msg.sender];
         require(currentAllowance >= _amount, "TRANSFER_AMOUNT_EXCEEDS_ALLOWANCE");
 
@@ -250,9 +250,8 @@ contract StETH is IERC20, Pausable {
      * Requirements:
      *
      * - `_spender` cannot be the the zero address.
-     * - the contract must not be paused.
      */
-    function increaseAllowance(address _spender, uint256 _addedValue) public returns (bool) {
+    function increaseAllowance(address _spender, uint256 _addedValue) external returns (bool) {
         _approve(msg.sender, _spender, allowances[msg.sender][_spender].add(_addedValue));
         return true;
     }
@@ -269,9 +268,8 @@ contract StETH is IERC20, Pausable {
      *
      * - `_spender` cannot be the zero address.
      * - `_spender` must have allowance for the caller of at least `_subtractedValue`.
-     * - the contract must not be paused.
      */
-    function decreaseAllowance(address _spender, uint256 _subtractedValue) public returns (bool) {
+    function decreaseAllowance(address _spender, uint256 _subtractedValue) external returns (bool) {
         uint256 currentAllowance = allowances[msg.sender][_spender];
         require(currentAllowance >= _subtractedValue, "DECREASED_ALLOWANCE_BELOW_ZERO");
         _approve(msg.sender, _spender, currentAllowance.sub(_subtractedValue));
@@ -284,14 +282,14 @@ contract StETH is IERC20, Pausable {
      * @dev The sum of all accounts' shares can be an arbitrary number, therefore
      * it is necessary to store it in order to calculate each account's relative share.
      */
-    function getTotalShares() public view returns (uint256) {
+    function getTotalShares() external view returns (uint256) {
         return _getTotalShares();
     }
 
     /**
      * @return the amount of shares owned by `_account`.
      */
-    function sharesOf(address _account) public view returns (uint256) {
+    function sharesOf(address _account) external view returns (uint256) {
         return _sharesOf(_account);
     }
 
@@ -299,28 +297,18 @@ contract StETH is IERC20, Pausable {
      * @return the amount of shares that corresponds to `_ethAmount` protocol-controlled Ether.
      */
     function getSharesByPooledEth(uint256 _ethAmount) public view returns (uint256) {
-        uint256 totalPooledEther = _getTotalPooledEther();
-        if (totalPooledEther == 0) {
-            return 0;
-        } else {
-            return _ethAmount
-                .mul(_getTotalShares())
-                .div(totalPooledEther);
-        }
+        return _ethAmount
+            .mul(_getTotalShares())
+            .div(_getTotalPooledEther());
     }
 
     /**
      * @return the amount of Ether that corresponds to `_sharesAmount` token shares.
      */
     function getPooledEthByShares(uint256 _sharesAmount) public view returns (uint256) {
-        uint256 totalShares = _getTotalShares();
-        if (totalShares == 0) {
-            return 0;
-        } else {
-            return _sharesAmount
-                .mul(_getTotalPooledEther())
-                .div(totalShares);
-        }
+        return _sharesAmount
+            .mul(_getTotalPooledEther())
+            .div(_getTotalShares());
     }
 
     /**
@@ -338,11 +326,41 @@ contract StETH is IERC20, Pausable {
      *
      * @dev The `_sharesAmount` argument is the amount of shares, not tokens.
      */
-    function transferShares(address _recipient, uint256 _sharesAmount) public returns (uint256) {
+    function transferShares(address _recipient, uint256 _sharesAmount) external returns (uint256) {
         _transferShares(msg.sender, _recipient, _sharesAmount);
         emit TransferShares(msg.sender, _recipient, _sharesAmount);
         uint256 tokensAmount = getPooledEthByShares(_sharesAmount);
         emit Transfer(msg.sender, _recipient, tokensAmount);
+        return tokensAmount;
+    }
+
+    /**
+     * @notice Moves `_sharesAmount` token shares from the `_sender` account to the `_recipient` account.
+     *
+     * @return amount of transferred tokens.
+     * Emits a `TransferShares` event.
+     * Emits a `Transfer` event.
+     *
+     * Requirements:
+     *
+     * - `_sender` and `_recipient` cannot be the zero addresses.
+     * - `_sender` must have at least `_sharesAmount` shares.
+     * - the caller must have allowance for `_sender`'s tokens of at least `getPooledEthByShares(_sharesAmount)`.
+     * - the contract must not be paused.
+     *
+     * @dev The `_sharesAmount` argument is the amount of shares, not tokens.
+     */
+    function transferSharesFrom(
+        address _sender, address _recipient, uint256 _sharesAmount
+    ) external returns (uint256) {
+        uint256 currentAllowance = allowances[_sender][msg.sender];
+        uint256 tokensAmount = getPooledEthByShares(_sharesAmount);
+        require(currentAllowance >= tokensAmount, "TRANSFER_AMOUNT_EXCEEDS_ALLOWANCE");
+
+        _transferShares(_sender, _recipient, _sharesAmount);
+        _approve(_sender, msg.sender, currentAllowance.sub(tokensAmount));
+        emit TransferShares(_sender, _recipient, _sharesAmount);
+        emit Transfer(_sender, _recipient, tokensAmount);
         return tokensAmount;
     }
 
@@ -370,13 +388,14 @@ contract StETH is IERC20, Pausable {
      *
      * Emits an `Approval` event.
      *
+     * NB: the method can be invoked even if the protocol paused.
+     *
      * Requirements:
      *
      * - `_owner` cannot be the zero address.
      * - `_spender` cannot be the zero address.
-     * - the contract must not be paused.
      */
-    function _approve(address _owner, address _spender, uint256 _amount) internal whenNotStopped {
+    function _approve(address _owner, address _spender, uint256 _amount) internal {
         require(_owner != address(0), "APPROVE_FROM_ZERO_ADDRESS");
         require(_spender != address(0), "APPROVE_TO_ZERO_ADDRESS");
 
@@ -408,9 +427,10 @@ contract StETH is IERC20, Pausable {
      * - `_sender` must hold at least `_sharesAmount` shares.
      * - the contract must not be paused.
      */
-    function _transferShares(address _sender, address _recipient, uint256 _sharesAmount) internal whenNotStopped {
+    function _transferShares(address _sender, address _recipient, uint256 _sharesAmount) internal {
         require(_sender != address(0), "TRANSFER_FROM_THE_ZERO_ADDRESS");
         require(_recipient != address(0), "TRANSFER_TO_THE_ZERO_ADDRESS");
+        _whenNotStopped();
 
         uint256 currentSenderShares = shares[_sender];
         require(_sharesAmount <= currentSenderShares, "TRANSFER_AMOUNT_EXCEEDS_BALANCE");
@@ -423,12 +443,14 @@ contract StETH is IERC20, Pausable {
      * @notice Creates `_sharesAmount` shares and assigns them to `_recipient`, increasing the total amount of shares.
      * @dev This doesn't increase the token total supply.
      *
+     * NB: The method doesn't check protocol pause relying on the external enforcement.
+     *
      * Requirements:
      *
      * - `_recipient` cannot be the zero address.
      * - the contract must not be paused.
      */
-    function _mintShares(address _recipient, uint256 _sharesAmount) internal whenNotStopped returns (uint256 newTotalShares) {
+    function _mintShares(address _recipient, uint256 _sharesAmount) internal returns (uint256 newTotalShares) {
         require(_recipient != address(0), "MINT_TO_THE_ZERO_ADDRESS");
 
         newTotalShares = _getTotalShares().add(_sharesAmount);
@@ -454,7 +476,7 @@ contract StETH is IERC20, Pausable {
      * - `_account` must hold at least `_sharesAmount` shares.
      * - the contract must not be paused.
      */
-    function _burnShares(address _account, uint256 _sharesAmount) internal whenNotStopped returns (uint256 newTotalShares) {
+    function _burnShares(address _account, uint256 _sharesAmount) internal returns (uint256 newTotalShares) {
         require(_account != address(0), "BURN_FROM_THE_ZERO_ADDRESS");
 
         uint256 accountShares = shares[_account];
@@ -478,5 +500,32 @@ contract StETH is IERC20, Pausable {
         // but we cannot reflect this as it would require sending an unbounded number of events.
 
         // We're emitting `SharesBurnt` event to provide an explicit rebase log record nonetheless.
+    }
+
+    /**
+     * @notice Mints shares on behalf of 0xdead address,
+     * the shares amount is equal to the contract's balance.     *
+     *
+     * Allows to get rid of zero checks for `totalShares` and `totalPooledEther`
+     * and overcome corner cases.
+     *
+     * @dev must be invoked before using the token
+     */
+    function _bootstrapInitialHolder() internal returns (uint256) {
+        uint256 balance = address(this).balance;
+        require(balance != 0, "EMPTY_INIT_BALANCE");
+
+        if (_getTotalShares() == 0) {
+            // if protocol is empty bootstrap it with the contract's balance
+            // address(0xdead) is a holder for initial shares
+            _mintShares(INITIAL_TOKEN_HOLDER, balance);
+
+            emit Transfer(0x0, INITIAL_TOKEN_HOLDER, balance);
+            emit TransferShares(0x0, INITIAL_TOKEN_HOLDER, balance);
+
+            return balance;
+        }
+
+        return 0;
     }
 }
