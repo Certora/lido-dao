@@ -13,9 +13,29 @@ methods {
 /**************************************************
  *                CVL FUNCS & DEFS                *
  **************************************************/
-// function saneTimeConfig() {
-  
-// }
+function saneTimeConfig() {
+    env e0; calldataarg args0;
+
+    require e0.msg.value == 0;                       // view functions revert is you send eth
+    require e0.block.timestamp > 1672531200;         // 01.01.2023 00:00:00
+    require e0.block.timestamp < 2524608000;         // 01.01.2050 00:00:00
+
+    uint256 slotsPerEpoch; uint256 secondsPerSlot; uint256 genesisTime;
+    slotsPerEpoch, secondsPerSlot, genesisTime = getChainConfig(e0);
+
+    require slotsPerEpoch == 32;                    // simplification, must be required at constructor
+    require secondsPerSlot == 12;                   // simplification, must be required at constructor
+    require genesisTime < e0.block.timestamp;       // safe assumption, must be required at constructor
+
+    uint256 initialEpoch; uint256 epochsPerFrame; uint256 fastLaneLengthSlots;
+    initialEpoch, epochsPerFrame, fastLaneLengthSlots = getFrameConfig(e0);
+    require epochsPerFrame > 0;                     // constructor already ensures this
+    require epochsPerFrame < 31536000;              // assuming less than 1 year per frame
+
+    // assuming correct configuration of the frame, otherwise revert
+    require initialEpoch < (e0.block.timestamp - genesisTime) / (secondsPerSlot * slotsPerEpoch);
+    require initialEpoch > 0;    
+}
 
 definition UINT64_MAX() returns uint64 = 0xFFFFFFFFFFFFFFFF;
 definition UINT256_MAX() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
@@ -226,6 +246,7 @@ rule setFrameConfigACL() {
 // Status: Fails (need to work on)
 // https://vaas-stg.certora.com/output/80942/b8aa709fcefc4b2bb039c2513f17ddd6/?anonymousKey=a19462454ae831311d10d01fdd3a7f4dbe331812
 rule setFrameConfigCorrectness() {
+    saneTimeConfig();           // ensuring sane chainConfig and frameConfig
     env e; calldataarg args;
 
     // Get state before
