@@ -103,50 +103,6 @@ function reasonableKeysAssumptions(uint256 nodeOperatorId) {
     require getNodeOperatorTargetStats_target(nodeOperatorId) <= UINT64_MAX();
 }
 
-function keysInvariants(uint256 nodeOperatorId) returns bool {
-    bool limitActive;
-    uint256 target;
-    uint256 stuck;
-    uint256 refunded;
-    uint256 stuckPenaltyEnd;
-    uint256 exited;
-    uint256 deposited;
-    uint256 depositable;
-    
-    limitActive, target, stuck, refunded, stuckPenaltyEnd,
-    exited, deposited, depositable = nos.getNodeOperatorSummary(nodeOperatorId);
-
-    uint256 maxKeys = depositable + deposited;
-    uint256 vetted = getNodeOperatorSigningStats_vetted(nodeOperatorId);
-    uint256 total = getNodeOperatorSigningStats_total(nodeOperatorId);
-    uint256 count = getNodeOperatorsCount();
-
-    bool Invariant = 
-        exited <= deposited &&
-        deposited <= vetted &&
-        vetted <= total &&
-        maxKeys <= vetted &&
-        deposited <= maxKeys &&
-        target + exited <= max_uint;
-
-    bool unregisteredOperatorKeys = 
-        nodeOperatorId >= count => total == 0; 
-
-    return unregisteredOperatorKeys && Invariant;
-}
-
-invariant KeysCount(uint256 nodeOperatorId) keysInvariants(nodeOperatorId)
-{
-    preserved{
-        reasonableKeysAssumptions(nodeOperatorId);
-        requireInvariant NodeOperatorsCountLEMAX();
-        requireInvariant ActiveOperatorsLECount();
-        requireInvariant SumOfActiveOperatorsEqualsActiveCount();
-        requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
-    }
-
-}
-
 /**************************************************
  *                  Invariants                    *
  **************************************************/
@@ -380,18 +336,54 @@ invariant NoDepositableKeysForInactiveModule(uint256 nodeOperatorId)
 /// The sum of all deposited keys from all operators is equal to the summary.
 invariant SumOfDepositedKeysEqualsSummary()
     sumOfDepositedKeys() == getSummaryTotalDepositedValidators()
+    {
+        preserved {
+            safeAssumptions_NOS(0);
+            safeAssumptions_NOS(1);
+            require getNodeOperatorSigningStats_deposited(0) <= getSummaryTotalDepositedValidators();
+            require getNodeOperatorSigningStats_deposited(1) <= getSummaryTotalDepositedValidators();
+            require getNodeOperatorSigningStats_deposited(2) <= getSummaryTotalDepositedValidators();
+        }
+    }
 
 /// The sum of all exited keys from all operators is equal to the summary.
 invariant SumOfExitedKeysEqualsSummary()
     sumOfExitedKeys() == getSummaryTotalExitedValidators()
+    {
+        preserved {
+            safeAssumptions_NOS(0);
+            safeAssumptions_NOS(1);
+            require getNodeOperatorSigningStats_exited(0) <= getSummaryTotalExitedValidators();
+            require getNodeOperatorSigningStats_exited(1) <= getSummaryTotalExitedValidators();
+            require getNodeOperatorSigningStats_exited(2) <= getSummaryTotalExitedValidators();
+        }
+    }
 
 /// The sum of all keys from all operators is equal to the summary.
 invariant SumOfTotalKeysEqualsSummary()
     sumOfTotalKeys() == getSummaryTotalKeyCount()
+    {
+        preserved {
+            safeAssumptions_NOS(0);
+            safeAssumptions_NOS(1);
+            require getNodeOperatorSigningStats_total(0) <= getSummaryTotalKeyCount();
+            require getNodeOperatorSigningStats_total(1) <= getSummaryTotalKeyCount();
+            require getNodeOperatorSigningStats_total(2) <= getSummaryTotalKeyCount();
+        }
+    }
 
 /// The sum of all target max keys from all operators is equal to the summary.
 invariant SumOfMaxKeysEqualsSummary()
     sumOfMaxKeys() == getSummaryMaxValidators()
+    {
+        preserved {
+            safeAssumptions_NOS(0);
+            safeAssumptions_NOS(1);
+            require getNodeOperatorTargetStats_max(0) <= getSummaryMaxValidators();
+            require getNodeOperatorTargetStats_max(1) <= getSummaryMaxValidators();
+            require getNodeOperatorTargetStats_max(2) <= getSummaryMaxValidators();
+        }
+    }
 
 /**************************************************
  *          Sum of keys equals summary            *

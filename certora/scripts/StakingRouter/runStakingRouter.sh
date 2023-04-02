@@ -16,10 +16,10 @@ LidoLocator:lido=LidoMockStEth \
 --solc_map StakingRouterHarness=solc8.9,Burner=solc8.9,LidoLocator=solc8.9,\
 StakingModuleMock=solc8.9,\
 NodeOperatorsRegistry=solc4.24,LidoMockStEth=solc4.24 \
---loop_iter 3 \
+--loop_iter 4 \
 --optimistic_loop \
---staging master \
---rule_sanity  \
+--staging pre_cvl2 \
+--rule_sanity \
 --send_only \
 --settings -optimisticFallback=true \
 --settings -t=1200,-depth=12,-mediumTimeout=100,-copyLoopUnroll=6,-optimisticUnboundedHashing=true \
