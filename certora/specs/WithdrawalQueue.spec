@@ -1,6 +1,8 @@
 import "./StEth.spec"
+import "./WStEth.spec"
 
 using StETHMock as STETH
+using DummyERC20 as WSTETH
 
 methods {
     // WithdrawalQueue
@@ -36,6 +38,8 @@ methods {
     getFinalizedAndNotClaimedEth() returns (uint256) envfree
     finalizeSingleBatch(uint256, uint256)
     calculateClaimableEther(uint256) returns (uint256) envfree
+    requestWithdrawalsHarness(uint256, address) returns (uint256)
+    requestWithdrawalsWstEthHarness(uint256, address) returns (uint256)
 
     // Getters:
     // WithdrawalQueueBase:
@@ -82,14 +86,14 @@ definition PAUSE_INFINITELY() returns uint256 = max_uint256;
  **************************************************/
 
 /**
-After calling requestWithdrawal:
+After calling requestWithdrawals:
     1. the stEth.shares of the user should decrease 
     2. the contract’s stEth.shares should increase by the same amount.
     3. generate the desired withdrawal request.
  **/
 rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     env e;
-    require e.msg.sender != currentContract;
+    require e.msg.sender != currentContract && e.msg.sender != 0;
     uint256 stEthBalanceBefore = STETH.sharesOf(e.msg.sender);
     uint256 contractStEthBalanceBefore = STETH.sharesOf(currentContract);
 
@@ -97,7 +101,7 @@ rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
 
     uint256 actualShares = STETH.getSharesByPooledEth(amount);
 
-    uint256 requestId = requestWithdrawal(e, amount, owner);
+    uint256 requestId = requestWithdrawalsHarness(e, amount, owner);
 
     uint256 stEthBalanceAfter = STETH.sharesOf(e.msg.sender);
     uint256 contractStEthBalanceAfter = STETH.sharesOf(currentContract);
@@ -109,7 +113,40 @@ rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     assert stEthBalanceBefore - actualShares == stEthBalanceAfter;
     assert contractStEthBalanceBefore + actualShares == contractStEthBalanceAfter;
     assert reqCumulativeStEth == lastCumulativeStEth + amount;
-    assert reqOwner == owner; //&& to_uint40(e.block.timestamp) == timestamp;
+    assert (reqOwner == owner && reqOwner != 0) || reqOwner == e.msg.sender;
+}
+
+/**
+After calling requestWithdrawalsWstEth:
+    1. the WSTETH.balanceOf of the user should decrease by amount
+    2. the contract’s WSTETH.balanceOf should increase by the same amount.
+    3. generate the desired withdrawal request.
+ **/
+rule integrityOfRequestWithdrawalsWstEth(address owner, uint256 amount) {
+    env e;
+    require e.msg.sender != currentContract;
+    uint256 wstEthBalanceBefore = WSTETH.balanceOf(e.msg.sender);
+    uint256 contractWstEthBalanceBefore = WSTETH.balanceOf(currentContract);
+
+    uint256 lastCumulativeStEth = getRequestCumulativeStEth(getLastRequestId());
+    uint256 lastCumulativeShares = getRequestCumulativeShares(getLastRequestId());
+
+    uint256 amountOfStETH = WSTETH.unwrap(e, amount);
+
+    uint256 requestId = requestWithdrawalsWstEthHarness(e, amount, owner);
+
+    uint256 wstEthBalanceAfter = WSTETH.balanceOf(e.msg.sender);
+    uint256 contractWtEthBalanceAfter = WSTETH.balanceOf(currentContract);
+    uint256 reqCumulativeStEth = getRequestCumulativeStEth(requestId);
+    uint256 reqCumulativeShares = getRequestCumulativeShares(requestId);
+    address reqOwner = getRequestOwner(requestId);
+    address timestamp = getRequestTimestamp(requestId);
+
+    assert requestId == getLastRequestId();
+    assert wstEthBalanceBefore - amount == wstEthBalanceAfter;
+    assert contractWstEthBalanceBefore + amount == contractWtEthBalanceAfter;
+    assert reqCumulativeStEth == lastCumulativeStEth + amountOfStETH;
+    assert (reqOwner == owner && reqOwner != 0) || reqOwner == e.msg.sender;
 }
 
 /** 
@@ -160,9 +197,28 @@ rule integrityOfFinalize(uint256 lastIdToFinalize, uint256 maxShareRate) {
 }
 
 
-// /**************************************************
-//  *                   HIGH LEVEL                   *
-//  **************************************************/
+/**************************************************
+ *                   HIGH LEVEL                   *
+ **************************************************/
+
+/** 
+With the right conditions, user can always claim his request.
+**/
+// rule abilityToClaim(uint256 reqId) {
+//     env e;
+//     require balanceOfEth(currentContract) == max_uint256;
+//     require balanceOfEth(e.msg.sender) == 0;
+//     require e.msg.value == 0;
+//     require reqId > 0;
+//     require reqId <= getLastFinalizedRequestId();
+//     require !getRequestClaimed(reqId);
+//     require e.msg.sender == getRequestOwner(reqId);
+//     require addRequestByOwnerExists(reqId, e.msg.sender);
+
+//     claimWithdrawal@withrevert(e, reqId);
+
+//     assert !lastReverted;
+// }
 
 /** 
 If there is a new checkpoint index then the last finalized request id must have increased.
