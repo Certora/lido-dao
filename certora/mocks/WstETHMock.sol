@@ -22,4 +22,12 @@ contract WstETHMock is WstETH {
             chainId := chainid()
         }
     }
+
+    function unwrapMock(uint256 _wstETHAmount) public returns (uint256) {
+        return unwrap(_wstETHAmount);
+    }
+
+    function unwrap(uint256 _wstETHAmount) public returns (uint256) {
+        return _wstETHAmount;
+    }
 }

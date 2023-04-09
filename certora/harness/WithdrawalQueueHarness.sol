@@ -2,6 +2,7 @@
 pragma solidity 0.8.9;
 
 import "../../contracts/0.8.9/WithdrawalQueue.sol";
+import "@openzeppelin/contracts-v4.4/utils/structs/EnumerableSet.sol";
 
 contract WithdrawalQueueHarness is WithdrawalQueue {
 
@@ -103,6 +104,20 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
         return _requestWithdrawal(amount, _owner);
     }
 
+    function requestWithdrawalsHarness(uint256 amount, address _owner) public returns (uint256) {
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+        uint256[] memory res = requestWithdrawals(amounts, _owner);
+        return res[0];
+    }
+
+    function requestWithdrawalsWstEthHarness(uint256 amount, address _owner) public returns (uint256) {
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+        uint256[] memory res = requestWithdrawalsWstETH(amounts, _owner);
+        return res[0];
+    }
+
     function claimWithdrawal(uint256 requestId, uint256 hintIndex) public {
         _claim(requestId, hintIndex, msg.sender);
     }
@@ -139,37 +154,6 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
         return _calculateClaimableEther(request, requestId, _findCheckpointHint(requestId, 1, getLastCheckpointIndex()));
     }
 
-    // struct BatchesCalculationState {
-    //     /// @notice amount of ether available in the protocol that can be used to finalize withdrawal requests
-    //     ///  Will decrease on each invokation and will be equal to the remainder when calculation is finished
-    //     ///  Should be set before the first invokation
-    //     uint256 remainingEthBudget;
-    //     /// @notice flag that is `true` if returned state is final and `false` if more invokations required
-    //     bool finished;
-    //     /// @notice static array to store all the batches ending request id
-    //     uint256[MAX_BATCHES_LENGTH] batches;
-    //     /// @notice length of the filled part of `batches` array
-    //     uint256 batchesLength;
-    // }
 
-    // function calculateFinalizationBatch(
-    //     uint256 _maxShareRate,
-    //     uint256 _maxTimestamp,
-    //     uint256 _maxRequestsPerCall,
-    //     uint256 remainingEthBudget,
-    //     bool finished,
-    //     uint256 lastIdToFinalize
-    // ) public view returns (BatchesCalculationState memory) {
-    //     uint256[MAX_BATCHES_LENGTH] memory lastIdToFinalizeArray;
-    //     lastIdToFinalizeArray[0] = lastIdToFinalize;
-    //     BatchesCalculationState memory state = BatchesCalculationState(
-    //         remainingEthBudget,
-    //         finished,
-    //         lastIdToFinalizeArray,
-    //         1
-    //     );
-
-    //     BatchesCalculationState memory res = this.calculateFinalizationBatches(_maxShareRate, _maxTimestamp, _maxRequestsPerCall, state);
-    //     return res;
     // }
 }
