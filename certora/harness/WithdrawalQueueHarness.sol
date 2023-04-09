@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.9;
 
-import "../../contracts/0.8.9/WithdrawalQueue.sol";
+import "../munged/0.8.9/WithdrawalQueue.sol";
 import "@openzeppelin/contracts-v4.4/utils/structs/EnumerableSet.sol";
 
 contract WithdrawalQueueHarness is WithdrawalQueue {
