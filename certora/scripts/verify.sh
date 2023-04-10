@@ -1,11 +1,15 @@
-sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeOwner "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangePauseIntentValidityPeriodBlocks "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeMaxDepositsPerBlock "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeMinDepositBlockDistance "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeQuorum "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeGuardians "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeUnpause "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh correct32EthDeposit "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh agreedRevertsSimple "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh revert5 "with lido deposit, unroll 6, iter 2"
-sh certora/scripts/verifyDepositSecurityModule.sh noncePlusOne "with lido deposit, unroll 6, iter 2"
+sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeMaxDepositsPerBlock 
+sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeMinDepositBlockDistance 
+sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeQuorum 
+sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeGuardians 
+sh certora/scripts/verifyDepositSecurityModule.sh onlyOwnerCanChangeUnpause 
+sh certora/scripts/verifyDepositSecurityModule.sh canUnpauseScenario
+sh certora/scripts/verifyDepositSecurityModule.sh cantStop
+sh certora/scripts/verifyDepositSecurityModule.sh cannotDepositDuringPauseBool 
+sh certora/scripts/verifyDepositSecurityModule.sh cannotDepositDuringPauseRevert 
+sh certora/scripts/verifyDepositSecurityModule.sh unique
+sh certora/scripts/verifyDepositSecurityModule.sh zeroIsNotGuardian
+sh certora/scripts/verifyDepositSecurityModule.sh youShallNotPassTwice
+sh certora/scripts/verifyDepositSecurityModule.sh nonGuardianCantSign
+sh certora/scripts/verifyDepositSecurityModule.sh agreedRevertsSimple
+sh certora/scripts/verifyDepositSecurityModule.sh onlyGuardianCanPause

@@ -53,13 +53,25 @@ contract DepositSecurityModuleHarness is DepositSecurityModule {
         );
     }
 
+
+
     function getHashedAddress(
         uint256 blockNumber,
         uint256 stakingModuleId,
         Signature memory sig
     ) external view returns (address) {
+        bytes32 check = returnPrefix();
         bytes32 msgHash = keccak256(abi.encodePacked(PAUSE_MESSAGE_PREFIX, blockNumber, stakingModuleId));
-        return ECDSA.recover(msgHash, signa.r, signa.vs);
+        return ECDSA.recover(checkHash, signa.r, signa.vs);
+    }
+
+    function getKeccak256(
+        uint256 blockNumber,
+        uint256 stakingModuleId
+    ) external view returns (bytes32) {
+        bytes32 check = returnPrefix();
+        bytes32 msgHash = keccak256(abi.encodePacked(PAUSE_MESSAGE_PREFIX, blockNumber, stakingModuleId));
+        return msgHash;
     }
 
     function getEthBalance(address addr) external view returns (uint256) {

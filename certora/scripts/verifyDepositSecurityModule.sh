@@ -22,10 +22,11 @@ certoraRun \
     --solc_map DepositSecurityModuleHarness=solc8.9,StakingRouter=solc8.9,WithdrawalQueueHarness=solc8.9,LidoLocator=solc8.9,Lido=solc4.24,NodeOperatorsRegistry=solc4.24 \
     --link DepositSecurityModuleHarness:LIDO=Lido \
     --optimistic_loop \
-    --loop_iter 2 \
+    --loop_iter 3 \
     --send_only \
     --rule_sanity \
-    --staging master \
+    --settings -optimisticUnboundedHashing=true,-optimisticFallback=true \
+    --staging pre_cvl2 \
     --settings -t=2000,-mediumTimeout=2000,-depth=100,-copyLoopUnroll=6 \
     $RULE \
     --msg "DepositSecurityModule: $RULE $MSG"

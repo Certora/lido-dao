@@ -65,7 +65,7 @@ contract DepositSecurityModule {
     error ZeroParameter(string parameter);
 
     bytes32 public immutable ATTEST_MESSAGE_PREFIX;
-    bytes32 public immutable PAUSE_MESSAGE_PREFIX;
+    bytes32 public PAUSE_MESSAGE_PREFIX;        // HARNESS: removed immutable
 
     ILido public immutable LIDO;
     IStakingRouter public immutable STAKING_ROUTER;
@@ -344,12 +344,14 @@ contract DepositSecurityModule {
             return;
         }
 
+        bytes32 check = returnPrefix();
+
         address guardianAddr = msg.sender;
         int256 guardianIndex = _getGuardianIndex(msg.sender);
 
         if (guardianIndex == -1) {
             bytes32 msgHash = keccak256(abi.encodePacked(PAUSE_MESSAGE_PREFIX, blockNumber, stakingModuleId));
-            guardianAddr = ECDSA.recover(msgHash, signa.r, signa.vs);
+            guardianAddr = ECDSA.recover(checkHash, signa.r, signa.vs);
             guardianIndex = _getGuardianIndex(guardianAddr);
             if (guardianIndex == -1) revert InvalidSignature();
         }
@@ -358,6 +360,12 @@ contract DepositSecurityModule {
 
         STAKING_ROUTER.pauseStakingModule(stakingModuleId);
         emit DepositsPaused(guardianAddr, uint24(stakingModuleId));
+    }
+
+    bytes32 checkHash;
+
+    function returnPrefix() public view returns (bytes32) {
+        return PAUSE_MESSAGE_PREFIX;
     }
 
     /**
@@ -431,6 +439,7 @@ contract DepositSecurityModule {
 
         _verifySignatures(depositRoot, blockNumber, blockHash, stakingModuleId, nonce, sortedGuardianSignatures);
 
+        // payable(address(DEPOSIT_CONTRACT)).transfer(32);
         LIDO.deposit(maxDepositsPerBlock, stakingModuleId, depositCalldata);
     }
 

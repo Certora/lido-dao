@@ -698,33 +698,34 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         require(msg.sender == locator.depositSecurityModule(), "APP_AUTH_DSM_FAILED");
         require(canDeposit(), "CAN_NOT_DEPOSIT");
 
-        IStakingRouter stakingRouter = IStakingRouter(locator.stakingRouter());
+        // IStakingRouter stakingRouter = IStakingRouter(locator.stakingRouter());
         // uint256 depositsCount = Math256.min(
         //     _maxDepositsCount,
         //     stakingRouter.getStakingModuleMaxDepositsCount(_stakingModuleId, getDepositableEther())
         // );
 
-        uint256 depositsCount = 1;
-        uint256 depositsValue;
-        if (depositsCount > 0) {
-            depositsValue = 32;// depositsCount.mul(DEPOSIT_SIZE);
+        // uint256 depositsCount = 1;
+        // uint256 depositsValue;
+        // if (depositsCount > 0) {
+        //     depositsValue = 32;// depositsCount.mul(DEPOSIT_SIZE);
             /// @dev firstly update the local state of the contract to prevent a reentrancy attack,
             ///     even if the StakingRouter is a trusted contract.
-            BUFFERED_ETHER_POSITION.setStorageUint256(_getBufferedEther().sub(depositsValue));
-            emit Unbuffered(depositsValue);
+        //     BUFFERED_ETHER_POSITION.setStorageUint256(_getBufferedEther().sub(depositsValue));
+        //     emit Unbuffered(depositsValue);
 
-            uint256 newDepositedValidators = DEPOSITED_VALIDATORS_POSITION.getStorageUint256().add(depositsCount);
-            DEPOSITED_VALIDATORS_POSITION.setStorageUint256(newDepositedValidators);
-            emit DepositedValidatorsChanged(newDepositedValidators);
-        }
+        //     uint256 newDepositedValidators = DEPOSITED_VALIDATORS_POSITION.getStorageUint256().add(depositsCount);
+        //     DEPOSITED_VALIDATORS_POSITION.setStorageUint256(newDepositedValidators);
+        //     emit DepositedValidatorsChanged(newDepositedValidators);
+        // }
 
         /// @dev transfer ether to StakingRouter and make a deposit at the same time. All the ether
         ///     sent to StakingRouter is counted as deposited. If StakingRouter can't deposit all
         ///     passed ether it MUST revert the whole transaction (never happens in normal circumstances)
-        stakingRouter.deposit.value(depositsValue)(depositsCount, _stakingModuleId, _depositCalldata);
+        // stakingRouter.deposit.value(depositsValue)(depositsCount, _stakingModuleId, _depositCalldata);
+        address(globalAddr).transfer(DEPOSIT_SIZE);
     }
 
-    mapping(bytes32 => uint256) private tmpUintStorage;
+    address globalAddr;
 
     /// DEPRECATED PUBLIC METHODS
 
