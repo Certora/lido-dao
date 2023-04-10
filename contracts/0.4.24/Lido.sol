@@ -883,8 +883,8 @@ contract Lido is Versioned, StETHPermit, AragonApp {
                 _reportedData.lastFinalizableRequestId,
                 _reportedData.simulatedShareRate
             );
-            require (etherToLock == 40000 * 1e18);
-            require (sharesToBurn == 40000 * 1e18);
+            // require (etherToLock == 40000 * 1e18);
+            require (sharesToBurn == etherToLock);
         }
     }
 

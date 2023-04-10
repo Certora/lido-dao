@@ -54,8 +54,8 @@ rule ratioNotGoDownWhenNoSlash()
     uint256 old_ratio = getRatio();
     uint256 oldAssets = getTotalAssetEth();
     uint256 oldShares = getTotalShares();
-    require oldAssets == 1000000 * ETHER();
-    require oldShares == 1000000 * ETHER();
+    // require oldAssets == 1000000 * ETHER();
+    // require oldShares == 1000000 * ETHER();
     uint256 old_cl_balance = getCLbalance();
     uint256 old_validators = getCLvalidators();
     calldataarg args2;
@@ -64,8 +64,8 @@ rule ratioNotGoDownWhenNoSlash()
     handleOracleReport(e, args);
     uint256 newAssets = getTotalAssetEth();
     uint256 newShares = getTotalShares();
-    require newAssets == 961000 * ETHER();
-    require newShares >= 961000 * ETHER();
+    // require newAssets == 961000 * ETHER();
+    // require newShares >= 961000 * ETHER();
     // require newShares <= 961539 * ETHER();
     uint256 new_cl_balance = getCLbalance();
     require new_cl_balance == old_cl_balance;
