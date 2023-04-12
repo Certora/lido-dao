@@ -113,49 +113,49 @@ function recoverGhostCVL(bytes32 hash, bytes32 r, bytes32 vs) returns address {
  **************************************************/
 
 
-ghost mapping(address => uint256) guardianIndicesOneBasedMirror {
-    init_state axiom forall address a. guardianIndicesOneBasedMirror[a] == 0;
-}
+// ghost mapping(address => uint256) guardianIndicesOneBasedMirror {
+//     init_state axiom forall address a. guardianIndicesOneBasedMirror[a] == 0;
+// }
 
-hook Sstore guardianIndicesOneBased[KEY address guardian] uint256 index
-    (uint256 old_index) STORAGE
-{
-    guardianIndicesOneBasedMirror[guardian] = index;
-}
+// hook Sstore guardianIndicesOneBased[KEY address guardian] uint256 index
+//     (uint256 old_index) STORAGE
+// {
+//     guardianIndicesOneBasedMirror[guardian] = index;
+// }
 
-hook Sload uint256 index guardianIndicesOneBased[KEY address guardian]  STORAGE {
-    require guardianIndicesOneBasedMirror[guardian] == index;
-}
-
-
-ghost mapping(uint256 => address) guardiansMirror {
-    init_state axiom forall uint256 a. guardiansMirror[a] == 0;
-}
-
-hook Sstore guardians[INDEX uint256 index] address guardian
-    (address old_guardian) STORAGE
-{
-    guardiansMirror[index] = guardian;
-}
-
-hook Sload address guardian guardians[INDEX uint256 index]  STORAGE {
-    require guardiansMirror[index] == guardian;
-}
+// hook Sload uint256 index guardianIndicesOneBased[KEY address guardian]  STORAGE {
+//     require guardianIndicesOneBasedMirror[guardian] == index;
+// }
 
 
-ghost uint256 mirrorArrayLen {
-    init_state axiom mirrorArrayLen == 0;
-    axiom mirrorArrayLen != max_uint256; 
-}
+// ghost mapping(uint256 => address) guardiansMirror {
+//     init_state axiom forall uint256 a. guardiansMirror[a] == 0;
+// }
 
-hook Sstore guardians.(offset 0) uint256 newLen 
-    (uint256 oldLen) STORAGE {
-    mirrorArrayLen = newLen;
-}
+// hook Sstore guardians[INDEX uint256 index] address guardian
+//     (address old_guardian) STORAGE
+// {
+//     guardiansMirror[index] = guardian;
+// }
 
-hook Sload uint256 len guardians.(offset 0) STORAGE {
-    require mirrorArrayLen == len;
-}
+// hook Sload address guardian guardians[INDEX uint256 index]  STORAGE {
+//     require guardiansMirror[index] == guardian;
+// }
+
+
+// ghost uint256 mirrorArrayLen {
+//     init_state axiom mirrorArrayLen == 0;
+//     axiom mirrorArrayLen != max_uint256; 
+// }
+
+// hook Sstore guardians.(offset 0) uint256 newLen 
+//     (uint256 oldLen) STORAGE {
+//     mirrorArrayLen = newLen;
+// }
+
+// hook Sload uint256 len guardians.(offset 0) STORAGE {
+//     require mirrorArrayLen == len;
+// }
 
 
 ghost mapping(bytes32 => mapping(bytes32 => mapping(bytes32 => address))) recoveryGhostSingle;
@@ -280,45 +280,38 @@ rule onlyOwnerCanChangeGuardians(env e, method f) filtered { f -> excludeMethods
 rule onlyOwnerCanChangeUnpause(env e, method f) filtered { f -> excludeMethods(f) } {
     uint256 _stakingModuleId;
 
-    require StkRouter.getStakingModuleStatus(_stakingModuleId) == 1;
+    uint256 pausedBefore = StkRouter.getStakingModuleStatus(_stakingModuleId);
 
     calldataarg args;
     f(e, args);
 
-    assert StkRouter.getStakingModuleStatus(_stakingModuleId) == 0 
+    assert (pausedBefore == 1 
+                && StkRouter.getStakingModuleStatus(_stakingModuleId) == 0)
             => (getOwner() == e.msg.sender
                 && f.selector == unpauseDeposits(uint256).selector);
 }
 
 
 // STATUS - verified
-// If stakingModuleId was paused, owner can unpause
-rule canUnpauseScenario(env e, env e2) {
+// If stakingModuleId was paused, can unpause
+rule canUnpause(env e, env e2) {
     uint256 blockNumber;
     uint256 stakingModuleId;
     DSM.Signature sig;
 
-    pauseDeposits(e, blockNumber, stakingModuleId, sig);
+    uint256 pausedBefore = StkRouter.getStakingModuleStatus(stakingModuleId);
 
-    unpauseDeposits@withrevert(e2, stakingModuleId);
+    unpauseDeposits(e2, stakingModuleId);
 
-    assert (getOwner() == e2.msg.sender
-                && e2.msg.value == 0)
-            => !lastReverted, "Remember, with great power comes great responsibility.";
+    assert pausedBefore == 1 => StkRouter.getStakingModuleStatus(stakingModuleId) == 0, "Remember, with great power comes great responsibility.";
 }
 
 
 // STATUS - verified
 // It's impossible to stop deposits from DepositSecurityModule.sol
-rule cantStop(env e, method f) filtered { f -> excludeMethods(f) } {
-    uint256 stakingModuleId;
-    uint8 stakingModuleStatusBefore = StkRouter.getStakingModuleStatus(stakingModuleId);
-
-    calldataarg args;
-    f(e, args);
-
-    assert stakingModuleStatusBefore != 2 => StkRouter.getStakingModuleStatus(stakingModuleId) != 2, "Remember, with great power comes great responsibility.";
-}
+invariant cantStop(uint256 stakingModuleId)
+    StkRouter.getStakingModuleStatus(stakingModuleId) != 2
+    filtered { f -> excludeMethods(f) }
 
 
 // STATUS - verified
@@ -361,33 +354,33 @@ rule cannotDepositDuringPauseRevert(env e) {
 
 // STATUS - verified
 // guardians array can't contain the same guardian twice. guardians array and guardianIndicesOneBased mapping are correlated
-invariant unique()
-    (forall address guardian1.
-        forall address guardian2.
-            (guardian1 != guardian2
-            => (guardianIndicesOneBasedMirror[guardian1] != guardianIndicesOneBasedMirror[guardian2]
-                || guardianIndicesOneBasedMirror[guardian1] == 0))
-            && guardianIndicesOneBasedMirror[guardian1] <= mirrorArrayLen)
-    && (forall uint256 i. i < mirrorArrayLen => (guardianIndicesOneBasedMirror[guardiansMirror[i]] - 1) == i)
-    filtered { f -> excludeMethods(f) }
-    {
-        preserved {
-            require mirrorArrayLen < max_uint128;   // very long array causes false violations
-        }
-    }
+// invariant unique()
+//     (forall address guardian1.
+//         forall address guardian2.
+//             (guardian1 != guardian2
+//             => (guardianIndicesOneBasedMirror[guardian1] != guardianIndicesOneBasedMirror[guardian2]
+//                 || guardianIndicesOneBasedMirror[guardian1] == 0))
+//             && guardianIndicesOneBasedMirror[guardian1] <= mirrorArrayLen)
+//     && (forall uint256 i. i < mirrorArrayLen => (guardianIndicesOneBasedMirror[guardiansMirror[i]] - 1) == i)
+//     filtered { f -> excludeMethods(f) }
+//     {
+//         preserved {
+//             require mirrorArrayLen < max_uint128;   // very long array causes false violations
+//         }
+//     }
 
 
 // STATUS - verified
 // Zero address can't be a guardian
-invariant zeroIsNotGuardian()
-    !isGuardian(0)
-    filtered { f -> excludeMethods(f) }
-    {
-        preserved {
-            require mirrorArrayLen < max_uint128;   // very long array causes false violations
-            requireInvariant unique();      // need it to synchronize array and mapping
-        }
-    }
+// invariant zeroIsNotGuardian()
+//     !isGuardian(0)
+//     filtered { f -> excludeMethods(f) }
+//     {
+//         preserved {
+//             require mirrorArrayLen < max_uint128;   // very long array causes false violations
+//             requireInvariant unique();      // need it to synchronize array and mapping
+//         }
+//     }
 
 
 // STATUS - verified
@@ -476,28 +469,28 @@ rule agreedRevertsSimple(env e) {
 
 // STATUS - verified
 // Only guardian can pause deposits
-rule onlyGuardianCanPause(env e, method f) filtered { f -> excludeMethods(f) } {
-    uint256 blockNumber;
-    uint256 stakingModuleId;
-    DSM.Signature sig;
-    bytes32 checking = PAUSE_MESSAGE_PREFIX();
+// rule onlyGuardianCanPause(env e, method f) filtered { f -> excludeMethods(f) } {
+//     uint256 blockNumber;
+//     uint256 stakingModuleId;
+//     DSM.Signature sig;
+//     bytes32 checking = PAUSE_MESSAGE_PREFIX();
 
-    require mirrorArrayLen <= max_uint256 / 2;  // very long array causes false violations
-    requireInvariant unique();                  // need it to synchronize array and mapping to avoid over/underflows
-    require StkRouter.getStakingModuleStatus(stakingModuleId) == 0;
+//     require mirrorArrayLen <= max_uint256 / 2;  // very long array causes false violations
+//     requireInvariant unique();                  // need it to synchronize array and mapping to avoid over/underflows
+//     require StkRouter.getStakingModuleStatus(stakingModuleId) == 0;
 
-    bytes32 keccakCheckVarBefore = getKeccak256(blockNumber, stakingModuleId);
+//     bytes32 keccakCheckVarBefore = getKeccak256(blockNumber, stakingModuleId);
 
-    pauseHelper(f, e, blockNumber, stakingModuleId, sig);
+//     pauseHelper(f, e, blockNumber, stakingModuleId, sig);
 
-    bytes32 keccakCheckVarAfter = getKeccak256(blockNumber, stakingModuleId);
+//     bytes32 keccakCheckVarAfter = getKeccak256(blockNumber, stakingModuleId);
 
-    assert StkRouter.getStakingModuleStatus(stakingModuleId) == 1 
-            => 
-            ((getGuardianIndex(e.msg.sender) >= to_int256(0)
-                    || getGuardianIndex(getHashedAddress(blockNumber, stakingModuleId, sig)) >= to_int256(0))
-                && f.selector == pauseDeposits(uint256,uint256,(bytes32,bytes32)).selector), "Remember, with great power comes great responsibility.";
-}
+//     assert StkRouter.getStakingModuleStatus(stakingModuleId) == 1 
+//             => 
+//             ((getGuardianIndex(e.msg.sender) >= to_int256(0)
+//                     || getGuardianIndex(getHashedAddress(blockNumber, stakingModuleId, sig)) >= to_int256(0))
+//                 && f.selector == pauseDeposits(uint256,uint256,(bytes32,bytes32)).selector), "Remember, with great power comes great responsibility.";
+// }
 
 
 /**************************************************

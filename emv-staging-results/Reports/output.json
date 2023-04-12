@@ -1,0 +1,85 @@
+{
+	"assertMessages": {
+		"uniqueRecoverGhost_instate": "invariant violated in post-state"
+	},
+	"rules": {
+		"agreedRevertsSimple": "SUCCESS",
+		"canUnpauseScenario": "SUCCESS",
+		"cannotDepositDuringPauseBool": "SUCCESS",
+		"cannotDepositDuringPauseRevert": "SUCCESS",
+		"cantStop": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["ATTEST_MESSAGE_PREFIX()", "DEPOSIT_CONTRACT()", "LIDO()", "PAUSE_MESSAGE_PREFIX()", "STAKING_ROUTER()", "addGuardian(address,uint256)", "addGuardians(address[],uint256)", "canDeposit(uint256)", "compareSignatures((bytes32,bytes32),(bytes32,bytes32))", "depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[])", "getAddressForSignature(bytes32,uint256,bytes32,uint256,uint256,(bytes32,bytes32))", "getEthBalance(address)", "getGuardian(uint256)", "getGuardianIndex(address)", "getGuardianQuorum()", "getGuardians()", "getGuardiansLength()", "getHashedAddress(uint256,uint256,(bytes32,bytes32))", "getKeccak256(uint256,uint256)", "getMaxDeposits()", "getMinDepositBlockDistance()", "getOwner()", "getPauseIntentValidityPeriodBlocks()", "getSortedGuardianSignaturesLength()", "guardianIndicesOneBased(address)", "guardians(uint256)", "isGuardian(address)", "pauseDeposits(uint256,uint256,(bytes32,bytes32))", "removeGuardian(address,uint256)", "returnBlockHash(uint256)", "returnPrefix()", "setGuardianQuorum(uint256)", "setMaxDeposits(uint256)", "setMinDepositBlockDistance(uint256)", "setOwner(address)", "setPauseIntentValidityPeriodBlocks(uint256)", "unpauseDeposits(uint256)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"envfreeFuncsStaticCheck": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["LIDO()", "PAUSE_MESSAGE_PREFIX()", "StakingRouter.getStakingModuleStatus(uint256)", "getEthBalance(address)", "getGuardian(uint256)", "getGuardianIndex(address)", "getGuardianQuorum()", "getGuardiansLength()", "getHashedAddress(uint256,uint256,(bytes32,bytes32))", "getKeccak256(uint256,uint256)", "getMaxDeposits()", "getMinDepositBlockDistance()", "getOwner()", "getPauseIntentValidityPeriodBlocks()", "getSortedGuardianSignaturesLength()", "guardianIndicesOneBased(address)", "isGuardian(address)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"nonGuardianCantSign": "SUCCESS",
+		"onlyOwnerCanChangeGuardians": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["ATTEST_MESSAGE_PREFIX()", "DEPOSIT_CONTRACT()", "LIDO()", "PAUSE_MESSAGE_PREFIX()", "STAKING_ROUTER()", "addGuardian(address,uint256)", "addGuardians(address[],uint256)", "canDeposit(uint256)", "compareSignatures((bytes32,bytes32),(bytes32,bytes32))", "depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[])", "getAddressForSignature(bytes32,uint256,bytes32,uint256,uint256,(bytes32,bytes32))", "getEthBalance(address)", "getGuardian(uint256)", "getGuardianIndex(address)", "getGuardianQuorum()", "getGuardians()", "getGuardiansLength()", "getHashedAddress(uint256,uint256,(bytes32,bytes32))", "getKeccak256(uint256,uint256)", "getMaxDeposits()", "getMinDepositBlockDistance()", "getOwner()", "getPauseIntentValidityPeriodBlocks()", "getSortedGuardianSignaturesLength()", "guardianIndicesOneBased(address)", "guardians(uint256)", "isGuardian(address)", "pauseDeposits(uint256,uint256,(bytes32,bytes32))", "removeGuardian(address,uint256)", "returnBlockHash(uint256)", "returnPrefix()", "setGuardianQuorum(uint256)", "setMaxDeposits(uint256)", "setMinDepositBlockDistance(uint256)", "setOwner(address)", "setPauseIntentValidityPeriodBlocks(uint256)", "unpauseDeposits(uint256)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"onlyOwnerCanChangeMaxDepositsPerBlock": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["ATTEST_MESSAGE_PREFIX()", "DEPOSIT_CONTRACT()", "LIDO()", "PAUSE_MESSAGE_PREFIX()", "STAKING_ROUTER()", "addGuardian(address,uint256)", "addGuardians(address[],uint256)", "canDeposit(uint256)", "compareSignatures((bytes32,bytes32),(bytes32,bytes32))", "depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[])", "getAddressForSignature(bytes32,uint256,bytes32,uint256,uint256,(bytes32,bytes32))", "getEthBalance(address)", "getGuardian(uint256)", "getGuardianIndex(address)", "getGuardianQuorum()", "getGuardians()", "getGuardiansLength()", "getHashedAddress(uint256,uint256,(bytes32,bytes32))", "getKeccak256(uint256,uint256)", "getMaxDeposits()", "getMinDepositBlockDistance()", "getOwner()", "getPauseIntentValidityPeriodBlocks()", "getSortedGuardianSignaturesLength()", "guardianIndicesOneBased(address)", "guardians(uint256)", "isGuardian(address)", "pauseDeposits(uint256,uint256,(bytes32,bytes32))", "removeGuardian(address,uint256)", "returnBlockHash(uint256)", "returnPrefix()", "setGuardianQuorum(uint256)", "setMaxDeposits(uint256)", "setMinDepositBlockDistance(uint256)", "setOwner(address)", "setPauseIntentValidityPeriodBlocks(uint256)", "unpauseDeposits(uint256)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"onlyOwnerCanChangeMinDepositBlockDistance": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["ATTEST_MESSAGE_PREFIX()", "DEPOSIT_CONTRACT()", "LIDO()", "PAUSE_MESSAGE_PREFIX()", "STAKING_ROUTER()", "addGuardian(address,uint256)", "addGuardians(address[],uint256)", "canDeposit(uint256)", "compareSignatures((bytes32,bytes32),(bytes32,bytes32))", "depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[])", "getAddressForSignature(bytes32,uint256,bytes32,uint256,uint256,(bytes32,bytes32))", "getEthBalance(address)", "getGuardian(uint256)", "getGuardianIndex(address)", "getGuardianQuorum()", "getGuardians()", "getGuardiansLength()", "getHashedAddress(uint256,uint256,(bytes32,bytes32))", "getKeccak256(uint256,uint256)", "getMaxDeposits()", "getMinDepositBlockDistance()", "getOwner()", "getPauseIntentValidityPeriodBlocks()", "getSortedGuardianSignaturesLength()", "guardianIndicesOneBased(address)", "guardians(uint256)", "isGuardian(address)", "pauseDeposits(uint256,uint256,(bytes32,bytes32))", "removeGuardian(address,uint256)", "returnBlockHash(uint256)", "returnPrefix()", "setGuardianQuorum(uint256)", "setMaxDeposits(uint256)", "setMinDepositBlockDistance(uint256)", "setOwner(address)", "setPauseIntentValidityPeriodBlocks(uint256)", "unpauseDeposits(uint256)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"onlyOwnerCanChangeOwner": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["ATTEST_MESSAGE_PREFIX()", "DEPOSIT_CONTRACT()", "LIDO()", "PAUSE_MESSAGE_PREFIX()", "STAKING_ROUTER()", "addGuardian(address,uint256)", "addGuardians(address[],uint256)", "canDeposit(uint256)", "compareSignatures((bytes32,bytes32),(bytes32,bytes32))", "depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[])", "getAddressForSignature(bytes32,uint256,bytes32,uint256,uint256,(bytes32,bytes32))", "getEthBalance(address)", "getGuardian(uint256)", "getGuardianIndex(address)", "getGuardianQuorum()", "getGuardians()", "getGuardiansLength()", "getHashedAddress(uint256,uint256,(bytes32,bytes32))", "getKeccak256(uint256,uint256)", "getMaxDeposits()", "getMinDepositBlockDistance()", "getOwner()", "getPauseIntentValidityPeriodBlocks()", "getSortedGuardianSignaturesLength()", "guardianIndicesOneBased(address)", "guardians(uint256)", "isGuardian(address)", "pauseDeposits(uint256,uint256,(bytes32,bytes32))", "removeGuardian(address,uint256)", "returnBlockHash(uint256)", "returnPrefix()", "setGuardianQuorum(uint256)", "setMaxDeposits(uint256)", "setMinDepositBlockDistance(uint256)", "setOwner(address)", "setPauseIntentValidityPeriodBlocks(uint256)", "unpauseDeposits(uint256)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"onlyOwnerCanChangePauseIntentValidityPeriodBlocks": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["ATTEST_MESSAGE_PREFIX()", "DEPOSIT_CONTRACT()", "LIDO()", "PAUSE_MESSAGE_PREFIX()", "STAKING_ROUTER()", "addGuardian(address,uint256)", "addGuardians(address[],uint256)", "canDeposit(uint256)", "compareSignatures((bytes32,bytes32),(bytes32,bytes32))", "depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[])", "getAddressForSignature(bytes32,uint256,bytes32,uint256,uint256,(bytes32,bytes32))", "getEthBalance(address)", "getGuardian(uint256)", "getGuardianIndex(address)", "getGuardianQuorum()", "getGuardians()", "getGuardiansLength()", "getHashedAddress(uint256,uint256,(bytes32,bytes32))", "getKeccak256(uint256,uint256)", "getMaxDeposits()", "getMinDepositBlockDistance()", "getOwner()", "getPauseIntentValidityPeriodBlocks()", "getSortedGuardianSignaturesLength()", "guardianIndicesOneBased(address)", "guardians(uint256)", "isGuardian(address)", "pauseDeposits(uint256,uint256,(bytes32,bytes32))", "removeGuardian(address,uint256)", "returnBlockHash(uint256)", "returnPrefix()", "setGuardianQuorum(uint256)", "setMaxDeposits(uint256)", "setMinDepositBlockDistance(uint256)", "setOwner(address)", "setPauseIntentValidityPeriodBlocks(uint256)", "unpauseDeposits(uint256)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"onlyOwnerCanChangeQuorum": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["ATTEST_MESSAGE_PREFIX()", "DEPOSIT_CONTRACT()", "LIDO()", "PAUSE_MESSAGE_PREFIX()", "STAKING_ROUTER()", "addGuardian(address,uint256)", "addGuardians(address[],uint256)", "canDeposit(uint256)", "compareSignatures((bytes32,bytes32),(bytes32,bytes32))", "depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[])", "getAddressForSignature(bytes32,uint256,bytes32,uint256,uint256,(bytes32,bytes32))", "getEthBalance(address)", "getGuardian(uint256)", "getGuardianIndex(address)", "getGuardianQuorum()", "getGuardians()", "getGuardiansLength()", "getHashedAddress(uint256,uint256,(bytes32,bytes32))", "getKeccak256(uint256,uint256)", "getMaxDeposits()", "getMinDepositBlockDistance()", "getOwner()", "getPauseIntentValidityPeriodBlocks()", "getSortedGuardianSignaturesLength()", "guardianIndicesOneBased(address)", "guardians(uint256)", "isGuardian(address)", "pauseDeposits(uint256,uint256,(bytes32,bytes32))", "removeGuardian(address,uint256)", "returnBlockHash(uint256)", "returnPrefix()", "setGuardianQuorum(uint256)", "setMaxDeposits(uint256)", "setMinDepositBlockDistance(uint256)", "setOwner(address)", "setPauseIntentValidityPeriodBlocks(uint256)", "unpauseDeposits(uint256)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"onlyOwnerCanChangeUnpause": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["ATTEST_MESSAGE_PREFIX()", "DEPOSIT_CONTRACT()", "LIDO()", "PAUSE_MESSAGE_PREFIX()", "STAKING_ROUTER()", "addGuardian(address,uint256)", "addGuardians(address[],uint256)", "canDeposit(uint256)", "compareSignatures((bytes32,bytes32),(bytes32,bytes32))", "depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[])", "getAddressForSignature(bytes32,uint256,bytes32,uint256,uint256,(bytes32,bytes32))", "getEthBalance(address)", "getGuardian(uint256)", "getGuardianIndex(address)", "getGuardianQuorum()", "getGuardians()", "getGuardiansLength()", "getHashedAddress(uint256,uint256,(bytes32,bytes32))", "getKeccak256(uint256,uint256)", "getMaxDeposits()", "getMinDepositBlockDistance()", "getOwner()", "getPauseIntentValidityPeriodBlocks()", "getSortedGuardianSignaturesLength()", "guardianIndicesOneBased(address)", "guardians(uint256)", "isGuardian(address)", "pauseDeposits(uint256,uint256,(bytes32,bytes32))", "removeGuardian(address,uint256)", "returnBlockHash(uint256)", "returnPrefix()", "setGuardianQuorum(uint256)", "setMaxDeposits(uint256)", "setMinDepositBlockDistance(uint256)", "setOwner(address)", "setPauseIntentValidityPeriodBlocks(uint256)", "unpauseDeposits(uint256)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"uniqueRecoverGhost_instate": "FAIL",
+		"uniqueRecoverGhost_instate": "FAIL",
+		"uniqueRecoverGhost_preserve": {
+			"FAIL": [],
+			"SANITY_FAIL": [],
+			"SUCCESS": ["addGuardian(address,uint256)", "addGuardians(address[],uint256)", "depositBufferedEther(uint256,bytes32,bytes32,uint256,uint256,bytes,(bytes32,bytes32)[])", "depositBufferedEtherCall(uint256,bytes32,bytes32,uint256,uint256,bytes)", "pauseDeposits(uint256,uint256,(bytes32,bytes32))", "removeGuardian(address,uint256)", "setGuardianQuorum(uint256)", "setMaxDeposits(uint256)", "setMinDepositBlockDistance(uint256)", "setOwner(address)", "setPauseIntentValidityPeriodBlocks(uint256)", "unpauseDeposits(uint256)"],
+			"TIMEOUT": [],
+			"UNKNOWN": []
+		},
+		"youShallNotPassTwice": "SUCCESS"
+	}
+}

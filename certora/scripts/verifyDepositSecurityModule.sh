@@ -23,18 +23,11 @@ certoraRun \
     --link DepositSecurityModuleHarness:LIDO=Lido \
     --optimistic_loop \
     --loop_iter 3 \
-    --send_only \
     --rule_sanity \
+    --send_only \
     --settings -optimisticUnboundedHashing=true,-optimisticFallback=true \
     --staging pre_cvl2 \
     --settings -t=2000,-mediumTimeout=2000,-depth=100,-copyLoopUnroll=6 \
     $RULE \
     --msg "DepositSecurityModule: $RULE $MSG"
 
-
-# contracts/0.4.24/test_helpers/DepositContractMock.sol \
-# DepositContractMock=solc4.24
-
-# contracts/0.8.9/DepositSecurityModule.sol \
-
-# contracts/0.8.9/test_helpers/StakingModuleMock.sol \
