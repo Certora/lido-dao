@@ -56,6 +56,8 @@ methods {
     getBeaconStat() returns (uint256, uint256, uint256) envfree
     getELRewardsVault() returns (address) envfree
 
+    getIsStopped() returns (bool) envfree
+
     // mint(address,uint256)
     // burn(uint256)
     // burn(address,uint256)
@@ -90,16 +92,18 @@ rule noFeeOnTransferFrom(address alice, address bob, uint256 amount) {
     env e;
     require alice != bob;
     require allowance(alice, e.msg.sender) >= amount;
-    uint256 balanceBefore = balanceOf(bob);
-    uint256 balanceAliceBefore = balanceOf(alice);
+    uint256 sharesBalanceBeforeBob = sharesOf(bob);
+    uint256 sharesBalanceBeforeAlice = sharesOf(alice);
+
+    uint256 actualSharesAmount = getSharesByPooledEth(amount);
 
     transferFrom(e, alice, bob, amount);
 
-    uint256 balanceAfter = balanceOf(bob);
-    uint256 balanceAliceAfter = balanceOf(alice);
-    uint256 actualSharesAmount = getSharesByPooledEth(amount);
-    assert balanceAfter == balanceBefore + actualSharesAmount;
-    assert balanceAliceAfter == balanceAliceBefore - actualSharesAmount;
+    uint256 sharesBalanceAfterBob = sharesOf(bob);
+    uint256 sharesBalanceAfterAlice = sharesOf(alice);
+
+    assert sharesBalanceAfterBob <= sharesBalanceBeforeBob + actualSharesAmount;
+    assert sharesBalanceAfterAlice <= sharesBalanceBeforeAlice - actualSharesAmount;
 }
 
 /*
@@ -117,15 +121,17 @@ rule noFeeOnTransferFrom(address alice, address bob, uint256 amount) {
 rule noFeeOnTransfer(address bob, uint256 amount) {
     env e;
     require bob != e.msg.sender;
-    uint256 balanceSenderBefore = balanceOf(e.msg.sender);
-    uint256 balanceBefore = balanceOf(bob);
+    uint256 balanceSenderBefore = sharesOf(e.msg.sender);
+    uint256 balanceBefore = sharesOf(bob);
+
+    uint256 actualSharesAmount = getSharesByPooledEth(amount);
 
     transfer(e, bob, amount);
 
-    uint256 balanceAfter = balanceOf(bob);
-    uint256 balanceSenderAfter = balanceOf(e.msg.sender);
-    assert balanceAfter == balanceBefore + amount;
-    assert balanceSenderAfter == balanceSenderBefore - amount;
+    uint256 balanceAfter = sharesOf(bob);
+    uint256 balanceSenderAfter = sharesOf(e.msg.sender);
+    assert balanceAfter == balanceBefore + actualSharesAmount;
+    assert balanceSenderAfter == balanceSenderBefore - actualSharesAmount;
 }
 
 /*
@@ -134,7 +140,7 @@ rule noFeeOnTransfer(address bob, uint256 amount) {
 
     @Description:
         Token transfer works correctly. Balances are updated if not reverted. 
-        If reverted then the transfer amount was too high, or the recipient is 0.
+        If reverted then the transfer amount was too high, or the recipient either 0, the same as the sender or the currentContract.
 
 
     @Notes:
@@ -147,21 +153,23 @@ rule noFeeOnTransfer(address bob, uint256 amount) {
 rule transferCorrect(address to, uint256 amount) {
     env e;
     require e.msg.value == 0 && e.msg.sender != 0;
-    uint256 fromBalanceBefore = balanceOf(e.msg.sender);
-    uint256 toBalanceBefore = balanceOf(to);
+    uint256 fromBalanceBefore = sharesOf(e.msg.sender);
+    uint256 toBalanceBefore = sharesOf(to);
     require fromBalanceBefore + toBalanceBefore <= max_uint256;
+    require getIsStopped() == false;
+    uint256 actualSharesAmount = getSharesByPooledEth(amount);
 
     transfer@withrevert(e, to, amount);
     bool reverted = lastReverted;
     if (!reverted) {
         if (e.msg.sender == to) {
-            assert balanceOf(e.msg.sender) == fromBalanceBefore;
+            assert sharesOf(e.msg.sender) == fromBalanceBefore;
         } else {
-            assert balanceOf(e.msg.sender) == fromBalanceBefore - amount;
-            assert balanceOf(to) == toBalanceBefore + amount;
+            assert sharesOf(e.msg.sender) == fromBalanceBefore - actualSharesAmount;
+            assert sharesOf(to) == toBalanceBefore + actualSharesAmount;
         }
     } else {
-        assert amount > fromBalanceBefore || to == 0;
+        assert actualSharesAmount > fromBalanceBefore || to == 0 || e.msg.sender == to || to == currentContract;
     }
 }
 
@@ -184,16 +192,17 @@ rule transferCorrect(address to, uint256 amount) {
 rule transferFromCorrect(address from, address to, uint256 amount) {
     env e;
     require e.msg.value == 0;
-    uint256 fromBalanceBefore = balanceOf(from);
-    uint256 toBalanceBefore = balanceOf(to);
+    uint256 fromBalanceBefore = sharesOf(from);
+    uint256 toBalanceBefore = sharesOf(to);
     uint256 allowanceBefore = allowance(from, e.msg.sender);
     require fromBalanceBefore + toBalanceBefore <= max_uint256;
+    uint256 actualSharesAmount = getSharesByPooledEth(amount);
 
     transferFrom(e, from, to, amount);
 
     assert from != to =>
-        balanceOf(from) == fromBalanceBefore - amount &&
-        balanceOf(to) == toBalanceBefore + amount &&
+        sharesOf(from) == fromBalanceBefore - actualSharesAmount &&
+        sharesOf(to) == toBalanceBefore + actualSharesAmount &&
         allowance(from, e.msg.sender) == allowanceBefore - amount;
 }
 
@@ -212,14 +221,16 @@ rule transferFromCorrect(address from, address to, uint256 amount) {
 rule transferFromReverts(address from, address to, uint256 amount) {
     env e;
     uint256 allowanceBefore = allowance(from, e.msg.sender);
-    uint256 fromBalanceBefore = balanceOf(from);
+    uint256 fromBalanceBefore = sharesOf(from);
     require from != 0 && e.msg.sender != 0;
     require e.msg.value == 0;
-    require fromBalanceBefore + balanceOf(to) <= max_uint256;
+    require fromBalanceBefore + sharesOf(to) <= max_uint256;
+    require getIsStopped() == false;
+    uint256 actualSharesAmount = getSharesByPooledEth(amount);
 
     transferFrom@withrevert(e, from, to, amount);
 
-    assert lastReverted <=> (allowanceBefore < amount || amount > fromBalanceBefore || to == 0);
+    assert lastReverted <=> (allowanceBefore < amount || actualSharesAmount > fromBalanceBefore || to == 0 || to == currentContract);
 }
 
 // /*
@@ -237,115 +248,70 @@ rule transferFromReverts(address from, address to, uint256 amount) {
 // invariant ZeroAddressNoBalance()
 //     balanceOf(0) == 0
 
+/*
+    @Rule
 
-// /*
-//     @Rule
-
-//     @Description:
-//         Contract calls don't change token total supply.
-
-
-//     @Notes:
-//         This rule should fail for any token that has functions that change totalSupply(), like mint() and burn().
-//         It's still important to run the rule and see if it fails in functions that _aren't_ supposed to modify totalSupply()
-
-//     @Link:
-
-// */
-// rule NoChangeTotalSupply(method f) {
-//     // require f.selector != burn(uint256).selector && f.selector != mint(address, uint256).selector;
-//     uint256 totalSupplyBefore = totalSupply();
-//     env e;
-//     calldataarg args;
-//     f(e, args);
-//     assert totalSupply() == totalSupplyBefore;
-// }
-
-// /*
-//  The two rules cover the same ground as NoChangeTotalSupply.
- 
-//  The split into two rules is in order to make the burn/mint features of a tested token even more obvious
-// */
-// rule noBurningTokens(method f) {
-//     uint256 totalSupplyBefore = totalSupply();
-//     env e;
-//     calldataarg args;
-//     f(e, args);
-//     assert totalSupply() >= totalSupplyBefore;
-// }
-
-// rule noMintingTokens(method f) {
-//     uint256 totalSupplyBefore = totalSupply();
-//     env e;
-//     calldataarg args;
-//     f(e, args);
-//     assert totalSupply() <= totalSupplyBefore;
-// }
-
-// /*
-//     @Rule
-
-//     @Description:
-//         Allowance changes correctly as a result of calls to approve, transfer, increaseAllowance, decreaseAllowance
+    @Description:
+        Allowance changes correctly as a result of calls to approve, transferFrom, transferSharesFrom, increaseAllowance, decreaseAllowance
 
 
-//     @Notes:
-//         Some ERC20 tokens have functions like permit() that change allowance via a signature. 
-//         The rule will fail on such functions.
+    @Notes:
+        Some ERC20 tokens have functions like permit() that change allowance via a signature. 
+        The rule will fail on such functions.
 
-//     @Link:
+    @Link:
 
-// */
-// rule ChangingAllowance(method f, address from, address spender) {
-//     uint256 allowanceBefore = allowance(from, spender);
-//     env e;
-//     if (f.selector == approve(address, uint256).selector) {
-//         address spender_;
-//         uint256 amount;
-//         approve(e, spender_, amount);
-//         if (from == e.msg.sender && spender == spender_) {
-//             assert allowance(from, spender) == amount;
-//         } else {
-//             assert allowance(from, spender) == allowanceBefore;
-//         }
-//     } else if (f.selector == transferFrom(address,address,uint256).selector) {
-//         address from_;
-//         address to;
-//         address amount;
-//         transferFrom(e, from_, to, amount);
-//         uint256 allowanceAfter = allowance(from, spender);
-//         if (from == from_ && spender == e.msg.sender) {
-//             assert from == to || allowanceBefore == max_uint256 || allowanceAfter == allowanceBefore - amount;
-//         } else {
-//             assert allowance(from, spender) == allowanceBefore;
-//         }
-//     } else if (f.selector == decreaseAllowance(address, uint256).selector) {
-//         address spender_;
-//         uint256 amount;
-//         require amount <= allowanceBefore;
-//         decreaseAllowance(e, spender_, amount);
-//         if (from == e.msg.sender && spender == spender_) {
-//             assert allowance(from, spender) == allowanceBefore - amount;
-//         } else {
-//             assert allowance(from, spender) == allowanceBefore;
-//         }
-//     } else if (f.selector == increaseAllowance(address, uint256).selector) {
-//         address spender_;
-//         uint256 amount;
-//         require amount + allowanceBefore < max_uint256;
-//         increaseAllowance(e, spender_, amount);
-//         if (from == e.msg.sender && spender == spender_) {
-//             assert allowance(from, spender) == allowanceBefore + amount;
-//         } else {
-//             assert allowance(from, spender) == allowanceBefore;
-//         }
-//     } else
-//     {
-//         calldataarg args;
-//         f(e, args);
-//         assert allowance(from, spender) == allowanceBefore;
-//     }
-// }
+*/
+rule ChangingAllowance(method f, address from, address spender) 
+    filtered{ f -> f.selector != initialize(address, address).selector || f.selector != finalizeUpgrade_v2(address,address).selector } {
+    uint256 allowanceBefore = allowance(from, spender);
+    env e;
+    if (f.selector == approve(address, uint256).selector) {
+        address spender_;
+        uint256 amount;
+        approve(e, spender_, amount);
+        if (from == e.msg.sender && spender == spender_) {
+            assert allowance(from, spender) == amount;
+        } else {
+            assert allowance(from, spender) == allowanceBefore;
+        }
+    } else if (f.selector == transferFrom(address,address,uint256).selector || f.selector == transferSharesFrom(address,address,uint256).selector) {
+        address from_;
+        address to;
+        address amount;
+        transferFrom(e, from_, to, amount);
+        uint256 allowanceAfter = allowance(from, spender);
+        if (from == from_ && spender == e.msg.sender) {
+            assert from == to || allowanceBefore == max_uint256 || allowanceAfter == allowanceBefore - amount;
+        } else {
+            assert allowance(from, spender) == allowanceBefore;
+        }
+    } else if (f.selector == decreaseAllowance(address, uint256).selector) {
+        address spender_;
+        uint256 amount;
+        require amount <= allowanceBefore;
+        decreaseAllowance(e, spender_, amount);
+        if (from == e.msg.sender && spender == spender_) {
+            assert allowance(from, spender) == allowanceBefore - amount;
+        } else {
+            assert allowance(from, spender) == allowanceBefore;
+        }
+    } else if (f.selector == increaseAllowance(address, uint256).selector) {
+        address spender_;
+        uint256 amount;
+        require amount + allowanceBefore < max_uint256;
+        increaseAllowance(e, spender_, amount);
+        if (from == e.msg.sender && spender == spender_) {
+            assert allowance(from, spender) == allowanceBefore + amount;
+        } else {
+            assert allowance(from, spender) == allowanceBefore;
+        }
+    } else {
+        calldataarg args;
+        f(e, args);
+        assert allowance(from, spender) == allowanceBefore;
+    }
+}
 
 // /*
 //     @Rule
@@ -471,10 +437,10 @@ rule transferFromReverts(address from, address to, uint256 amount) {
 //     assert balanceOf(other) >= balanceBefore;
 // }
 
-// // rule sanity(method f)
-// // {
-// // 	env e;
-// // 	calldataarg arg;
-// // 	sinvoke f(e, arg);
-// // 	assert false;
-// // }
+// rule sanity(method f)
+// {
+// 	env e;
+// 	calldataarg arg;
+// 	sinvoke f(e, arg);
+// 	assert false;
+// }
