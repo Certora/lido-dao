@@ -75,19 +75,9 @@ methods {
 //         f.selector != initialize(address).selector;
 // }
 
-/*
-    @Rule
-
-
-    @Description:
-        Verify that there is no fee on transferFrom() (like potentially on USDT)
-
-    @Notes:
-
-
-    @Link:
-
-*/
+/**
+Verify that there is no fee on transferFrom().
+**/
 rule noFeeOnTransferFrom(address alice, address bob, uint256 amount) {
     env e;
     require alice != bob;
@@ -102,22 +92,13 @@ rule noFeeOnTransferFrom(address alice, address bob, uint256 amount) {
     uint256 sharesBalanceAfterBob = sharesOf(bob);
     uint256 sharesBalanceAfterAlice = sharesOf(alice);
 
-    assert sharesBalanceAfterBob <= sharesBalanceBeforeBob + actualSharesAmount;
-    assert sharesBalanceAfterAlice <= sharesBalanceBeforeAlice - actualSharesAmount;
+    assert sharesBalanceAfterBob == sharesBalanceBeforeBob + actualSharesAmount;
+    assert sharesBalanceAfterAlice == sharesBalanceBeforeAlice - actualSharesAmount;
 }
 
-/*
-    @Rule
-
-    @Description:
-        Verify that there is no fee on transfer() (like potentially on USDT)
-    
-    @Notes:
-    
-    @Link:
-
-
-*/
+/**
+Verify that there is no fee on transfer().
+**/
 rule noFeeOnTransfer(address bob, uint256 amount) {
     env e;
     require bob != e.msg.sender;
@@ -134,22 +115,10 @@ rule noFeeOnTransfer(address bob, uint256 amount) {
     assert balanceSenderAfter == balanceSenderBefore - actualSharesAmount;
 }
 
-/*
-    @Rule
-
-
-    @Description:
-        Token transfer works correctly. Balances are updated if not reverted. 
-        If reverted then the transfer amount was too high, or the recipient either 0, the same as the sender or the currentContract.
-
-
-    @Notes:
-        This rule fails on tokens with a blacklist function, like USDC and USDT.
-        The prover finds a counterexample of a reverted transfer to a blacklisted address or a transfer in a paused state.
-
-    @Link:
-
-*/
+/**
+Token transfer works correctly. Balances are updated if not reverted. 
+If reverted then the transfer amount was too high, or the recipient either 0, the same as the sender or the currentContract.
+**/
 rule transferCorrect(address to, uint256 amount) {
     env e;
     require e.msg.value == 0 && e.msg.sender != 0;
@@ -173,22 +142,9 @@ rule transferCorrect(address to, uint256 amount) {
     }
 }
 
-/*
-    @Rule
-
-
-    @Description:
-        Test that transferFrom works correctly. Balances are updated if not reverted. 
-        If reverted, it means the transfer amount was too high, or the recipient is 0
-
-    @Notes:
-        This rule fails on tokens with a blacklist and or pause function, like USDC and USDT.
-        The prover finds a counterexample of a reverted transfer to a blacklisted address or a transfer in a paused state.
-
-    @Link:
-
-*/
-
+/**
+Test that transferFrom works correctly. Balances are updated if not reverted.
+**/
 rule transferFromCorrect(address from, address to, uint256 amount) {
     env e;
     require e.msg.value == 0;
@@ -206,18 +162,9 @@ rule transferFromCorrect(address from, address to, uint256 amount) {
         allowance(from, e.msg.sender) == allowanceBefore - amount;
 }
 
-/*
-    @Rule
-
-    @Description:
-        transferFrom should revert if and only if the amount is too high or the recipient is 0.
-
-    @Notes:
-        Fails on tokens with pause/blacklist functions, like USDC.
-
-    @Link:
-
-*/
+/**
+transferFrom should revert if and only if the amount is too high or the recipient is 0 or the contract itself.
+**/
 rule transferFromReverts(address from, address to, uint256 amount) {
     env e;
     uint256 allowanceBefore = allowance(from, e.msg.sender);
@@ -233,37 +180,11 @@ rule transferFromReverts(address from, address to, uint256 amount) {
     assert lastReverted <=> (allowanceBefore < amount || actualSharesAmount > fromBalanceBefore || to == 0 || to == currentContract);
 }
 
-// /*
-//     @Rule
-
-//     @Description:
-//         Balance of address 0 is always 0
-
-//     @Notes:
-
-
-//     @Link:
-
-// */
-// invariant ZeroAddressNoBalance()
-//     balanceOf(0) == 0
-
-/*
-    @Rule
-
-    @Description:
-        Allowance changes correctly as a result of calls to approve, transferFrom, transferSharesFrom, increaseAllowance, decreaseAllowance
-
-
-    @Notes:
-        Some ERC20 tokens have functions like permit() that change allowance via a signature. 
-        The rule will fail on such functions.
-
-    @Link:
-
-*/
+/**
+Allowance changes correctly as a result of calls to approve, transferFrom, transferSharesFrom, increaseAllowance, decreaseAllowance
+**/
 rule ChangingAllowance(method f, address from, address spender) 
-    filtered{ f -> f.selector != initialize(address, address).selector || f.selector != finalizeUpgrade_v2(address,address).selector } {
+    filtered{ f -> f.selector != initialize(address, address).selector && f.selector != finalizeUpgrade_v2(address,address).selector } {
     uint256 allowanceBefore = allowance(from, spender);
     env e;
     if (f.selector == approve(address, uint256).selector) {
@@ -313,86 +234,41 @@ rule ChangingAllowance(method f, address from, address spender)
     }
 }
 
-// /*
-//     @Rule
+/**
+Transfer from msg.sender to recipient doesn't change the balance of other addresses.
+**/
+rule TransferDoesntChangeOtherBalance(address to, uint256 amount, address other) {
+    env e;
+    require other != e.msg.sender;
+    require other != to && other != currentContract;
+    uint256 balanceBefore = sharesOf(other);
+    transfer(e, to, amount); 
+    assert balanceBefore == sharesOf(other);
+}
 
-//     @Description:
-//         Transfer from a to b doesn't change the sum of their balances
+/**
+Transfer from sender to recipient using transferFrom doesn't change the balance of other addresses.
+**/
+rule TransferFromDoesntChangeOtherBalance(address from, address to, uint256 amount, address other) {
+    env e;
+    require other != from;
+    require other != to;
+    uint256 balanceBefore = sharesOf(other);
+    transferFrom(e, from, to, amount); 
+    assert balanceBefore == sharesOf(other);
+}
 
-//     @Notes:
-
-//     @Link:
-
-// */
-// rule TransferSumOfFromAndToBalancesStaySame(address to, uint256 amount) {
-//     env e;
-//     mathint sum = balanceOf(e.msg.sender) + balanceOf(to);
-//     require sum < max_uint256;
-//     transfer(e, to, amount); 
-//     assert balanceOf(e.msg.sender) + balanceOf(to) == sum;
-// }
-
-// /*
-//     @Rule
-
-//     @Description:
-//         Transfer using transferFrom() from a to b doesn't change the sum of their balances
-
-
-//     @Notes:
-
-//     @Link:
-
-// */
-// rule TransferFromSumOfFromAndToBalancesStaySame(address from, address to, uint256 amount) {
-//     env e;
-//     mathint sum = balanceOf(from) + balanceOf(to);
-//     require sum < max_uint256;
-//     transferFrom(e, from, to, amount); 
-//     assert balanceOf(from) + balanceOf(to) == sum;
-// }
-
-// /*
-//     @Rule
-
-//     @Description:
-//         Transfer from msg.sender to alice doesn't change the balance of other addresses
-
-
-//     @Notes:
-
-//     @Link:
-
-// */
-// rule TransferDoesntChangeOtherBalance(address to, uint256 amount, address other) {
-//     env e;
-//     require other != e.msg.sender;
-//     require other != to && other != currentContract;
-//     uint256 balanceBefore = balanceOf(other);
-//     transfer(e, to, amount); 
-//     assert balanceBefore == balanceOf(other);
-// }
-
-// /*
-//     @Rule
-
-//     @Description:
-//         Transfer from alice to bob using transferFrom doesn't change the balance of other addresses
-
-
-//     @Notes:
-
-//     @Link:
-
-// */
-// rule TransferFromDoesntChangeOtherBalance(address from, address to, uint256 amount, address other) {
-//     env e;
-//     require other != from;
-//     require other != to;
-//     uint256 balanceBefore = balanceOf(other);
-//     transferFrom(e, from, to, amount); 
-//     assert balanceBefore == balanceOf(other);
-// }
+/**
+Transfer shares from sender to recipient using transferFrom doesn't change the balance of other addresses.
+**/
+rule TransferSharesFromDoesntChangeOtherBalance(address from, address to, uint256 amount, address other) {
+    env e;
+    require other != from;
+    require other != to;
+    uint256 balanceBefore = sharesOf(other);
+    transferSharesFrom(e, from, to, amount); 
+    assert balanceBefore == sharesOf(other);
+}
 
 // /*
 //     @Rule
