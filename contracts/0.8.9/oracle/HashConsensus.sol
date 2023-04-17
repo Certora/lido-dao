@@ -896,6 +896,7 @@ contract HashConsensus is AccessControlEnumerable {
         });
 
         emit ReportReceived(slot, _msgSender(), report);
+        reportReceivedCounter(slot, _msgSender(), report);  // Certora munging to catch successful report submit
 
         if (support >= _quorum) {
             _consensusReached(frame, report, varIndex, support);
@@ -1033,5 +1034,55 @@ contract HashConsensus is AccessControlEnumerable {
 
     function _getConsensusVersion() internal view returns (uint256) {
         return IReportAsyncProcessor(_reportProcessor).getConsensusVersion();
+    }
+
+    ///
+    /// Certora helper functions
+    ///
+    function computeEpochAtTimestamp(uint256 timestamp) public view returns (uint256) {
+        return _computeEpochAtTimestamp(timestamp);
+    }
+
+    function getLengthOfArrays() public view returns (uint256 lengthOf_memberAddresses, uint256 lengthOf_memberStates) {
+        lengthOf_memberAddresses = _memberAddresses.length;
+        lengthOf_memberStates = _memberStates.length;
+    }
+
+    function get_memberIndices1b(address user) public view returns (uint256 index1b) {
+        index1b = _memberIndices1b[user];
+    }
+
+    function get_memberAddresses(uint256 index) public view returns (address user) {
+        if (index < _memberAddresses.length) {
+            user = _memberAddresses[index];
+        }
+        else {
+            user = address(0);
+        }
+    }
+
+    function helper_getLastProcessingRefSlot() public view returns (uint256) {
+        return _getLastProcessingRefSlot();
+    }
+
+    function helper_getConsensusVersion() public view returns (uint256) {
+        return _getConsensusVersion();
+    }
+
+    function helper_getReportingState() public view
+                                returns (uint64 lastReportRefSlot,
+                                        uint64 lastConsensusRefSlot,
+                                        uint64 lastConsensusVariantIndex) {
+        lastReportRefSlot = _reportingState.lastReportRefSlot;
+        lastConsensusRefSlot = _reportingState.lastConsensusRefSlot;
+        lastConsensusVariantIndex = _reportingState.lastConsensusVariantIndex;
+    }
+
+    function getReportVariantsLength() public view returns (uint256) {
+        return _reportVariantsLength;
+    }
+
+    function reportReceivedCounter(uint256, address, bytes32) public pure returns (uint256) {
+        return 0; // the function is summarized to update a ghost
     }
 }
