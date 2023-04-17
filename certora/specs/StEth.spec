@@ -25,8 +25,8 @@ methods {
     setStakingLimit(uint256, uint256)
     removeStakingLimit()
     isStakingPaused() returns (bool) envfree
-    getCurrentStakeLimit() returns (uint256) envfree
-    getStakeLimitFullInfo() returns (bool, bool, uint256, uint256, uint256, uint256, uint256) envfree
+    getCurrentStakeLimit() returns (uint256)
+    getStakeLimitFullInfo() returns (bool, bool, uint256, uint256, uint256, uint256, uint256)
     submit(address) returns (uint256) //payable
     receiveELRewards() //payable
     depositBufferedEther()
@@ -65,16 +65,6 @@ methods {
     // initialize(address)
 }
 
-// function doesntChangeBalance(method f) returns bool {
-//     return f.selector != transfer(address,uint256).selector &&
-//         f.selector != transferFrom(address,address,uint256).selector &&
-//         f.selector != mint(address,uint256).selector &&
-//         f.selector != burn(uint256).selector &&
-//         f.selector != burn(address,uint256).selector &&
-//         f.selector != burnFrom(address,uint256).selector &&
-//         f.selector != initialize(address).selector;
-// }
-
 /**
 Verify that there is no fee on transferFrom().
 **/
@@ -97,6 +87,25 @@ rule noFeeOnTransferFrom(address alice, address bob, uint256 amount) {
 }
 
 /**
+Verify that there is no fee on transferSharesFrom().
+**/
+rule noFeeOnTransferSharesFrom(address alice, address bob, uint256 amount) {
+    env e;
+    require alice != bob;
+    require allowance(alice, e.msg.sender) >= amount;
+    uint256 sharesBalanceBeforeBob = sharesOf(bob);
+    uint256 sharesBalanceBeforeAlice = sharesOf(alice);
+
+    transferSharesFrom(e, alice, bob, amount);
+
+    uint256 sharesBalanceAfterBob = sharesOf(bob);
+    uint256 sharesBalanceAfterAlice = sharesOf(alice);
+
+    assert sharesBalanceAfterBob == sharesBalanceBeforeBob + amount;
+    assert sharesBalanceAfterAlice == sharesBalanceBeforeAlice - amount;
+}
+
+/**
 Verify that there is no fee on transfer().
 **/
 rule noFeeOnTransfer(address bob, uint256 amount) {
@@ -113,6 +122,23 @@ rule noFeeOnTransfer(address bob, uint256 amount) {
     uint256 balanceSenderAfter = sharesOf(e.msg.sender);
     assert balanceAfter == balanceBefore + actualSharesAmount;
     assert balanceSenderAfter == balanceSenderBefore - actualSharesAmount;
+}
+
+/**
+Verify that there is no fee on transferShares().
+**/
+rule noFeeOnTransferShares(address bob, uint256 amount) {
+    env e;
+    require bob != e.msg.sender;
+    uint256 balanceSenderBefore = sharesOf(e.msg.sender);
+    uint256 balanceBefore = sharesOf(bob);
+
+    transferShares(e, bob, amount);
+
+    uint256 balanceAfter = sharesOf(bob);
+    uint256 balanceSenderAfter = sharesOf(e.msg.sender);
+    assert balanceAfter == balanceBefore + amount;
+    assert balanceSenderAfter == balanceSenderBefore - amount;
 }
 
 /**
@@ -163,6 +189,26 @@ rule transferFromCorrect(address from, address to, uint256 amount) {
 }
 
 /**
+Test that transferSharesFrom works correctly. Balances are updated if not reverted.
+**/
+rule transferSharesFromCorrect(address from, address to, uint256 amount) {
+    env e;
+    require e.msg.value == 0;
+    uint256 fromBalanceBefore = sharesOf(from);
+    uint256 toBalanceBefore = sharesOf(to);
+    uint256 allowanceBefore = allowance(from, e.msg.sender);
+    require fromBalanceBefore + toBalanceBefore <= max_uint256;
+    uint256 tokenAmount = getPooledEthByShares(amount);
+
+    transferSharesFrom(e, from, to, amount);
+
+    assert from != to =>
+        sharesOf(from) == fromBalanceBefore - amount &&
+        sharesOf(to) == toBalanceBefore + amount &&
+        allowance(from, e.msg.sender) == allowanceBefore - tokenAmount;
+}
+
+/**
 transferFrom should revert if and only if the amount is too high or the recipient is 0 or the contract itself.
 **/
 rule transferFromReverts(address from, address to, uint256 amount) {
@@ -178,6 +224,24 @@ rule transferFromReverts(address from, address to, uint256 amount) {
     transferFrom@withrevert(e, from, to, amount);
 
     assert lastReverted <=> (allowanceBefore < amount || actualSharesAmount > fromBalanceBefore || to == 0 || to == currentContract);
+}
+
+/**
+transferFrom should revert if and only if the amount is too high or the recipient is 0 or the contract itself.
+**/
+rule transferSharesFromReverts(address from, address to, uint256 amount) {
+    env e;
+    uint256 allowanceBefore = allowance(from, e.msg.sender);
+    uint256 fromBalanceBefore = sharesOf(from);
+    require from != 0 && e.msg.sender != 0;
+    require e.msg.value == 0;
+    require fromBalanceBefore + sharesOf(to) <= max_uint256;
+    require getIsStopped() == false;
+    uint256 tokenAmount = getPooledEthByShares(amount);
+
+    transferSharesFrom@withrevert(e, from, to, amount);
+
+    assert lastReverted <=> (allowanceBefore < tokenAmount || amount > fromBalanceBefore || to == 0 || to == currentContract);
 }
 
 /**
@@ -270,48 +334,47 @@ rule TransferSharesFromDoesntChangeOtherBalance(address from, address to, uint25
     assert balanceBefore == sharesOf(other);
 }
 
-// /*
-//     @Rule
+/**************************************************
+ *                METHOD INTEGRITY                *
+ **************************************************/
 
-//     @Description:
-//         Balance of an address, who is not a sender or a recipient in transfer functions, doesn't decrease 
-//         as a result of contract calls
+/**************************************************
+ *                   HIGH LEVEL                   *
+ **************************************************/
 
+/**************************************************
+ *                   INVARIANTS                   *
+ **************************************************/
 
-//     @Notes:
-//         USDC token has functions like transferWithAuthorization that use a signed message for allowance. 
-//         FTT token has a burnFrom that lets an approved spender to burn owner's token.
-//         Certora prover finds these counterexamples to this rule.
-//         In general, the rule will fail on all functions other than transfer/transferFrom that change a balance of an address.
+// invariant balanceOfCanrExceedTotalSuply(address user) 
+//     balanceOf(user) <= totalSupply()
 
-//     @Link:
+// invariant sharesOfCantExceedTotalShares(address user)
+//     sharesOf(user) <= getTotalShares()
 
-// */
-// rule OtherBalanceOnlyGoesUp(address other, method f) {
-//     env e;
-//     require other != currentContract;
-//     uint256 balanceBefore = balanceOf(other);
+// /**
+// This rule finds which functions are privileged.
+// A function is privileged if only one address can call it.
+// The rule identifies this by checking which functions can be called by two different users.
+// **/
+// rule privilegedOperation(method f, address privileged){
+// 	env e1;
+// 	calldataarg arg;
+// 	require e1.msg.sender == privileged;
 
-//     if (f.selector == transferFrom(address, address, uint256).selector) {
-//         address from;
-//         address to;
-//         uint256 amount;
-//         require(other != from);
-//         require balanceOf(from) + balanceBefore < max_uint256;
-//         transferFrom(e, from, to, amount);
-//     } else if (f.selector == transfer(address, uint256).selector) {
-//         require other != e.msg.sender;
-//         require balanceOf(e.msg.sender) + balanceBefore < max_uint256;
-//         calldataarg args;
-//         f(e, args);
-//     } else {
-//         require other != e.msg.sender;
-//         calldataarg args;
-//         f(e, args);
-//     }
+// 	storage initialStorage = lastStorage;
+// 	f@withrevert(e1, arg); // privileged succeeds executing candidate privileged operation.
+// 	bool firstSucceeded = !lastReverted;
 
-//     assert balanceOf(other) >= balanceBefore;
+// 	env e2;
+// 	calldataarg arg2;
+// 	require e2.msg.sender != privileged;
+// 	f@withrevert(e2, arg2) at initialStorage; // unprivileged
+// 	bool secondSucceeded = !lastReverted;
+
+// 	assert  !(firstSucceeded && secondSucceeded), "${f.selector} can be called by both ${e1.msg.sender} and ${e2.msg.sender}, so it is not privileged";
 // }
+
 
 // rule sanity(method f)
 // {

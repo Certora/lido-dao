@@ -4,12 +4,11 @@ methods{
     setStakingLimit(uint256, uint256)
     removeStakingLimit()
     isStakingPaused() returns (bool) envfree
-    getCurrentStakeLimit() returns (uint256) envfree
-    getStakeLimitFullInfo() returns (bool, bool, uint256, uint256, uint256, uint256, uint256) envfree
+    getCurrentStakeLimit() returns (uint256) // envfree 
+    getStakeLimitFullInfo() returns (bool, bool, uint256, uint256, uint256, uint256, uint256) // envfree
     submit(address) returns (uint256) //payable
     receiveELRewards() //payable
-    depositBufferedEther()
-    depositBufferedEther(uint256)
+    deposit(uint256, uint256, bytes)
     burnShares(address, uint256) returns (uint256)
     stop()
     resume()
@@ -35,6 +34,14 @@ methods{
     getBeaconStat() returns (uint256, uint256, uint256) envfree
     getELRewardsVault() returns (address) envfree
 
+// StEth:
+    getTotalPooledEther() returns (uint256) envfree  
+    getTotalShares() returns (uint256) envfree     
+    sharesOf(address) returns (uint256) envfree
+    getSharesByPooledEth(uint256) returns (uint256) envfree
+    getPooledEthByShares(uint256) returns (uint256) envfree
+    transferShares(address, uint256) returns (uint256)
+    transferSharesFrom(address, address, uint256) returns (uint256)
 
     getRatio() returns(uint256) envfree
     getCLbalance() returns(uint256) envfree
@@ -43,5 +50,21 @@ methods{
     checkAccountingOracleReport(uint256, uint256, uint256, uint256, uint256, uint256, uint256) => DISPATCHER(true)
 }
 
+rule integrityOfSubmit(address _referral) {
+    env e;
+    uint256 ethToSubmit = e.msg.value;
+    uint256 old_stakeLimit = getCurrentStakeLimit(e);
+    uint256 expectedShares = getSharesByPooledEth(ethToSubmit);
+    
+    uint256 shareAmount = submit(e, _referral);
 
+    uint256 new_stakeLimit = getCurrentStakeLimit(e);
+
+    assert (old_stakeLimit < max_uint256) => (new_stakeLimit == old_stakeLimit - ethToSubmit);
+    assert expectedShares == shareAmount;
+}
+
+rule integrityOfDeposit() {}
+
+// bunker state or protocol's pause state => can deposit
 
