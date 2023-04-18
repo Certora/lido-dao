@@ -11,7 +11,7 @@ fi
 certoraRun \
     certora/harnesses/ValidatorsExitBusOracleHarness.sol \
     certora/munged/0.8.9/sanity_checks/OracleReportSanityChecker.sol \
-    certora/munged/0.8.9/test_helpers/oracle/MockConsensusContract.sol \
+    certora/munged/0.8.9/oracle/HashConsensus.sol \
     --verify ValidatorsExitBusOracleHarness:certora/specs/ValidatorsExitBusOracle.spec \
     --solc solc8.9 \
     --optimistic_loop \
@@ -23,6 +23,7 @@ certoraRun \
     $RULE \
     --msg "ValidatorsExitBusOracle: $RULE $MSG"
 
+    # certora/munged/0.8.9/test_helpers/oracle/MockConsensusContract.sol \
 
 # certoraRun \
 #     certora/harnesses/DepositSecurityModuleHarness.sol \

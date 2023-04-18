@@ -274,7 +274,7 @@ abstract contract BaseOracle is IReportAsyncProcessor, AccessControlEnumerable, 
         ConsensusReport memory report = _storageConsensusReport().value;
 
         uint256 prevProcessingRefSlot = LAST_PROCESSING_REF_SLOT_POSITION.getStorageUint256();
-        if (prevProcessingRefSlot == report.refSlot) {
+        if (prevProcessingRefSlot == report.refSlot) {   // HARNESS: commented out becuase of unreachability issues
             revert RefSlotAlreadyProcessing();
         }
 

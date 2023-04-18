@@ -15,18 +15,76 @@ contract ValidatorsExitBusOracleHarness is ValidatorsExitBusOracle {
         return IOracleReportSanityChecker(LOCATOR.oracleReportSanityChecker()).getOracleReportLimits().maxValidatorExitRequestsPerReport;
     }
 
-    function submitReportDataHelper(ReportData calldata data, uint256 consensusVersion, uint256 refSlot, uint256 requestsCount, uint256 dataFormat, bytes calldata dataInput, uint256 contractVersion)
+    function submitReportDataHelper(uint256 consensusVersion, uint256 refSlot, uint256 requestsCount, uint256 dataFormat, bytes calldata dataInput, uint256 contractVersion)
         external
     {
-        require(data.consensusVersion == consensusVersion);
-        require(data.refSlot == refSlot);
-        require(data.requestsCount == requestsCount);
-        require(data.dataFormat == dataFormat);
-        require(keccak256(abi.encodePacked(data.data)) == keccak256(abi.encodePacked(dataInput)));
+        ReportData memory data = ReportData({
+            consensusVersion: consensusVersion,
+            refSlot: refSlot,
+            requestsCount: requestsCount,
+            dataFormat: dataFormat,
+            data: dataInput
+        });
         submitReportData(data, contractVersion);
+    }
+
+    function matchReportDatas(uint256 consensusVersion, uint256 refSlot, uint256 requestsCount, uint256 dataFormat, bytes calldata dataInput) public view returns (bool) {
+        return dataGlobal.consensusVersion == consensusVersion &&
+            dataGlobal.refSlot == refSlot &&
+            dataGlobal.requestsCount == requestsCount &&
+            dataGlobal.dataFormat == dataFormat &&
+            compareBytes(dataGlobal.data, dataInput);
     }
 
     function compareBytes(bytes memory a, bytes memory b) public pure returns (bool) {
         return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
+    }
+
+    function getConsensusVersionGlobal() public view returns (uint256) {
+        return dataGlobal.consensusVersion;
+    }
+
+    function getRefSlotGlobal() public view returns (uint256) {
+        return dataGlobal.refSlot;
+    }
+
+    function getRequestsCountGlobal() public view returns (uint256) {
+        return dataGlobal.requestsCount;
+    }
+
+    function getDataFormatGlobal() public view returns (uint256) {
+        return dataGlobal.dataFormat;
+    }
+
+    function getDataGlobal() public view returns (bytes memory) {
+        return dataGlobal.data;
+    }
+
+
+    function callGetLastRequestedValidatorIndices(uint256 moduleId, uint256[] calldata nodeOpIds)
+        external view returns (int256, int256, int256)
+    {
+        int256[] memory indices = getLastRequestedValidatorIndices(moduleId, nodeOpIds);
+        return (indices[0], indices[1], indices[2]);
+    }
+
+    function isConsensusMember(address addr) public view returns (bool) {
+        return _isConsensusMember(addr);
+    }
+
+    function checkContractVersion(uint256 version) public view {
+        _checkContractVersion(version);
+    }
+
+    function getRefSlot() public view returns (uint256) {
+        return _storageConsensusReport().value.refSlot;
+    }
+
+    function getReportHash() public view returns (bytes32) {
+        return _storageConsensusReport().value.hash;
+    }
+
+    function hashData() public view returns (bytes32) {
+        return keccak256(abi.encode(dataGlobal));
     }
 }

@@ -211,6 +211,8 @@ contract ValidatorsExitBusOracle is BaseOracle, PausableUntil {
     /// Length in bytes of packed request
     uint256 internal constant PACKED_REQUEST_LENGTH = 64;
 
+    ReportData dataGlobal;
+
     /// @notice Submits report data for processing.
     ///
     /// @param data The data. See the `ReportData` structure's docs for details.
@@ -227,7 +229,7 @@ contract ValidatorsExitBusOracle is BaseOracle, PausableUntil {
     ///   provided by the hash consensus contract.
     /// - The provided data doesn't meet safety checks.
     ///
-    function submitReportData(ReportData calldata data, uint256 contractVersion)
+    function submitReportData(ReportData memory data, uint256 contractVersion)
         public whenResumed       // HARNESS: external -> public
     {
         _checkMsgSenderIsAllowedToSubmitData();
@@ -253,7 +255,7 @@ contract ValidatorsExitBusOracle is BaseOracle, PausableUntil {
     /// @param nodeOpIds IDs of the staking module's node operators.
     ///
     function getLastRequestedValidatorIndices(uint256 moduleId, uint256[] calldata nodeOpIds)
-        external view returns (int256[] memory)
+        public view returns (int256[] memory)   // HARNESS: external -> public
     {
         if (moduleId > type(uint24).max) revert ArgumentOutOfBounds();
 
@@ -343,7 +345,7 @@ contract ValidatorsExitBusOracle is BaseOracle, PausableUntil {
         }
     }
 
-    function _handleConsensusReportData(ReportData calldata data) internal {
+    function _handleConsensusReportData(ReportData memory data) internal {
         if (data.dataFormat != DATA_FORMAT_LIST) {
             revert UnsupportedRequestsDataFormat(data.dataFormat);
         }
@@ -355,9 +357,9 @@ contract ValidatorsExitBusOracle is BaseOracle, PausableUntil {
         IOracleReportSanityChecker(LOCATOR.oracleReportSanityChecker())
             .checkExitBusOracleReport(data.requestsCount);
 
-        if (data.data.length / PACKED_REQUEST_LENGTH != data.requestsCount) {
-            revert UnexpectedRequestsDataLength();
-        }
+        // if (data.data.length / PACKED_REQUEST_LENGTH != data.requestsCount) {    // HARNESS: commented out becuase of unreachability issues
+        //     revert UnexpectedRequestsDataLength();
+        // }
 
         _processExitRequestsList(data.data);
 
@@ -377,13 +379,17 @@ contract ValidatorsExitBusOracle is BaseOracle, PausableUntil {
         );
     }
 
-    function _processExitRequestsList(bytes calldata data) internal returns (uint256) {
+    uint256 storageOffset;
+
+    function _processExitRequestsList(bytes memory data) internal returns (uint256) {
         uint256 offset;
         uint256 offsetPastEnd;
-        assembly {
-            offset := data.offset
-            offsetPastEnd := add(offset, data.length)
-        }
+        // assembly {
+        //     offset := data.offset
+        //     offsetPastEnd := add(offset, data.length)
+        // }
+        offset = storageOffset;
+        offsetPastEnd = offset + data.length;
 
         uint256 lastDataWithoutPubkey = 0;
         uint256 lastNodeOpKey = 0;
