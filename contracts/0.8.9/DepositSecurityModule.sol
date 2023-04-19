@@ -54,7 +54,7 @@ contract DepositSecurityModule {
     error DuplicateAddress(address addr);
     error NotAnOwner(address caller);
     error InvalidSignature();
-    error SignatureNotSorted();
+    error SignaturesNotSorted();
     error DepositNoQuorum();
     error DepositRootChanged();
     error DepositInactiveModule();
@@ -72,6 +72,11 @@ contract DepositSecurityModule {
     IStakingRouter public immutable STAKING_ROUTER;
     IDepositContract public immutable DEPOSIT_CONTRACT;
 
+    /**
+     * NB: both `maxDepositsPerBlock` and `minDepositBlockDistance` values
+     * must be harmonized with `OracleReportSanityChecker.churnValidatorsPerDayLimit`
+     * (see docs for the `OracleReportSanityChecker.setChurnValidatorsPerDayLimit` function)
+     */
     uint256 internal maxDepositsPerBlock;
     uint256 internal minDepositBlockDistance;
     uint256 internal pauseIntentValidityPeriodBlocks;
@@ -176,6 +181,9 @@ contract DepositSecurityModule {
 
     /**
      * Sets `maxDepositsPerBlock`. Only callable by the owner.
+     *
+     * NB: the value must be harmonized with `OracleReportSanityChecker.churnValidatorsPerDayLimit`
+     * (see docs for the `OracleReportSanityChecker.setChurnValidatorsPerDayLimit` function)
      */
     function setMaxDeposits(uint256 newValue) external onlyOwner {
         _setMaxDeposits(newValue);
@@ -195,6 +203,9 @@ contract DepositSecurityModule {
 
     /**
      * Sets `minDepositBlockDistance`. Only callable by the owner.
+     *
+     * NB: the value must be harmonized with `OracleReportSanityChecker.churnValidatorsPerDayLimit`
+     * (see docs for the `OracleReportSanityChecker.setChurnValidatorsPerDayLimit` function)
      */
     function setMinDepositBlockDistance(uint256 newValue) external onlyOwner {
         _setMinDepositBlockDistance(newValue);
@@ -402,8 +413,8 @@ contract DepositSecurityModule {
      *   5. block.number - StakingModule.getLastDepositBlock() < minDepositBlockDistance.
      *   6. blockhash(blockNumber) != blockHash.
      *
-     * Signatures must be sorted in ascending order by index of the guardian. Each signature must
-     * be produced for keccak256 hash of the following message (each component taking 32 bytes):
+     * Signatures must be sorted in ascending order by address of the guardian. Each signature must
+     * be produced for the keccak256 hash of the following message (each component taking 32 bytes):
      *
      * | ATTEST_MESSAGE_PREFIX | blockNumber | blockHash | depositRoot | stakingModuleId | nonce |
      */
@@ -452,7 +463,7 @@ contract DepositSecurityModule {
         for (uint256 i = 0; i < sigs.length; ++i) {
             address signerAddr = ECDSA.recover(msgHash, sigs[i].r, sigs[i].vs);
             if (!_isGuardian(signerAddr)) revert InvalidSignature();
-            if (signerAddr <= prevSignerAddr) revert SignatureNotSorted();
+            if (signerAddr <= prevSignerAddr) revert SignaturesNotSorted();
             prevSignerAddr = signerAddr;
         }
     }

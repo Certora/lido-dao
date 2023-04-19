@@ -88,7 +88,7 @@ contract('StakingRouter', ([deployer, admin, depositor, stranger]) => {
         name: 'test',
         rewardAddress: ADDRESS_1,
         totalSigningKeysCount: 13,
-        vettedSigningKeysCount: 4,
+        vettedSigningKeysCount: 7,
         depositedSigningKeysCount: 7,
         exitedSigningKeysCount: 5,
       }
@@ -103,8 +103,9 @@ contract('StakingRouter', ([deployer, admin, depositor, stranger]) => {
       )
     })
 
-    it('getStakingRewardsDistribution() - reverts if total fee >= 100%', async () => {
-      await assert.reverts(router.getStakingRewardsDistribution(), 'ValueOver100Percent("totalFee")')
+    it("getStakingRewardsDistribution() - doesn't reverts if total fee = 100%", async () => {
+      const { totalFee } = await router.getStakingRewardsDistribution()
+      await assert.equals(totalFee, await router.FEE_PRECISION_POINTS())
     })
 
     it('update module - set fee and treasury fee', async () => {
@@ -184,7 +185,7 @@ contract('StakingRouter', ([deployer, admin, depositor, stranger]) => {
         name: 'Solo3',
         rewardAddress: ADDRESS_3,
         totalSigningKeysCount: 13,
-        vettedSigningKeysCount: 4,
+        vettedSigningKeysCount: 12,
         depositedSigningKeysCount: 7,
         exitedSigningKeysCount: 5,
       }
@@ -254,7 +255,7 @@ contract('StakingRouter', ([deployer, admin, depositor, stranger]) => {
         name: 'test',
         rewardAddress: ADDRESS_1,
         totalSigningKeysCount: 13,
-        vettedSigningKeysCount: 4,
+        vettedSigningKeysCount: 8,
         depositedSigningKeysCount: 7,
         exitedSigningKeysCount: 5,
       }
@@ -342,7 +343,7 @@ contract('StakingRouter', ([deployer, admin, depositor, stranger]) => {
         name: 'Solo3',
         rewardAddress: ADDRESS_3,
         totalSigningKeysCount: 13,
-        vettedSigningKeysCount: 4,
+        vettedSigningKeysCount: 13,
         depositedSigningKeysCount: 7,
         exitedSigningKeysCount: 5,
       }
