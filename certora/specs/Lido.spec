@@ -1,4 +1,6 @@
 methods{
+    initialize(address, address)
+    finalizeUpgrade_v2(address, address)
     pauseStaking()
     resumeStaking()
     setStakingLimit(uint256, uint256)
@@ -8,10 +10,11 @@ methods{
     getStakeLimitFullInfo() returns (bool, bool, uint256, uint256, uint256, uint256, uint256) // envfree
     submit(address) returns (uint256) //payable
     receiveELRewards() //payable
+    receiveWithdrawals() //payable
     deposit(uint256, uint256, bytes)
-    burnShares(address, uint256) returns (uint256)
     stop()
     resume()
+    
     setFee(uint16)
     setFeeDistribution(uint16, uint16, uint16)
     setProtocolContracts(address, address, address)
@@ -33,6 +36,8 @@ methods{
     getInsuranceFund() returns (address) envfree
     getBeaconStat() returns (uint256, uint256, uint256) envfree
     getELRewardsVault() returns (address) envfree
+    canDeposit() returns (bool) envfree
+    getDepositableEther() returns (uint256) envfree
 
 // StEth:
     getTotalPooledEther() returns (uint256) envfree  
@@ -48,6 +53,21 @@ methods{
     smoothenTokenRebase(uint256, uint256, uint256, uint256, uint256, uint256, uint256) returns(uint256,uint256,uint256) => DISPATCHER(true)
     getSharesRequestedToBurn() => DISPATCHER(true)
     checkAccountingOracleReport(uint256, uint256, uint256, uint256, uint256, uint256, uint256) => DISPATCHER(true)
+
+    // Harness:
+    getStakingModuleMaxDepositsCount_workaround(uint256, uint256) returns (uint256) envfree
+
+    // Summarizations:
+
+    // WithdrawalQueue:
+    isBunkerModeActive() => CONSTANT
+
+    // LidoLocator:
+    depositSecurityModule() => CONSTANT
+    stakingRouter() => CONSTANT
+
+    // StakingRouter:
+    getStakingModuleMaxDepositsCount(uint256, uint256) => CONSTANT
 }
 
 rule integrityOfSubmit(address _referral) {
@@ -64,7 +84,22 @@ rule integrityOfSubmit(address _referral) {
     assert expectedShares == shareAmount;
 }
 
-rule integrityOfDeposit() {}
+rule integrityOfDeposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, bytes _depositCalldata) {
+    env e;
+
+    bool canDeposit = canDeposit();
+
+    uint256 bufferedEthBefore = getBufferedEther();
+
+    uint256 maxDepositsCountSR = getStakingModuleMaxDepositsCount_workaround(_stakingModuleId, getDepositableEther());
+
+    deposit(e, _maxDepositsCount, _stakingModuleId, _depositCalldata);
+
+    uint256 bufferedEthAfter = getBufferedEther();
+
+    assert canDeposit;
+    assert (_maxDepositsCount > 0 && maxDepositsCountSR > 0) => bufferedEthBefore > bufferedEthAfter;
+}
 
 // bunker state or protocol's pause state => can deposit
 

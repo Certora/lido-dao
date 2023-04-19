@@ -66,7 +66,7 @@ methods {
 }
 
 /**
-Verify that there is no fee on transferFrom().
+Verify that there is no fee on transferFrom.
 **/
 rule noFeeOnTransferFrom(address alice, address bob, uint256 amount) {
     env e;
@@ -87,7 +87,7 @@ rule noFeeOnTransferFrom(address alice, address bob, uint256 amount) {
 }
 
 /**
-Verify that there is no fee on transferSharesFrom().
+Verify that there is no fee on transferSharesFrom.
 **/
 rule noFeeOnTransferSharesFrom(address alice, address bob, uint256 amount) {
     env e;
@@ -106,7 +106,7 @@ rule noFeeOnTransferSharesFrom(address alice, address bob, uint256 amount) {
 }
 
 /**
-Verify that there is no fee on transfer().
+Verify that there is no fee on transfer.
 **/
 rule noFeeOnTransfer(address bob, uint256 amount) {
     env e;
@@ -125,7 +125,7 @@ rule noFeeOnTransfer(address bob, uint256 amount) {
 }
 
 /**
-Verify that there is no fee on transferShares().
+Verify that there is no fee on transferShares.
 **/
 rule noFeeOnTransferShares(address bob, uint256 amount) {
     env e;
@@ -245,7 +245,7 @@ rule transferSharesFromReverts(address from, address to, uint256 amount) {
 }
 
 /**
-Allowance changes correctly as a result of calls to approve, transferFrom, transferSharesFrom, increaseAllowance, decreaseAllowance
+Allowance changes correctly as a result of calls to approve, transferFrom, transferSharesFrom, increaseAllowance, decreaseAllowance.
 **/
 rule ChangingAllowance(method f, address from, address spender) 
     filtered{ f -> f.selector != initialize(address, address).selector && f.selector != finalizeUpgrade_v2(address,address).selector } {
