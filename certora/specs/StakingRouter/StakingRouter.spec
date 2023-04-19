@@ -8,6 +8,7 @@ methods {
     NOS.getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
     NOS.obtainDepositData(uint256, bytes)
     NOS.getActiveNodeOperatorsCount() returns (uint256) envfree
+    NOS.getNodeOperatorSummary(uint256) envfree
     moduleMock.getStakingModuleSummary() returns (uint256,uint256,uint256) envfree
 }
 
@@ -42,6 +43,29 @@ function modulesValidatorsAssumptions() {
     require totalDepositable2 <= UINT64_MAX();
 }
 
+function NodeOperatorValidKeys(uint256 nodeOperatorId) {
+    bool isTargetLimitActive;
+    uint256 targetValidatorsCount;
+    uint256 stuckValidatorsCount;
+    uint256 refundedValidatorsCount;
+    uint256 stuckPenaltyEndTimestamp;
+    uint256 totalExitedValidators;
+    uint256 totalDepositedValidators;
+    uint256 depositableValidatorsCount;
+
+    isTargetLimitActive, targetValidatorsCount, stuckValidatorsCount,
+    refundedValidatorsCount, stuckPenaltyEndTimestamp, totalExitedValidators,
+    totalDepositedValidators, depositableValidatorsCount = NOS.getNodeOperatorSummary(nodeOperatorId);
+
+    uint256 totalExitedSum; uint256 totalDepositedSum; uint256 totalDepositableSum;
+    totalExitedSum, totalDepositedSum, totalDepositableSum = NOS.getStakingModuleSummary();
+
+    require totalExitedSum >= totalExitedValidators;
+    require totalDepositedSum >= totalDepositedValidators;
+    require totalDepositedValidators >= totalExitedValidators;
+    require totalDepositedSum >= totalExitedSum;
+}
+ 
 /**************************************************
  *                 MISC Rules                     *
  **************************************************/
@@ -236,20 +260,31 @@ filtered{f -> !f.isView && !isDeposit(f)} {
     calldataarg args;
     require moduleId > 0;
     require getStakingModulesCount() == 1;
+    /// We only care about NodeOperatorsRegistry, since the mock can violate most rules.
+    require getStakingModuleAddressById(moduleId) == NOS;
     safeAssumptions(moduleId);
 
-    /// Obtain total module data from summary and Staking Router:
+    /// Obtain total module data from summary and Staking Router
     uint256 exitedSummary1;
     uint256 depositedSummary1;
     uint256 depositableSummary1;
     exitedSummary1, depositedSummary1, depositableSummary1 = getStakingModuleSummary(moduleId);
     uint256 exitedModule1 = getStakingModuleExitedValidatorsById(moduleId);
-    // Assume no underflow, i.e. deposited >= exited
     require exitedSummary1 <= depositedSummary1;
     require exitedModule1 <= depositedSummary1;
 
-    f(e, args);
-
+    if(isUnSafeUpdate(f)) {
+        uint256 _stakingModuleId = moduleId;
+        uint256 _nodeOperatorId;
+        bool _triggerUpdateFinish;
+        SR.ValidatorsCountsCorrection correction;
+        NodeOperatorValidKeys(_nodeOperatorId);
+        unsafeSetExitedValidatorsCount(e, _stakingModuleId, _nodeOperatorId, _triggerUpdateFinish, correction);
+    }
+    else{
+        f(e, args);
+    }
+    
     /// Obtain total module data from summary and Staking Router post update:
     uint256 exitedSummary2;
     uint256 depositedSummary2;

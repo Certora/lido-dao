@@ -61,21 +61,6 @@ definition isInvalidateUnused(method f) returns bool =
 /**************************************************
  *                 Invariants Helpers             *
  **************************************************/
-/*
-function keyInvariant(uint256 nodeOperatorId) returns bool {
-    uint64 exited = getNodeOperatorSigningStats_exited(nodeOperatorId);
-    uint64 deposited = getNodeOperatorSigningStats_deposited(nodeOperatorId);
-    uint64 vetted = getNodeOperatorSigningStats_vetted(nodeOperatorId);
-    uint64 total = getNodeOperatorSigningStats_total(nodeOperatorId);
-    uint64 maxTarget = getNodeOperatorTargetStats_max(nodeOperatorId);
-
-    bool keysOrder = (exited <= deposited && deposited <= maxTarget && maxTarget <= vetted && vetted <= total);
-    return keysOrder;
-}
-
-invariant KeyInvariant(uint256 nodeOperatorId) keyInvariant(nodeOperatorId)
-*/ 
-
 /// Makes sure that if there are any inactive operators, then the sum of active operators
 /// is strictly less than the sum of all operators accordingly.
 function activeOperatorsSumHelper(uint256 id1, uint256 id2) {
@@ -102,6 +87,12 @@ function safeAssumptions_NOS(uint256 nodeOperatorId) {
     requireInvariant DepositedKeysLEMaxValidators(nodeOperatorId);
     requireInvariant VettedKeysGEMaxValidators(nodeOperatorId);
     requireInvariant NoDepositableKeysForInactiveModule(nodeOperatorId);
+    requireInvariant StuckPlusExitedLEDeposited(nodeOperatorId);
+    /// If the sum of keys equals the summary value, then every value is less or equal to the summary:
+    require getNodeOperatorSigningStats_exited(nodeOperatorId) <= getSummaryTotalExitedValidators();
+    require getNodeOperatorSigningStats_deposited(nodeOperatorId) <= getSummaryTotalDepositedValidators();
+    require getNodeOperatorSigningStats_total(nodeOperatorId) <= getSummaryTotalKeyCount();
+    require getNodeOperatorTargetStats_max(nodeOperatorId) <= getSummaryMaxValidators();
     reasonableKeysAssumptions(nodeOperatorId);
 }
 
@@ -342,6 +333,23 @@ invariant NoDepositableKeysForInactiveModule(uint256 nodeOperatorId)
             require indexTo == nodeOperatorId;
         }
     }
+/// The sum of stuck validators plus exited must be less or equal to the deposited keys count.
+invariant StuckPlusExitedLEDeposited(uint256 nodeOperatorId)
+    to_mathint(getNodeOperatorSigningStats_exited(nodeOperatorId) +
+    getNodeOperator_stuckValidators(nodeOperatorId)) <=
+    to_mathint(getNodeOperatorSigningStats_deposited(nodeOperatorId))
+    {
+        preserved invalidateReadyToDepositKeysRange(
+            uint256 indexFrom, uint256 indexTo) with (env e) 
+        {
+            safeAssumptions_NOS(nodeOperatorId);
+            require indexFrom == nodeOperatorId;
+            require indexTo == nodeOperatorId;
+        }
+        preserved {
+            safeAssumptions_NOS(nodeOperatorId);
+        }
+    }
 /**************************************************
  *          Keys summaries - sums invariants     *
 **************************************************/
@@ -556,11 +564,9 @@ filtered{f -> !f.isView} {
     address rewardAddress;
     uint256 nodeOperatorId = getNodeOperatorsCount();
 
-    requireInvariant NodeOperatorsCountLEMAX();
-    requireInvariant ActiveOperatorsLECount();
+    requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
     addNodeOperator(e1, name, rewardAddress);
     safeAssumptions_NOS(nodeOperatorId);
-    requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
 
     f(e2, args);
 

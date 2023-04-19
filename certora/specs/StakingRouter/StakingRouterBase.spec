@@ -67,6 +67,10 @@ definition isAddModule(method f) returns bool =
 definition isInitialize(method f) returns bool = 
     f.selector == initialize(address,address,bytes32).selector;
 
+definition isUnSafeUpdate(method f) returns bool = 
+    f.selector == unsafeSetExitedValidatorsCount(uint256,uint256,bool,
+        (uint256,uint256,uint256,uint256,uint256,uint256)).selector;
+
 definition roleChangingMethods(method f) returns bool = 
     f.selector == revokeRole(bytes32,address).selector ||
     f.selector == renounceRole(bytes32,address).selector ||
