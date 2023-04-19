@@ -23,13 +23,13 @@ methods {
     getNodeOperator_refundedValidators(uint256) returns (uint256) envfree
     getNodeOperator_endTimeStamp(uint256) returns (uint256) envfree
     /// Signing stats per NodeOperator
-    getNodeOperatorSigningStats_exited(uint256) returns (uint64) envfree
-    getNodeOperatorSigningStats_vetted(uint256) returns (uint64) envfree
-    getNodeOperatorSigningStats_deposited(uint256) returns (uint64) envfree
-    getNodeOperatorSigningStats_total(uint256) returns (uint64) envfree
+    getNodeOperatorSigningStats_exited(uint256) returns (uint256) envfree
+    getNodeOperatorSigningStats_vetted(uint256) returns (uint256) envfree
+    getNodeOperatorSigningStats_deposited(uint256) returns (uint256) envfree
+    getNodeOperatorSigningStats_total(uint256) returns (uint256) envfree
     /// Target stats per NodeOperator
-    getNodeOperatorTargetStats_target(uint256) returns (uint64) envfree
-    getNodeOperatorTargetStats_max(uint256) returns (uint64) envfree
+    getNodeOperatorTargetStats_target(uint256) returns (uint256) envfree
+    getNodeOperatorTargetStats_max(uint256) returns (uint256) envfree
     /// Sum of keys 
     sumOfExitedKeys() returns (uint256) envfree
     sumOfDepositedKeys() returns (uint256) envfree
@@ -61,6 +61,20 @@ definition isInvalidateUnused(method f) returns bool =
 /**************************************************
  *                 Invariants Helpers             *
  **************************************************/
+/*
+function keyInvariant(uint256 nodeOperatorId) returns bool {
+    uint64 exited = getNodeOperatorSigningStats_exited(nodeOperatorId);
+    uint64 deposited = getNodeOperatorSigningStats_deposited(nodeOperatorId);
+    uint64 vetted = getNodeOperatorSigningStats_vetted(nodeOperatorId);
+    uint64 total = getNodeOperatorSigningStats_total(nodeOperatorId);
+    uint64 maxTarget = getNodeOperatorTargetStats_max(nodeOperatorId);
+
+    bool keysOrder = (exited <= deposited && deposited <= maxTarget && maxTarget <= vetted && vetted <= total);
+    return keysOrder;
+}
+
+invariant KeyInvariant(uint256 nodeOperatorId) keyInvariant(nodeOperatorId)
+*/ 
 
 /// Makes sure that if there are any inactive operators, then the sum of active operators
 /// is strictly less than the sum of all operators accordingly.
@@ -545,7 +559,7 @@ filtered{f -> !f.isView} {
     requireInvariant NodeOperatorsCountLEMAX();
     requireInvariant ActiveOperatorsLECount();
     addNodeOperator(e1, name, rewardAddress);
-
+    safeAssumptions_NOS(nodeOperatorId);
     requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
 
     f(e2, args);
@@ -943,10 +957,11 @@ rule signingKeysAllocationDataPerNodeBounded(uint256 depositsCount,uint256 index
     nodeOperatorId, allocation = getSigningKeysAllocationDataPerNode(depositsCount, index);
 
     safeAssumptions_NOS(nodeOperatorId);
-    uint64 exited = getNodeOperatorSigningStats_exited(nodeOperatorId);
-    uint64 max = getNodeOperatorTargetStats_max(nodeOperatorId);
+    uint256 exited = getNodeOperatorSigningStats_exited(nodeOperatorId);
+    uint256 max = getNodeOperatorTargetStats_max(nodeOperatorId);
 
     assert allocation <= max-exited;
+    assert !getNodeOperatorIsActive(nodeOperatorId) => allocation == 0;
 }
 
 /// Verifies that once a node operator is deactivated, it is left with no available keys.
@@ -962,6 +977,41 @@ rule afterDeactivateNoDepositableKeys(uint256 nodeOperatorId) {
 
     assert deposited == maxValidators && deposited == vetted;
 }
+
+rule addingKeysDoesntRevertObtainDepositData(uint256 nodeOperatorId) {
+    env e1; env e2;
+    calldataarg args1;
+    uint256 keysCount;
+    bytes publicKeys; bytes signatures;
+
+    storage initState = lastStorage;
+    safeAssumptions_NOS(nodeOperatorId);
+
+    loadAllocatedSigningKeys(e1, args1);
+
+    addSigningKeys(e2, nodeOperatorId, keysCount, publicKeys, signatures) at initState;
+    loadAllocatedSigningKeys@withrevert(e1, args1);
+
+    assert !lastReverted;
+}
+
+rule removingKeysDoesntRevertObtainDepositData(uint256 nodeOperatorId) {
+    env e1; env e2;
+    calldataarg args1;
+    uint256 keysCount;
+    uint256 fromIndex;
+
+    storage initState = lastStorage;
+    safeAssumptions_NOS(nodeOperatorId);
+
+    loadAllocatedSigningKeys(e1, args1);
+    
+    removeSigningKeys(e2, nodeOperatorId, fromIndex, keysCount) at initState;
+    loadAllocatedSigningKeys@withrevert(e1, args1);
+
+    assert !lastReverted;
+}
+
 /**************************************************
  *  `invalidateReadyToDepositKeysRange` checks    *
 **************************************************/

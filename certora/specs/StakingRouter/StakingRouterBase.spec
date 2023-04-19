@@ -35,6 +35,7 @@ methods {
     getStakingModuleIsDepositsPaused(uint256) returns (bool) envfree
     getStakingModuleIsActive(uint256) returns (bool) envfree
     getStakingFeeAggregateDistribution() returns (uint96,uint96,uint256) envfree
+    getStakingRewardsDistribution() envfree
     getStakingModuleMaxDepositsCount(uint256, uint256) returns (uint256)
     getStakingModuleSummary(uint256) returns ((uint256, uint256, uint256)) envfree
     getStakingModuleActiveValidatorsCount(uint256) returns (uint256) envfree

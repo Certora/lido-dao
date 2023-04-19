@@ -124,32 +124,32 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
         return stuckPenaltyStats.get(STUCK_PENALTY_END_TIMESTAMP_OFFSET);
     }
 
-    function getNodeOperatorSigningStats_exited(uint256 _nodeOperatorId) public view returns (uint64) {
+    function getNodeOperatorSigningStats_exited(uint256 _nodeOperatorId) public view returns (uint256) {
         Packed64x4.Packed memory signingKeysStats = _loadOperatorSigningKeysStats(_nodeOperatorId);
         return signingKeysStats.get(TOTAL_EXITED_KEYS_COUNT_OFFSET);
     }
 
-    function getNodeOperatorSigningStats_vetted(uint256 _nodeOperatorId) public view returns (uint64) {
+    function getNodeOperatorSigningStats_vetted(uint256 _nodeOperatorId) public view returns (uint256) {
         Packed64x4.Packed memory signingKeysStats = _loadOperatorSigningKeysStats(_nodeOperatorId);
         return signingKeysStats.get(TOTAL_VETTED_KEYS_COUNT_OFFSET);
     }
 
-    function getNodeOperatorSigningStats_deposited(uint256 _nodeOperatorId) public view returns (uint64) {
+    function getNodeOperatorSigningStats_deposited(uint256 _nodeOperatorId) public view returns (uint256) {
        Packed64x4.Packed memory signingKeysStats = _loadOperatorSigningKeysStats(_nodeOperatorId);
        return signingKeysStats.get(TOTAL_DEPOSITED_KEYS_COUNT_OFFSET);
     }
 
-    function getNodeOperatorSigningStats_total(uint256 _nodeOperatorId) public view returns (uint64) {
+    function getNodeOperatorSigningStats_total(uint256 _nodeOperatorId) public view returns (uint256) {
         Packed64x4.Packed memory signingKeysStats = _loadOperatorSigningKeysStats(_nodeOperatorId);
         return signingKeysStats.get(TOTAL_KEYS_COUNT_OFFSET);
     }
 
-    function getNodeOperatorTargetStats_target(uint256 _nodeOperatorId) public view returns (uint64) {
+    function getNodeOperatorTargetStats_target(uint256 _nodeOperatorId) public view returns (uint256) {
         Packed64x4.Packed memory operatorTargetStats = _loadOperatorTargetValidatorsStats(_nodeOperatorId);
         return operatorTargetStats.get(TARGET_VALIDATORS_COUNT_OFFSET);
     }
 
-    function getNodeOperatorTargetStats_max(uint256 _nodeOperatorId) public view returns (uint64) {
+    function getNodeOperatorTargetStats_max(uint256 _nodeOperatorId) public view returns (uint256) {
         Packed64x4.Packed memory operatorTargetStats = _loadOperatorTargetValidatorsStats(_nodeOperatorId);
         return operatorTargetStats.get(MAX_VALIDATORS_COUNT_OFFSET);
     }

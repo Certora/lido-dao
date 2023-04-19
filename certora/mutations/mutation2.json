@@ -1,0 +1,50 @@
+[
+    {
+        "filename": ".certora/munged/StakingRouter.sol",
+        "contract": "StakingRouter",
+        "functions": ["addStakingModule"],
+        "solc": "solc8.9",
+        "num-mutants": 3,
+        "mutations":[
+            "delete-expression-mutation",
+            "require-mutation"
+        ],
+        "remappings": [
+            "@aragon=.\\node_modules\\@aragon",
+            "@openzeppelin=.\\node_modules\\@openzeppelin",
+            "@openzeppelin-solidity=.\\node_modules\\@openzeppelin-solidity"
+        ]
+    },
+    {
+        "filename": ".certora/munged/StakingRouter.sol",
+        "contract": "StakingRouter",
+        "functions": ["_loadStakingModulesCacheItem"],
+        "solc": "solc8.9",
+        "num-mutants": 3,
+        "mutations":[
+            "delete-expression-mutation",
+            "require-mutation"
+        ],
+        "remappings": [
+            "@aragon=.\\node_modules\\@aragon",
+            "@openzeppelin=.\\node_modules\\@openzeppelin",
+            "@openzeppelin-solidity=.\\node_modules\\@openzeppelin-solidity"
+        ]
+    },
+    {
+        "filename": ".certora/munged/StakingRouter.sol",
+        "contract": "StakingRouter",
+        "functions": ["updateExitedValidatorsCountByStakingModule"],
+        "solc": "solc8.9",
+        "num-mutants": 3,
+        "mutations":[
+            "delete-expression-mutation",
+            "require-mutation"
+        ],
+        "remappings": [
+            "@aragon=.\\node_modules\\@aragon",
+            "@openzeppelin=.\\node_modules\\@openzeppelin",
+            "@openzeppelin-solidity=.\\node_modules\\@openzeppelin-solidity"
+        ]
+    }
+]

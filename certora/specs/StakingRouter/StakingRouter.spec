@@ -195,8 +195,12 @@ rule cannotAddStakingModuleIfAlreadyRegistered(uint256 moduleId) {
 rule aggregatedFeeLT100Percent() {
     
     require getStakingModulesCount() <= 2;
-    safeAssumptions(1);
-    safeAssumptions(getStakingModulesCount());
+    //safeAssumptions(1);
+    //safeAssumptions(getStakingModulesCount());
+    requireInvariant StakingModuleTotalFeeLEMAX(1);
+    requireInvariant StakingModuleTargetShareLEMAX(1);
+    requireInvariant StakingModuleTotalFeeLEMAX(2);
+    requireInvariant StakingModuleTargetShareLEMAX(2);
     
     uint96 modulesFee; uint96 treasuryFee; uint256 precision;
     modulesFee, treasuryFee, precision = getStakingFeeAggregateDistribution();
@@ -204,9 +208,8 @@ rule aggregatedFeeLT100Percent() {
 
     assert modulesFee <= precision;
     assert treasuryFee <= precision;
-    //assert _totalFee >= totalFee_;
-    //assert _modulesFee >= modulesFee_;
-    //assert _treasuryFee >= treasuryFee_;
+    // Relevant when removing the sanity check.
+    assert totalFee <= precision;
 }
 
 rule validMaxDepositCountBound(uint256 maxDepositsValue) {
@@ -326,10 +329,10 @@ rule feeDistributionDoesntRevertAfterAddingModule() {
     safeAssumptions(nextId);
     
     /// call the fee distribution function
-    getStakingFeeAggregateDistribution();
+    getStakingRewardsDistribution();
     
     /// add a new module
-    string name; require name.length == 32;
+    string name;
     address stakingModuleAddress = moduleMock;
     uint256 targetShare;
     uint256 stakingModuleFee;
@@ -341,7 +344,7 @@ rule feeDistributionDoesntRevertAfterAddingModule() {
     modulesValidatorsAssumptions();
     
     // call again to the fee distribution
-    getStakingFeeAggregateDistribution@withrevert();
+    getStakingRewardsDistribution@withrevert();
 
     assert !lastReverted;
 }
@@ -412,7 +415,7 @@ rule canAlwaysGetAddedStakingModule() {
     assert !lastReverted;
 }
 
-rule getMaxDepositsCountReverts_init(uint256 id) {
+rule getMaxDepositsCountRevert_init(uint256 id) {
     env e;
 
     requireInvariant modulesCountIsLastIndex();
@@ -472,8 +475,7 @@ filtered{f -> !f.isView} {
     assert !lastReverted;
 }
 
-rule whichFunctionsRevertIfStatusIsNotActive(method f, uint256 moduleId)
-filtered{f -> !isDeposit(f)} {
+rule whichFunctionsRevertIfStatusIsNotActive(method f, uint256 moduleId) {
     storage initState = lastStorage;
 
     env e1; 
