@@ -94,20 +94,16 @@ rule cantInitializeTwice(env e, env e2, method f, method g)
 
 // STATUS - verified
 // Only a user with necessary role can resume within pause timeframe
-rule canResume(env e, env e2) {
+rule canResume(env e) {
     bool pausedBefore = isPaused(e);
 
-    require e.msg.sender == e2.msg.sender;
-
-    resume@withrevert(e2);
+    resume@withrevert(e);
     bool isReverted = lastReverted;
 
-    bool pausedAfter = isPaused(e2);
+    bool pausedAfter = isPaused(e);
 
-    assert (e2.msg.value == 0 
-                && pausedBefore 
-                && e2.block.timestamp < getResumeSinceTimestamp()
-                && hasRole(RESUME_ROLE(), e2.msg.sender))
+    assert (pausedBefore 
+                && hasRole(RESUME_ROLE(), e.msg.sender))
             => (!isReverted 
                 && !pausedAfter);
 }
@@ -123,10 +119,10 @@ rule cantSubmitReportTwice(env e, env e2, method f, method g) {
     uint256 dataFormat1;         uint256 dataFormat2;
     bytes   dataInput1;          bytes   dataInput2;
 
-    require matchReportDatas(consensusVersion1, refSlot1, requestsCount1, dataFormat1, dataInput1);
+    require matchReportDatas(consensusVersion1, refSlot1, requestsCount1, dataFormat1, dataInput1);     // matching dataGlobal (harness to make submitReport work) with rule values
     submitReportDataHelper(e, consensusVersion1, refSlot1, requestsCount1, dataFormat1, dataInput1, contractVersion1);
     
-    require matchReportDatas(consensusVersion2, refSlot2, requestsCount2, dataFormat2, dataInput2);
+    require matchReportDatas(consensusVersion2, refSlot2, requestsCount2, dataFormat2, dataInput2);     // matching dataGlobal (harness to make submitReport work) with rule values
     submitReportDataHelper@withrevert(e2, consensusVersion2, refSlot2, requestsCount2, dataFormat2, dataInput2, contractVersion2);
     bool isReverted = lastReverted;
 
@@ -143,7 +139,8 @@ rule cantSubmitReportTwice(env e, env e2, method f, method g) {
 
 // STATUS - verified
 // getTotalRequestsProcessed can't be decreased
-rule totalRequestsProcessedMonotonicity(env e, method f) {
+// only submitReportData() can change getTotalRequestsProcessed
+rule totalRequestsProcessedMonotonicity(env e, method f) filtered { f -> excludeHelper(f) } {
 
     uint256 requestsBefore = getTotalRequestsProcessed();
 
@@ -153,6 +150,7 @@ rule totalRequestsProcessedMonotonicity(env e, method f) {
     uint256 requestsAfter = getTotalRequestsProcessed();
 
     assert requestsBefore <= requestsAfter, "Remember, with great power comes great responsibility.";
+    assert requestsBefore != requestsAfter => f.selector == submitReportData((uint256,uint256,uint256,uint256,bytes),uint256).selector;
 }
 
 
@@ -168,16 +166,11 @@ rule cannotSubmitAnymore(env e, env e2) {
     uint256 requestsSubmittedBefore;        uint256 requestsSubmittedAfter;
 
     uint256 contractVersion;
-    uint256 consensusVersion;
-    uint256 refSlot;
-    uint256 requestsCount;
-    uint256 dataFormat;
+    uint256 consensusVersion = getConsensusVersionGlobal();
+    uint256 refSlot = getRefSlotGlobal();
+    uint256 requestsCount = getRequestsCountGlobal();
+    uint256 dataFormat = getDataFormatGlobal();
     bytes dataInput;
-
-    require consensusVersion == getConsensusVersionGlobal();
-    require refSlot == getRefSlotGlobal();
-    require requestsCount == getRequestsCountGlobal();
-    require dataFormat == getDataFormatGlobal();
 
     currentFrameRefSlotBefore, 
         processingDeadlineTimeBefore, 
@@ -273,11 +266,7 @@ rule whoCanChangeLastProcessingEtc(env e, method f) filtered { f -> excludeIniti
 
 // STATUS - verified
 // After successfully processing a consensus report, the lastProcessingRefSlot must be updated correctly
-rule correctUpdateOfLastProcessingRefSlot() {
-    env e; env e2; env e3;
-
-    uint256 lastProcessingRefSlotBefore = getLastProcessingRefSlot();
-
+rule correctUpdateOfLastProcessingRefSlot(env e) {
     uint256 contractVersion;
     uint256 consensusVersion;   
     uint256 refSlot;            
@@ -285,7 +274,7 @@ rule correctUpdateOfLastProcessingRefSlot() {
     uint256 dataFormat;         
     bytes   dataInput;          
 
-    require matchReportDatas(consensusVersion, refSlot, requestsCount, dataFormat, dataInput);
+    require matchReportDatas(consensusVersion, refSlot, requestsCount, dataFormat, dataInput);  // matching dataGlobal (harness to make submitReport work) with rule values
     submitReportDataHelper(e, consensusVersion, refSlot, requestsCount, dataFormat, dataInput, contractVersion);
 
     uint256 lastProcessingRefSlotAfter = getLastProcessingRefSlot();
@@ -299,21 +288,20 @@ rule correctUpdateOfLastProcessingRefSlot() {
 rule noSameIndex(env e, method f) {
     uint256 moduleId; 
     uint256[] nodeOpIds;
+    uint256 index0 = 0;
+    uint256 index1 = 1;
+    uint256 index2 = 2;
     
-    int256 indicesBefore1;
-    int256 indicesBefore2;
-    int256 indicesBefore3;
-
-    int256 indicesAfter1;
-    int256 indicesAfter2;
-    int256 indicesAfter3;
-
-    indicesBefore1, indicesBefore2, indicesBefore3 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds);
+    int256 indicesBefore1 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index0);
+    int256 indicesBefore2 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index1);
+    int256 indicesBefore3 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index2);
 
     calldataarg args;
     f(e, args);
 
-    indicesAfter1, indicesAfter2, indicesAfter3 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds);
+    int256 indicesAfter1 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index0);
+    int256 indicesAfter2 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index1);
+    int256 indicesAfter3 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index2);
 
     assert (indicesBefore1 != indicesBefore2 
                 && indicesBefore2 != indicesBefore3 
@@ -332,20 +320,20 @@ rule indexIncrease(env e, method f) {
     uint256 moduleId; 
     uint256[] nodeOpIds;
     
-    int256 indicesBefore1;
-    int256 indicesBefore2;
-    int256 indicesBefore3;
-
-    int256 indicesAfter1;
-    int256 indicesAfter2;
-    int256 indicesAfter3;
-
-    indicesBefore1, indicesBefore2, indicesBefore3 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds);
+    uint256 index0 = 0;
+    uint256 index1 = 1;
+    uint256 index2 = 2;
+    
+    int256 indicesBefore1 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index0);
+    int256 indicesBefore2 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index1);
+    int256 indicesBefore3 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index2);
 
     calldataarg args;
     f(e, args);
 
-    indicesAfter1, indicesAfter2, indicesAfter3 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds);
+    int256 indicesAfter1 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index0);
+    int256 indicesAfter2 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index1);
+    int256 indicesAfter3 = callGetLastRequestedValidatorIndices(e, moduleId, nodeOpIds, index2);
 
     assert (indicesBefore1 <= indicesBefore2 
                 && indicesBefore2 <= indicesBefore3)

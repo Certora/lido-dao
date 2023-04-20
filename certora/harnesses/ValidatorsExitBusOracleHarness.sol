@@ -60,12 +60,11 @@ contract ValidatorsExitBusOracleHarness is ValidatorsExitBusOracle {
         return dataGlobal.data;
     }
 
-
-    function callGetLastRequestedValidatorIndices(uint256 moduleId, uint256[] calldata nodeOpIds)
-        external view returns (int256, int256, int256)
+    function callGetLastRequestedValidatorIndices(uint256 moduleId, uint256[] calldata nodeOpIds, uint256 index)
+        external view returns (int256)
     {
         int256[] memory indices = getLastRequestedValidatorIndices(moduleId, nodeOpIds);
-        return (indices[0], indices[1], indices[2]);
+        return indices.length <= index ? int256(0) : indices[index];
     }
 
     function isConsensusMember(address addr) public view returns (bool) {

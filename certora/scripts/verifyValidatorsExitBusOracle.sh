@@ -18,6 +18,7 @@ certoraRun \
     --loop_iter 3 \
     --rule_sanity \
     --staging pre_cvl2 \
+    --send_only \
     --settings -optimisticUnboundedHashing=true \
     $RULE \
     --msg "ValidatorsExitBusOracle: $RULE $MSG"

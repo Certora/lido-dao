@@ -1,4 +1,4 @@
-using ValidatorsExitBusOracleHarness as VEBO;
+ using ValidatorsExitBusOracleHarness as VEBO;
 using OracleReportSanityChecker as SanityCheck;
 
 methods {
