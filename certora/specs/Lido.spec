@@ -14,13 +14,8 @@ methods{
     deposit(uint256, uint256, bytes)
     stop()
     resume()
-
-    setFee(uint16)
-    setFeeDistribution(uint16, uint16, uint16)
-    setProtocolContracts(address, address, address)
-    setWithdrawalCredentials(bytes32)
-    setELRewardsVault(address)
-    setELRewardsWithdrawalLimit(uint16)
+    // handle oracle report
+    unsafeChangeDepositedValidators(uint256)
     handleOracleReport(uint256, uint256)
     transferToVault(address)
     getFee() returns (uint16) envfree
@@ -28,14 +23,9 @@ methods{
     getWithdrawalCredentials() returns (bytes32) envfree
     getBufferedEther() returns (uint256) envfree
     getTotalELRewardsCollected() returns (uint256) envfree
-    getELRewardsWithdrawalLimit() returns (uint256) envfree
-    // getDepositContract() public view returns (IDepositContract)
     getOracle() returns (address) envfree
-    // getOperators() public view returns (INodeOperatorsRegistry)
     getTreasury() returns (address) envfree
-    getInsuranceFund() returns (address) envfree
     getBeaconStat() returns (uint256, uint256, uint256) envfree
-    getELRewardsVault() returns (address) envfree
     canDeposit() returns (bool) envfree
     getDepositableEther() returns (uint256) envfree
 
