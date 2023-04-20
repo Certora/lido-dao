@@ -385,7 +385,9 @@ rule feeDistributionDoesntRevertAfterAddingModule() {
 }
 
 rule canAlwaysAddAnotherStakingModule() {
-    env e;
+    env e1; env e2;
+    require e1.msg.sender == e2.msg.sender;
+    require e1.msg.value == 0;
     string name1;
     address Address1;
     uint256 targetShare1;
@@ -408,16 +410,16 @@ rule canAlwaysAddAnotherStakingModule() {
 
     storage initState = lastStorage;
 
-    addStakingModule(e, name1, Address1, targetShare1, ModuleFee1, TreasuryFee1);
+    addStakingModule(e1, name1, Address1, targetShare1, ModuleFee1, TreasuryFee1);
 
-    addStakingModule(e, name2, Address2, targetShare2, ModuleFee2, TreasuryFee2) at initState;
+    addStakingModule(e2, name2, Address2, targetShare2, ModuleFee2, TreasuryFee2) at initState;
     
     // This function fetches the `name` attribute of the next struct in the mapping
     // to make sure there was a valid storage state before calling the addStakingModule function
     // and writing to that storage slot.
     getStakingModuleNameLengthByIndex(getStakingModulesCount());
 
-    addStakingModule@withrevert(e, name1, Address1, targetShare1, ModuleFee1, TreasuryFee1);
+    addStakingModule@withrevert(e1, name1, Address1, targetShare1, ModuleFee1, TreasuryFee1);
 
     assert !lastReverted;
 }
@@ -469,15 +471,15 @@ filtered{f -> !isDeposit(f) && !f.isView} {
     require (moduleId <= getStakingModulesCount() && moduleId != 0);
     require maxDepositsValue > 0 ;
     safeAssumptions(moduleId);
-    require getStakingModuleAddressById(1) == NOS;
+    require getStakingModuleAddressById(1) == moduleMock;
     require getStakingModulesCount() == 1;
     modulesValidatorsAssumptions();
-
     getStakingModuleMaxDepositsCount(e, moduleId, maxDepositsValue);
     getStakingModuleStatus(moduleId);
 
     f(e, args);
 
+    require getStakingModulesCount() == 2 => getStakingModuleAddressById(2) == NOS;
     modulesValidatorsAssumptions();
 
     getStakingModuleMaxDepositsCount@withrevert(e, moduleId, maxDepositsValue);

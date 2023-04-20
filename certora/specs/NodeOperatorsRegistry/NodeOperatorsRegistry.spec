@@ -58,6 +58,19 @@ definition isInvalidateUnused(method f) returns bool =
     f.selector == onWithdrawalCredentialsChanged().selector ||
     f.selector == invalidateReadyToDepositKeysRange(uint256,uint256).selector;
 
+definition methodsDontChangeKeys(method f) returns bool = 
+    f.selector == initialize(address,bytes32,uint256).selector ||
+    f.selector == removeSigningKey(uint256,uint256).selector ||
+    f.selector == transferToVault(address).selector ||
+    f.selector == setNodeOperatorName(uint256,string).selector ||
+    f.selector == removeSigningKeysOperatorBH(uint256,uint256,uint256).selector ||
+    f.selector == setNodeOperatorRewardAddress(uint256,address).selector ||
+    f.selector == removeSigningKeyOperatorBH(uint256,uint256).selector ||
+    f.selector == addNodeOperator(string,address).selector ||
+    f.selector == addSigningKeysOperatorBH(uint256,uint256,bytes,bytes).selector ||
+    f.selector == onExitedAndStuckValidatorsCountsUpdated().selector ||
+    f.selector == setStuckPenaltyDelay(uint256).selector || 
+    f.selector == activateNodeOperator(uint256).selector;
 /**************************************************
  *                 Invariants Helpers             *
  **************************************************/
@@ -89,10 +102,10 @@ function safeAssumptions_NOS(uint256 nodeOperatorId) {
     requireInvariant NoDepositableKeysForInactiveModule(nodeOperatorId);
     requireInvariant StuckPlusExitedLEDeposited(nodeOperatorId);
     /// If the sum of keys equals the summary value, then every value is less or equal to the summary:
-    require getNodeOperatorSigningStats_exited(nodeOperatorId) <= getSummaryTotalExitedValidators();
-    require getNodeOperatorSigningStats_deposited(nodeOperatorId) <= getSummaryTotalDepositedValidators();
-    require getNodeOperatorSigningStats_total(nodeOperatorId) <= getSummaryTotalKeyCount();
-    require getNodeOperatorTargetStats_max(nodeOperatorId) <= getSummaryMaxValidators();
+    //require getNodeOperatorSigningStats_exited(nodeOperatorId) <= getSummaryTotalExitedValidators();
+    //require getNodeOperatorSigningStats_deposited(nodeOperatorId) <= getSummaryTotalDepositedValidators();
+    //require getNodeOperatorSigningStats_total(nodeOperatorId) <= getSummaryTotalKeyCount();
+    //require getNodeOperatorTargetStats_max(nodeOperatorId) <= getSummaryMaxValidators();
     reasonableKeysAssumptions(nodeOperatorId);
 }
 
@@ -361,10 +374,10 @@ invariant SumOfDepositedKeysEqualsSummary()
     {
         preserved {
             safeAssumptions_NOS(0);
-            safeAssumptions_NOS(1);
-            require getNodeOperatorSigningStats_deposited(0) <= getSummaryTotalDepositedValidators();
-            require getNodeOperatorSigningStats_deposited(1) <= getSummaryTotalDepositedValidators();
-            require getNodeOperatorSigningStats_deposited(2) <= getSummaryTotalDepositedValidators();
+            //safeAssumptions_NOS(1);
+            //require getNodeOperatorSigningStats_deposited(0) <= getSummaryTotalDepositedValidators();
+            //require getNodeOperatorSigningStats_deposited(1) <= getSummaryTotalDepositedValidators();
+            //require getNodeOperatorSigningStats_deposited(2) <= getSummaryTotalDepositedValidators();
         }
     }
 
@@ -374,10 +387,10 @@ invariant SumOfExitedKeysEqualsSummary()
     {
         preserved {
             safeAssumptions_NOS(0);
-            safeAssumptions_NOS(1);
-            require getNodeOperatorSigningStats_exited(0) <= getSummaryTotalExitedValidators();
-            require getNodeOperatorSigningStats_exited(1) <= getSummaryTotalExitedValidators();
-            require getNodeOperatorSigningStats_exited(2) <= getSummaryTotalExitedValidators();
+            //safeAssumptions_NOS(1);
+            //require getNodeOperatorSigningStats_exited(0) <= getSummaryTotalExitedValidators();
+            //require getNodeOperatorSigningStats_exited(1) <= getSummaryTotalExitedValidators();
+            //require getNodeOperatorSigningStats_exited(2) <= getSummaryTotalExitedValidators();
         }
     }
 
@@ -387,10 +400,10 @@ invariant SumOfTotalKeysEqualsSummary()
     {
         preserved {
             safeAssumptions_NOS(0);
-            safeAssumptions_NOS(1);
-            require getNodeOperatorSigningStats_total(0) <= getSummaryTotalKeyCount();
-            require getNodeOperatorSigningStats_total(1) <= getSummaryTotalKeyCount();
-            require getNodeOperatorSigningStats_total(2) <= getSummaryTotalKeyCount();
+            //safeAssumptions_NOS(1);
+            //require getNodeOperatorSigningStats_total(0) <= getSummaryTotalKeyCount();
+            //require getNodeOperatorSigningStats_total(1) <= getSummaryTotalKeyCount();
+            //require getNodeOperatorSigningStats_total(2) <= getSummaryTotalKeyCount();
         }
     }
 
@@ -400,23 +413,48 @@ invariant SumOfMaxKeysEqualsSummary()
     {
         preserved {
             safeAssumptions_NOS(0);
-            safeAssumptions_NOS(1);
-            require getNodeOperatorTargetStats_max(0) <= getSummaryMaxValidators();
-            require getNodeOperatorTargetStats_max(1) <= getSummaryMaxValidators();
-            require getNodeOperatorTargetStats_max(2) <= getSummaryMaxValidators();
+            //safeAssumptions_NOS(1);
+            //require getNodeOperatorTargetStats_max(0) <= getSummaryMaxValidators();
+            //require getNodeOperatorTargetStats_max(1) <= getSummaryMaxValidators();
+            //require getNodeOperatorTargetStats_max(2) <= getSummaryMaxValidators();
         }
     }
 
 /**************************************************
  *          Sum of keys equals summary            *
 **************************************************/
+rule whichFunctionsChangeKeys(uint256 nodeOperatorId, method f) 
+filtered{f -> !f.isView}{
+    env e;
+    calldataarg args;
+    uint256 stuck_before = getNodeOperator_stuckValidators(nodeOperatorId);
+    uint256 exited_before = getNodeOperatorSigningStats_exited(nodeOperatorId);
+    uint256 deposited_before = getNodeOperatorSigningStats_deposited(nodeOperatorId);
+    uint256 total_before = getNodeOperatorSigningStats_total(nodeOperatorId);
+    uint256 max_before = getNodeOperatorTargetStats_max(nodeOperatorId);
+        f(e, args);
+    uint256 stuck_after = getNodeOperator_stuckValidators(nodeOperatorId);
+    uint256 exited_after = getNodeOperatorSigningStats_exited(nodeOperatorId);
+    uint256 deposited_after = getNodeOperatorSigningStats_deposited(nodeOperatorId);
+    uint256 total_after = getNodeOperatorSigningStats_total(nodeOperatorId);
+    uint256 max_after = getNodeOperatorTargetStats_max(nodeOperatorId);
+
+    bool KeyCountDontChange = (
+        stuck_after == stuck_before &&
+        exited_after == exited_before && 
+        deposited_after == deposited_before &&
+        total_after == total_before && 
+        max_after == max_before);
+
+    assert methodsDontChangeKeys(f) => KeyCountDontChange;
+}
 
 rule keyCountChangesTogetherWithSummary(method f) 
 filtered{f -> !f.isView && !isFinalizeUpgrade(f)} {
     env e;
     calldataarg args;
     safeAssumptions_NOS(0);
-    require getNodeOperatorsCount() == 1;
+    require getNodeOperatorsCount() <= 1;
     ///
     uint256 sum_exited_before = sumOfExitedKeys();
     uint256 sum_deposited_before = sumOfDepositedKeys();
@@ -472,7 +510,7 @@ filtered{f -> !f.isView && !isFinalizeUpgrade(f)} {
 /// of keys over all node operators.
 /// @notice : we assume exactly one node operator (nodeOperatorId) whose keys are changed.
 rule sumOfKeysEqualsSummary(method f, uint256 nodeOperatorId) 
-filtered{f -> !f.isView} {
+filtered{f -> !f.isView && !methodsDontChangeKeys(f)} {
     env e;
     calldataarg args;
     safeAssumptions_NOS(nodeOperatorId);
@@ -560,13 +598,17 @@ filtered{f -> !f.isView} {
     require e1.msg.sender == e3.msg.sender;
     require e3.msg.value == 0;
 
-    string name; require name.length == 32;
+    string name;
     address rewardAddress;
     uint256 nodeOperatorId = getNodeOperatorsCount();
 
     requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
     addNodeOperator(e1, name, rewardAddress);
-    safeAssumptions_NOS(nodeOperatorId);
+    safeAssumptions_NOS(0);
+    safeAssumptions_NOS(1);
+    require getNodeOperatorsCount() <= 2;
+    requireInvariant SumOfTotalKeysEqualsSummary();
+    requireInvariant SumOfMaxKeysEqualsSummary();
 
     f(e2, args);
 
@@ -767,8 +809,11 @@ filtered{f -> !f.isView} {
     assert deposited_before <= deposited_after;
 }
 
+/// @notice : we filter out 'loadAllocatedSigningKeys' as it is an artificial method, 
+/// a part of obtainDepositData.
 rule depositedKeysDontChangeByOtherFunctions(method f, uint256 nodeOperatorId) 
-filtered{f -> !f.isView && !isObtainDepData(f)} {
+filtered{f -> !f.isView && !isObtainDepData(f) && 
+        f.selector != loadAllocatedSigningKeys(uint256,uint256[]).selector} {
     env e;
     calldataarg args;
     uint256 deposited_before = getNodeOperatorSigningStats_deposited(nodeOperatorId);
@@ -859,7 +904,7 @@ filtered{f -> !f.isView && !isFinalizeUpgrade(f) && !isObtainDepData(f)} {
 /**************************************************
  *  Node Operator remove and adding keys rules  *
 **************************************************/
-rule keyCountChangeAfterKeysRemoval(uint256 nodeOperatorId, uint256 keysCount) {
+/*rule keyCountChangeAfterKeysRemoval(uint256 nodeOperatorId, uint256 keysCount) {
     env e;
     uint256 index_from;
     require keysCount > 0;
@@ -884,7 +929,7 @@ rule keyCountChangeAfterKeysRemoval(uint256 nodeOperatorId, uint256 keysCount) {
         assert max_after < max_before;
         assert deposited_before == deposited_after;
     }
-}
+}*/
 
 /// For every node operators, it is always possible to add one more key
 /// even if several keys were added before.

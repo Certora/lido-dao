@@ -55,9 +55,9 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
         uint256[] memory nodeOperatorIds = new uint256[](count);
         require (_activeKeyCountsAfterAllocation.length == count);
         for (uint256 i; i < count; ++i) {
-            (uint256 maxSigningKeysCount, uint256 exitedSigningKeysCount,) = _getNodeOperator(i);
+            (uint256 exitedSigningKeysCount, ,uint256 maxSigningKeysCount) = _getNodeOperator(i);
             nodeOperatorIds[i] = i;
-            require(_activeKeyCountsAfterAllocation[i] <= maxSigningKeysCount-exitedSigningKeysCount);
+            require(_activeKeyCountsAfterAllocation[i] <= maxSigningKeysCount - exitedSigningKeysCount);
         }
         (bytes memory pubkeys, bytes memory signatures) = _loadAllocatedSigningKeys(_keysCountToLoad,nodeOperatorIds,_activeKeyCountsAfterAllocation);
         return (pubkeys.length, signatures.length);
