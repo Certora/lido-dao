@@ -109,5 +109,5 @@ rule integrityOfDeposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, byt
 
 // balanceOf currentContract >= bufferedEth
 
-// check what happends to get buffered eth if elRewardsToWithdraw is greater than the elRewardsVault's balance
+// check what happends to get buffered eth if elRewardsToWithdraw is greater than the elRewardsVault's balance (effects the depositable eth and deposit function)
 
