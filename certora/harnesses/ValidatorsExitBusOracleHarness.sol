@@ -83,8 +83,4 @@ contract ValidatorsExitBusOracleHarness is ValidatorsExitBusOracle {
     function getReportHash() public view returns (bytes32) {
         return _storageConsensusReport().value.hash;
     }
-
-    function hashData() public view returns (bytes32) {
-        return keccak256(abi.encode(dataGlobal));
-    }
 }

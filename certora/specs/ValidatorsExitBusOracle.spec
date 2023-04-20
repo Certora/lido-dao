@@ -239,7 +239,6 @@ rule submitReportDataIntegrity(env e, env e2) {
     uint256 refSlotBefore = getRefSlot();
 
     bytes32 reportHashBefore = getReportHash();
-    // bytes32 submitHashBefore = hashData();
 
     submitReportDataHelper@withrevert(e, consensusVersion, refSlot, requestsCount, dataFormat, dataInput, contractVersion);
     bool isReverted = lastReverted;
