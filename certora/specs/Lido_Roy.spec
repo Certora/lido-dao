@@ -1,3 +1,6 @@
+/**************************************************
+*                   Methods                       *
+**************************************************/
 methods{
     initialize(address, address)
     finalizeUpgrade_v2(address, address)
@@ -45,13 +48,14 @@ methods{
     checkAccountingOracleReport(uint256, uint256, uint256, uint256, uint256, uint256, uint256) => DISPATCHER(true)
 
     // Harness:
-    getStakingModuleMaxDepositsCount_workaround(uint256, uint256) returns (uint256) envfree
+    stakingModuleMaxDepositsCount(uint256, uint256) returns (uint256) envfree
     LidoEthBalance() returns (uint256) envfree
     getEthBalance(address) returns (uint256) envfree
     // Summarizations:
 
     // WithdrawalQueue:
     isBunkerModeActive() => CONSTANT
+    isPaused() returns (bool) => isWithdrawalQueuePaused()
     unfinalizedStETH() => UnfinalizedStETH()
 
     // LidoLocator:
@@ -65,12 +69,14 @@ methods{
     burner() => ghostBurner()
     withdrawalVault() => ghostWithdrawalVault()
     elRewardsVault() => ghostELRewardsVault()
+    oracleReportComponentsForLido() => NONDET
 
     // StakingRouter:
     getStakingFeeAggregateDistributionE4Precision() => CONSTANT
-    getStakingModuleMaxDepositsCount(uint256, uint256) => CONSTANT
+    getStakingModuleMaxDepositsCount(uint256 id, uint256 maxValue) => MaxDepositsCount(id, maxValue)
     getWithdrawalCredentials() => ghostWithdrawalCredentials()
     getTotalFeeE4Precision() => ghostTotalFeeE4Precision()
+    deposit(uint256,uint256,bytes) => DISPATCHER(true)
     
     getApp(bytes32 a,bytes32 b) => getAppGhost(a, b)
     hashTypedDataV4(address _stETH, bytes32 _structHash) => ghostHashTypedDataV4(_stETH, _structHash)
@@ -82,7 +88,9 @@ methods{
     getEIP712StETH() => ghostEIP712StETH() //(assuming after initialize)
 }
 
-///
+/**************************************************
+*             Ghosts summaries                    *
+**************************************************/
 ghost ghostLidoLocator() returns address {
     axiom ghostLidoLocator() != currentContract;
     axiom ghostLidoLocator() != 0;
@@ -155,14 +163,27 @@ ghost ghostHashTypedDataV4(address, bytes32) returns bytes32 {
         ghostHashTypedDataV4(steth, a) != ghostHashTypedDataV4(steth, b);
 }
 
+ghost MaxDepositsCount(uint256, uint256) returns uint256 {
+    axiom forall uint256 ID. forall uint256 maxValue.
+         MaxDepositsCount(ID, maxValue) <= maxValue / DEPOSIT_SIZE();
+}
+
 ghost uint256 ghostUnfinalizedStETH;
 
 function UnfinalizedStETH() returns uint256 {
     /// Needs to be havoc'd after some call (figure out when and how)
     return ghostUnfinalizedStETH;
 }
-///
 
+ghost bool WQPaused;
+
+function isWithdrawalQueuePaused() returns bool {
+    return WQPaused;
+}
+
+/**************************************************
+*                    CVL Helpers                 *
+**************************************************/
 function SumOfETHBalancesLEMAXUINT(address someUser) returns bool {
     mathint sum = 
         LidoEthBalance() + 
@@ -178,6 +199,11 @@ function SumOfETHBalancesLEMAXUINT(address someUser) returns bool {
     return sum <= max_uint;
 }
 
+/**************************************************
+*                    Definitions                 *
+**************************************************/
+definition DEPOSIT_SIZE() returns uint256 = 32000000000000000000;
+
 definition isHandleReport(method f) returns bool = 
     f.selector == 
     handleOracleReport(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256[],uint256).selector;
@@ -185,10 +211,26 @@ definition isHandleReport(method f) returns bool =
 definition isSubmit(method f) returns bool = 
     f.selector == submit(address).selector;
 
+definition handleReportStepsMethods(method f) returns bool = 
+    isHandleReport(f) || 
+    f.selector == collectRewardsAndProcessWithdrawals(uint256,uint256,uint256[],uint256,uint256).selector ||
+    f.selector == processRewards(uint256,uint256,uint256).selector ||
+    f.selector == processClStateUpdate(uint256,uint256,uint256,uint256).selector ||
+    f.selector == distributeFee(uint256,uint256,uint256).selector ||
+    f.selector == transferModuleRewards(address[],uint96[],uint256,uint256).selector ||
+    f.selector == transferTreasuryRewards(uint256).selector ||
+    f.selector == completeTokenRebase(address).selector;
+
+/**************************************************
+*                    Rules                 *
+**************************************************/
+/// Fails due to overflows.
+/// Need to come up with a condition on the total shares to prevent the overflows cases.
 rule getSharesByPooledEthDoesntRevert(uint256 amount, method f) 
-filtered{f -> !f.isView && !isHandleReport(f)} {
+filtered{f -> !f.isView && !handleReportStepsMethods(f)} {
     env e;
     calldataarg args;
+    require SumOfETHBalancesLEMAXUINT(e.msg.sender);
     getSharesByPooledEth(amount);
         f(e, args);
     getSharesByPooledEth@withrevert(amount);
@@ -197,7 +239,7 @@ filtered{f -> !f.isView && !isHandleReport(f)} {
 }
 
 rule submitCannotDoSFunctions(method f) 
-filtered{f -> !(isHandleReport(f) || isSubmit(f))} {
+filtered{f -> !(handleReportStepsMethods(f) || isSubmit(f))} {
     env e1; 
     env e2;
     require e2.msg.sender != currentContract;
@@ -211,8 +253,6 @@ filtered{f -> !(isHandleReport(f) || isSubmit(f))} {
     f(e1, args);
     
     submit(e2, referral) at initState;
-    // assuming getSharesPyPooledEth doesn't revert
-    getSharesByPooledEth(amount);
 
     f@withrevert(e1, args);
 
@@ -240,7 +280,7 @@ rule integrityOfDeposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, byt
     uint256 stakeLimit = getCurrentStakeLimit(e);
     uint256 bufferedEthBefore = getBufferedEther();
 
-    uint256 maxDepositsCountSR = getStakingModuleMaxDepositsCount_workaround(_stakingModuleId, getDepositableEther());
+    uint256 maxDepositsCountSR = stakingModuleMaxDepositsCount(_stakingModuleId, getDepositableEther());
 
     deposit(e, _maxDepositsCount, _stakingModuleId, _depositCalldata);
 
@@ -250,4 +290,3 @@ rule integrityOfDeposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, byt
     assert (_maxDepositsCount > 0 && maxDepositsCountSR > 0) => bufferedEthBefore > bufferedEthAfter;
     assert bufferedEthBefore - bufferedEthAfter <= bufferedEthBefore;
 }
-
