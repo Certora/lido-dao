@@ -14,7 +14,7 @@ methods{
     deposit(uint256, uint256, bytes)
     stop()
     resume()
-    
+
     setFee(uint16)
     setFeeDistribution(uint16, uint16, uint16)
     setProtocolContracts(address, address, address)
@@ -102,4 +102,8 @@ rule integrityOfDeposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, byt
 }
 
 // bunker state or protocol's pause state => can deposit
+
+// balanceOf currentContract >= bufferedEth
+
+// check what happends to get buffered eth if elRewardsToWithdraw is greater than the elRewardsVault's balance
 
