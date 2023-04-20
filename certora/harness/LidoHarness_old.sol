@@ -3,11 +3,6 @@ pragma solidity 0.4.24;
 import "../../contracts/0.4.24/Lido.sol";
 
 contract LidoHarness is Lido {
-    /// @notice Certora : use storage variables as direct arguments for the handleReport steps
-    OracleReportContracts private contracts;
-    OracleReportedData private reportedData;
-    OracleReportContext private reportContext;
-
     function getIsStopped() public view returns (bool) {
         return isStopped();
     }
@@ -17,25 +12,30 @@ contract LidoHarness is Lido {
     }
 
     function collectRewardsAndProcessWithdrawals(
+        OracleReportContracts memory _contracts,
         uint256 _withdrawalsToWithdraw,
         uint256 _elRewardsToWithdraw,
         uint256[] _withdrawalFinalizationBatches,
         uint256 _simulatedShareRate,
         uint256 _etherToLockOnWithdrawalQueue
     ) public {
-            _collectRewardsAndProcessWithdrawals(contracts, _withdrawalsToWithdraw, _elRewardsToWithdraw, _withdrawalFinalizationBatches, _simulatedShareRate, _etherToLockOnWithdrawalQueue);
+            _collectRewardsAndProcessWithdrawals( _contracts, _withdrawalsToWithdraw, _elRewardsToWithdraw, _withdrawalFinalizationBatches, _simulatedShareRate, _etherToLockOnWithdrawalQueue);
     }
 
-    function calculateWithdrawals() public view returns (uint256, uint256) {
-        return _calculateWithdrawals(contracts, reportedData);
+    function calculateWithdrawals(
+        OracleReportContracts memory _contracts,
+        OracleReportedData memory _reportedData
+    ) public view returns (uint256, uint256) {
+        return _calculateWithdrawals(_contracts, _reportedData);
     }
 
     function processRewards(
+        OracleReportContext memory _reportContext,
         uint256 _postCLBalance,
         uint256 _withdrawnWithdrawals,
         uint256 _withdrawnElRewards
     ) public returns (uint256) {
-        return _processRewards(reportContext, _postCLBalance, _withdrawnWithdrawals, _withdrawnElRewards);
+        return _processRewards(_reportContext, _postCLBalance, _withdrawnWithdrawals, _withdrawnElRewards);
     }
 
     function distributeFee(
@@ -63,15 +63,20 @@ contract LidoHarness is Lido {
         return _getTransientBalance();
     }
 
-    function completeTokenRebase(
-        address _postTokenRebaseReceiver
-    ) public returns (uint256, uint256) {
-        return _completeTokenRebase(reportedData, reportContext, 
-            IPostTokenRebaseReceiver(_postTokenRebaseReceiver));
+    function getTotalPooledEther() public view returns (uint256) {
+        return _getTotalPooledEther();
     }
 
-    function setOracleReportContracts() public {
-        contracts = _loadOracleReportContracts();
+    function _completeTokenRebase(
+        OracleReportedData memory _reportedData,
+        OracleReportContext memory _reportContext,
+        IPostTokenRebaseReceiver _postTokenRebaseReceiver
+    ) public returns (uint256, uint256) {
+        return _completeTokenRebase(_reportedData, _reportContext, _postTokenRebaseReceiver);
+    }
+
+    function loadOracleReportContracts() public view returns (OracleReportContracts memory ret) {
+        return loadOracleReportContracts();
     }
 
     // function handleOracleReportWrapper(
@@ -118,13 +123,5 @@ contract LidoHarness is Lido {
 
     function getStakingModuleMaxDepositsCount(uint256 a, uint256 b) private returns (uint256) {
         return a+ b;
-    }
-
-    function LidoEthBalance() public view returns(uint256) {
-        return address(this).balance;
-    }
-
-    function getEthBalance(address account) public view returns(uint256) {
-        return account.balance;
     }
 }
