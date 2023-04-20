@@ -7,6 +7,78 @@ contract LidoHarness is Lido {
         return isStopped();
     }
 
+    function processClStateUpdate(uint256 _reportTimestamp, uint256 _preClValidators, uint256 _postClValidators, uint256 _postClBalance) public returns (uint256) {
+        return _processClStateUpdate(_reportTimestamp, _preClValidators, _postClValidators, _postClBalance);
+    }
+
+    function collectRewardsAndProcessWithdrawals(
+        OracleReportContracts memory _contracts,
+        uint256 _withdrawalsToWithdraw,
+        uint256 _elRewardsToWithdraw,
+        uint256[] _withdrawalFinalizationBatches,
+        uint256 _simulatedShareRate,
+        uint256 _etherToLockOnWithdrawalQueue
+    ) public {
+            _collectRewardsAndProcessWithdrawals( _contracts, _withdrawalsToWithdraw, _elRewardsToWithdraw, _withdrawalFinalizationBatches, _simulatedShareRate, _etherToLockOnWithdrawalQueue);
+    }
+
+    function calculateWithdrawals(
+        OracleReportContracts memory _contracts,
+        OracleReportedData memory _reportedData
+    ) public view returns (uint256, uint256) {
+        return _calculateWithdrawals(_contracts, _reportedData);
+    }
+
+    function processRewards(
+        OracleReportContext memory _reportContext,
+        uint256 _postCLBalance,
+        uint256 _withdrawnWithdrawals,
+        uint256 _withdrawnElRewards
+    ) public returns (uint256) {
+        return _processRewards(_reportContext, _postCLBalance, _withdrawnWithdrawals, _withdrawnElRewards);
+    }
+
+    function distributeFee(
+        uint256 _preTotalPooledEther,
+        uint256 _preTotalShares,
+        uint256 _totalRewards
+    ) public returns (uint256) {
+        return _distributeFee(_preTotalPooledEther, _preTotalShares, _totalRewards);
+    }
+
+    function transferModuleRewards(
+        address[] memory recipients,
+        uint96[] memory modulesFees,
+        uint256 totalFee,
+        uint256 totalRewards
+    ) public returns (uint256[] memory moduleRewards, uint256 totalModuleRewards) {
+        return _transferModuleRewards(recipients, modulesFees, totalFee, totalRewards);
+    }
+
+    function transferTreasuryRewards(uint256 treasuryReward) public {
+        return _transferTreasuryRewards(treasuryReward);
+    }
+
+    function getTransientBalance() public view returns (uint256) {
+        return _getTransientBalance();
+    }
+
+    function getTotalPooledEther() public view returns (uint256) {
+        return _getTotalPooledEther();
+    }
+
+    function _completeTokenRebase(
+        OracleReportedData memory _reportedData,
+        OracleReportContext memory _reportContext,
+        IPostTokenRebaseReceiver _postTokenRebaseReceiver
+    ) public returns (uint256, uint256) {
+        return _completeTokenRebase(_reportedData, _reportContext, _postTokenRebaseReceiver);
+    }
+
+    function loadOracleReportContracts() public view returns (OracleReportContracts memory ret) {
+        return loadOracleReportContracts();
+    }
+
     // function handleOracleReportWrapper(
     //     // Oracle timings
     //     uint256 _reportTimestamp,
