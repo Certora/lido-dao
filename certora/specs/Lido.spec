@@ -101,6 +101,10 @@ rule integrityOfDeposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, byt
     assert (_maxDepositsCount > 0 && maxDepositsCountSR > 0) => bufferedEthBefore > bufferedEthAfter;
 }
 
+// RULES TO IMPLEMENT:
+
+// valid auth to call restricted function rules
+
 // bunker state or protocol's pause state => can deposit
 
 // balanceOf currentContract >= bufferedEth
