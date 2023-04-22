@@ -68,20 +68,6 @@ methods {
 }
 
 /**************************************************
- *               CVL FUNCS & DEFS                 *
- **************************************************/
-
-definition E27_PRECISION_BASE() returns uint256 = 1000000000000000000000000000;
-
-function calculateDiscountFactor(uint256 stETHAmount, uint256 ethAmount) returns uint256 {
-    uint256 discountFactor;
-    discountFactor = ethAmount * E27_PRECISION_BASE() / stETHAmount;
-    return discountFactor;
-}
-
-definition PAUSE_INFINITELY() returns uint256 = max_uint256;
-
-/**************************************************
  *                METHOD INTEGRITY                *
  **************************************************/
 
@@ -107,7 +93,6 @@ rule integrityOfRequestWithdrawal(address owner, uint256 amount) {
     uint256 contractStEthBalanceAfter = STETH.sharesOf(currentContract);
     uint256 reqCumulativeStEth = getRequestCumulativeStEth(requestId);
     address reqOwner = getRequestOwner(requestId);
-    address timestamp = getRequestTimestamp(requestId);
 
     assert requestId == getLastRequestId();
     assert stEthBalanceBefore - actualShares == stEthBalanceAfter;
@@ -129,7 +114,6 @@ rule integrityOfRequestWithdrawalsWstEth(address owner, uint256 amount) {
     uint256 contractWstEthBalanceBefore = WSTETH.balanceOf(currentContract);
 
     uint256 lastCumulativeStEth = getRequestCumulativeStEth(getLastRequestId());
-    uint256 lastCumulativeShares = getRequestCumulativeShares(getLastRequestId());
 
     uint256 amountOfStETH = WSTETH.unwrap(e, amount);
 
@@ -138,9 +122,7 @@ rule integrityOfRequestWithdrawalsWstEth(address owner, uint256 amount) {
     uint256 wstEthBalanceAfter = WSTETH.balanceOf(e.msg.sender);
     uint256 contractWtEthBalanceAfter = WSTETH.balanceOf(currentContract);
     uint256 reqCumulativeStEth = getRequestCumulativeStEth(requestId);
-    uint256 reqCumulativeShares = getRequestCumulativeShares(requestId);
     address reqOwner = getRequestOwner(requestId);
-    address timestamp = getRequestTimestamp(requestId);
 
     assert requestId == getLastRequestId();
     assert wstEthBalanceBefore - amount == wstEthBalanceAfter;
@@ -176,6 +158,7 @@ rule integrityOfClaimWithdrawal(uint256 requestId) {
                                                  !isClaimedBefore && isClaimedAfter && isFinalized &&
                                                  (requestId <= getLastFinalizedRequestId());
     assert ethBalanceAfter - ethBalanceBefore == lockedEthBefore - lockedEthAfter;
+    assert e.msg.sender == getRequestOwner(requestId);
 }
 
 /** 
@@ -296,13 +279,15 @@ rule claimSameWithdrawalRequestTwice(uint256 requestId) {
 
     claimWithdrawal@withrevert(e, requestId);
 
+    bool isRevert = lastReverted;
+
     uint256 ethBalanceAfterSecond = balanceOfEth(e.msg.sender);
     uint256 lockedEthAfterSecond = getLockedEtherAmount();
     bool isClaimedAfterSecond = isRequestStatusClaimed(requestId);
 
-    assert lastReverted || ethBalanceAfterFirst == ethBalanceAfterSecond;
-    assert lastReverted || lockedEthAfterFirst == lockedEthAfterSecond;
-    assert lastReverted || isClaimedAfterFirst && isClaimedAfterSecond;
+    assert isRevert || ethBalanceAfterFirst == ethBalanceAfterSecond;
+    assert isRevert || lockedEthAfterFirst == lockedEthAfterSecond;
+    assert isRevert || isClaimedAfterFirst && isClaimedAfterSecond;
 }
 
 /**
@@ -376,7 +361,7 @@ invariant finalizedCounterFinalizedFlagCorrelation(uint256 requestId)
     requestId > getLastFinalizedRequestId() <=> !isRequestStatusFinalized(requestId)
 
 /**
-If a request is not claimed then it is not finalized.
+If a request is not finalized then it is not claimed.
 **/
 invariant claimedFinalizedFlagsCorrelation(uint256 requestId)
     isRequestStatusClaimed(requestId) => isRequestStatusFinalized(requestId)
