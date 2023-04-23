@@ -1,7 +1,7 @@
 const { contract, ethers } = require('hardhat')
 const { itParam } = require('mocha-param')
 
-const { StETH, shareRate, e18, e27, toBN } = require('../helpers/utils')
+const { StETH, shareRate, e18, e27, toBN, ETH, addSendWithResult } = require('../helpers/utils')
 const { assert } = require('../helpers/assert')
 const { MAX_UINT256 } = require('../helpers/constants')
 const { EvmSnapshot } = require('../helpers/blockchain')
@@ -37,9 +37,21 @@ contract('WithdrawalQueue', ([owner, daoAgent, user, anotherUser]) => {
 
     assert.equalsDelta(batch.ethToLock, budget, 2)
 
-    await withdrawalQueue.finalize(batches, finalizationShareRate, {
+    const fromRequest = +(await withdrawalQueue.getLastFinalizedRequestId()) + 1
+
+    const tx = await withdrawalQueue.finalize(batches[batches.length - 1], finalizationShareRate, {
       from: daoAgent,
       value: batch.ethToLock,
+    })
+
+    const timestamp = (await ethers.provider.getBlock(tx.receipt.blockNumber)).timestamp
+
+    assert.emits(tx, 'WithdrawalsFinalized', {
+      to: batches[batches.length - 1],
+      from: fromRequest,
+      amountOfETHLocked: batch.ethToLock,
+      sharesToBurn: batch.sharesToBurn,
+      timestamp,
     })
 
     return { batch }
@@ -57,6 +69,7 @@ contract('WithdrawalQueue', ([owner, daoAgent, user, anotherUser]) => {
 
     steth = deployed.steth
     withdrawalQueue = deployed.withdrawalQueue
+    addSendWithResult(withdrawalQueue.requestWithdrawals)
 
     await steth.mintShares(user, e18(10))
     await steth.approve(withdrawalQueue.address, StETH(10), { from: user })
@@ -69,6 +82,66 @@ contract('WithdrawalQueue', ([owner, daoAgent, user, anotherUser]) => {
 
   afterEach(async () => {
     await snapshot.rollback()
+  })
+
+  context('calculateFinalizationBatches', () => {
+    it('reverts on invalid state', async () => {
+      await assert.reverts(
+        withdrawalQueue.calculateFinalizationBatches(shareRate(300), 100000, 1000, [
+          ETH(10),
+          true,
+          Array(36).fill(0),
+          0,
+        ]),
+        'InvalidState()'
+      )
+      await assert.reverts(
+        withdrawalQueue.calculateFinalizationBatches(shareRate(300), 100000, 1000, [0, false, Array(36).fill(0), 0]),
+        'InvalidState()'
+      )
+    })
+
+    it('works correctly on multiple calls', async () => {
+      const [requestId1, requestId2] = await withdrawalQueue.requestWithdrawals.sendWithResult([ETH(1), ETH(1)], user, {
+        from: user,
+      })
+      const calculatedBatches1 = await withdrawalQueue.calculateFinalizationBatches(shareRate(1), 10000000000, 1, [
+        ETH(2),
+        false,
+        Array(36).fill(0),
+        0,
+      ])
+
+      assert.equals(calculatedBatches1.remainingEthBudget, ETH(1))
+      assert.equals(calculatedBatches1.finished, false)
+      assert.equals(calculatedBatches1.batchesLength, 1)
+      assert.equals(calculatedBatches1.batches[0], requestId1)
+      const calculatedBatches2 = await withdrawalQueue.calculateFinalizationBatches(
+        shareRate(1),
+        10000000000,
+        1,
+        calculatedBatches1
+      )
+      assert.equals(calculatedBatches2.remainingEthBudget, 0)
+      assert.equals(calculatedBatches2.finished, true)
+      assert.equals(calculatedBatches2.batchesLength, 1)
+      assert.equals(calculatedBatches2.batches[0], requestId2)
+    })
+
+    it('stops on maxTimestamp', async () => {
+      const [requestId1] = await withdrawalQueue.requestWithdrawals.sendWithResult([ETH(1)], user, {
+        from: user,
+      })
+      const [status] = await withdrawalQueue.getWithdrawalStatus([requestId1])
+      const calculatedBatches1 = await withdrawalQueue.calculateFinalizationBatches(
+        shareRate(1),
+        +status.timestamp - 1,
+        10,
+        [ETH(2), false, Array(36).fill(0), 0]
+      )
+      assert.equals(calculatedBatches1.finished, true)
+      assert.equals(calculatedBatches1.batchesLength, 0)
+    })
   })
 
   context('1 request', () => {
@@ -161,10 +234,10 @@ contract('WithdrawalQueue', ([owner, daoAgent, user, anotherUser]) => {
   })
 
   context('2 users, 1 batch', () => {
-    ;[0.7].forEach(async (firstRequestRate) => {
-      ;[0.4, 0.7, 1].forEach(async (secondRequestRate) => {
+    ;[0.7].forEach((firstRequestRate) => {
+      ;[0.4, 0.7, 1].forEach((secondRequestRate) => {
         ;[firstRequestRate, secondRequestRate, secondRequestRate - 0.1, secondRequestRate + 0.1].forEach(
-          async (finalizationRate) => {
+          (finalizationRate) => {
             ;[
               firstRequestRate,
               firstRequestRate - 0.1,
@@ -173,7 +246,7 @@ contract('WithdrawalQueue', ([owner, daoAgent, user, anotherUser]) => {
               finalizationRate,
               finalizationRate - 0.1,
               finalizationRate + 0.1,
-            ].forEach(async (postFinalizationRate) => {
+            ].forEach((postFinalizationRate) => {
               it(`rates: first request = ${firstRequestRate}, second request = ${secondRequestRate}, finalization = ${finalizationRate}, claim = ${postFinalizationRate}`, async () => {
                 await setShareRate(firstRequestRate)
                 const userRequestAmount = e18(1)
@@ -265,12 +338,12 @@ contract('WithdrawalQueue', ([owner, daoAgent, user, anotherUser]) => {
   })
 
   context('2 users, 2 batch', () => {
-    ;[0.7].forEach(async (firstRequestRate) => {
-      ;[0.4, 0.7, 1].forEach(async (secondRequestRate) => {
+    ;[0.7].forEach((firstRequestRate) => {
+      ;[0.4, 0.7, 1].forEach((secondRequestRate) => {
         ;[firstRequestRate, secondRequestRate, secondRequestRate - 0.1, secondRequestRate + 0.1].forEach(
-          async (firstFinalizationRate) => {
+          (firstFinalizationRate) => {
             ;[firstRequestRate, secondRequestRate, secondRequestRate - 0.1, secondRequestRate + 0.1].forEach(
-              async (secondFinalizationRate) => {
+              (secondFinalizationRate) => {
                 ;[
                   firstRequestRate,
                   firstRequestRate - 0.1,
@@ -280,7 +353,7 @@ contract('WithdrawalQueue', ([owner, daoAgent, user, anotherUser]) => {
                   firstFinalizationRate - 0.1,
                   firstFinalizationRate + 0.1,
                   secondFinalizationRate,
-                ].forEach(async (postFinalizationRate) => {
+                ].forEach((postFinalizationRate) => {
                   it(`rates: first request = ${firstRequestRate}, second request = ${secondRequestRate}, secondFinalizationRate = ${secondFinalizationRate}, firstFinalization = ${firstFinalizationRate}, claim = ${postFinalizationRate}`, async () => {
                     await setShareRate(firstRequestRate)
                     const userRequestAmount = e18(1)

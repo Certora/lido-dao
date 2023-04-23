@@ -57,12 +57,10 @@ interface IOracleReportSanityChecker {
 }
 
 interface IStakingRouter {
-    function getExitedValidatorsCountAcrossAllModules() external view returns (uint256);
-
     function updateExitedValidatorsCountByStakingModule(
         uint256[] calldata moduleIds,
         uint256[] calldata exitedValidatorsCounts
-    ) external;
+    ) external returns (uint256);
 
     function reportStakingModuleExitedValidatorsCountByNodeOperator(
         uint256 stakingModuleId,
@@ -92,10 +90,10 @@ contract AccountingOracle is BaseOracle {
     error LidoLocatorCannotBeZero();
     error AdminCannotBeZero();
     error LegacyOracleCannotBeZero();
+    error LidoCannotBeZero();
     error IncorrectOracleMigration(uint256 code);
     error SenderNotAllowed();
     error InvalidExitedValidatorsData();
-    error NumExitedValidatorsCannotDecrease();
     error UnsupportedExtraDataFormat(uint256 format);
     error UnsupportedExtraDataType(uint256 itemIndex, uint256 dataType);
     error CannotSubmitExtraDataBeforeMainData();
@@ -154,6 +152,7 @@ contract AccountingOracle is BaseOracle {
     {
         if (lidoLocator == address(0)) revert LidoLocatorCannotBeZero();
         if (legacyOracle == address(0)) revert LegacyOracleCannotBeZero();
+        if (lido == address(0)) revert LidoCannotBeZero();
         LOCATOR = ILidoLocator(lidoLocator);
         LIDO = lido;
         LEGACY_ORACLE = legacyOracle;
@@ -259,11 +258,11 @@ contract AccountingOracle is BaseOracle {
         bool isBunkerMode;
 
         ///
-        /// Extra data — the oracle information that can be processed asynchronously in chunks
-        /// after the main data is processed. The oracle doesn't enforce that extra data attached
-        /// to some data report is processed in full before the processing deadline expires or a
-        /// new data report starts being processed, but enforces that no processing of extra data
-        /// for a report is possible after its processing deadline passes or a new data report
+        /// Extra data — the oracle information that allows asynchronous processing, potentially in
+        /// chunks, after the main data is processed. The oracle doesn't enforce that extra data
+        /// attached to some data report is processed in full before the processing deadline expires
+        /// or a new data report starts being processed, but enforces that no processing of extra
+        /// data for a report is possible after its processing deadline passes or a new data report
         /// arrives.
         ///
         /// Extra data is an array of items, each item being encoded as follows:
@@ -442,7 +441,7 @@ contract AccountingOracle is BaseOracle {
         ConsensusReport memory report = _storageConsensusReport().value;
         result.currentFrameRefSlot = _getCurrentRefSlot();
 
-        if (result.currentFrameRefSlot != report.refSlot) {
+        if (report.hash == bytes32(0) || result.currentFrameRefSlot != report.refSlot) {
             return result;
         }
 
@@ -450,7 +449,7 @@ contract AccountingOracle is BaseOracle {
         result.mainDataHash = report.hash;
 
         uint256 processingRefSlot = LAST_PROCESSING_REF_SLOT_POSITION.getStorageUint256();
-        result.mainDataSubmitted = report.hash != bytes32(0) && report.refSlot == processingRefSlot;
+        result.mainDataSubmitted = report.refSlot == processingRefSlot;
         if (!result.mainDataSubmitted) {
             return result;
         }
@@ -655,32 +654,24 @@ contract AccountingOracle is BaseOracle {
             unchecked { ++i; }
         }
 
-        uint256 exitedValidators = 0;
         for (uint256 i = 0; i < stakingModuleIds.length;) {
             if (numExitedValidatorsByStakingModule[i] == 0) {
                 revert InvalidExitedValidatorsData();
-            } else {
-                exitedValidators += numExitedValidatorsByStakingModule[i];
             }
             unchecked { ++i; }
         }
 
-        uint256 prevExitedValidators = stakingRouter.getExitedValidatorsCountAcrossAllModules();
-        if (exitedValidators < prevExitedValidators) {
-            revert NumExitedValidatorsCannotDecrease();
-        }
-
-        uint256 exitedValidatorsPerDay =
-            (exitedValidators - prevExitedValidators) * (1 days) /
-            (SECONDS_PER_SLOT * slotsElapsed);
-
-        IOracleReportSanityChecker(LOCATOR.oracleReportSanityChecker())
-            .checkExitedValidatorsRatePerDay(exitedValidatorsPerDay);
-
-        stakingRouter.updateExitedValidatorsCountByStakingModule(
+        uint256 newlyExitedValidatorsCount = stakingRouter.updateExitedValidatorsCountByStakingModule(
             stakingModuleIds,
             numExitedValidatorsByStakingModule
         );
+
+        uint256 exitedValidatorsRatePerDay =
+            newlyExitedValidatorsCount * (1 days) /
+            (SECONDS_PER_SLOT * slotsElapsed);
+
+        IOracleReportSanityChecker(LOCATOR.oracleReportSanityChecker())
+            .checkExitedValidatorsRatePerDay(exitedValidatorsRatePerDay);
     }
 
     function _submitReportExtraDataEmpty() internal {
@@ -696,11 +687,14 @@ contract AccountingOracle is BaseOracle {
         internal view
     {
         _checkMsgSenderIsAllowedToSubmitData();
-        _checkProcessingDeadline();
 
-        if (procState.refSlot != LAST_PROCESSING_REF_SLOT_POSITION.getStorageUint256()) {
+        ConsensusReport memory report = _storageConsensusReport().value;
+
+        if (report.hash == bytes32(0) || procState.refSlot != report.refSlot) {
             revert CannotSubmitExtraDataBeforeMainData();
         }
+
+        _checkProcessingDeadline();
 
         if (procState.dataFormat != format) {
             revert UnexpectedExtraDataFormat(procState.dataFormat, format);

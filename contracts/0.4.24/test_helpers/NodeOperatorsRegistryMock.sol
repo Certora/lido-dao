@@ -9,12 +9,12 @@ contract NodeOperatorsRegistryMock is NodeOperatorsRegistry {
 
     function increaseNodeOperatorDepositedSigningKeysCount(uint256 _nodeOperatorId, uint64 _keysCount) external {
         Packed64x4.Packed memory signingKeysStats = _nodeOperators[_nodeOperatorId].signingKeysStats;
-        signingKeysStats.set(DEPOSITED_KEYS_COUNT_OFFSET, signingKeysStats.get(DEPOSITED_KEYS_COUNT_OFFSET) + _keysCount);
+        signingKeysStats.set(TOTAL_DEPOSITED_KEYS_COUNT_OFFSET, signingKeysStats.get(TOTAL_DEPOSITED_KEYS_COUNT_OFFSET) + _keysCount);
         _nodeOperators[_nodeOperatorId].signingKeysStats = signingKeysStats;
 
         Packed64x4.Packed memory totalSigningKeysStats = _loadSummarySigningKeysStats();
         totalSigningKeysStats.set(
-            DEPOSITED_KEYS_COUNT_OFFSET, totalSigningKeysStats.get(DEPOSITED_KEYS_COUNT_OFFSET).add(_keysCount)
+            TOTAL_DEPOSITED_KEYS_COUNT_OFFSET, totalSigningKeysStats.get(TOTAL_DEPOSITED_KEYS_COUNT_OFFSET).add(_keysCount)
         );
         _saveSummarySigningKeysStats(totalSigningKeysStats);
 
@@ -26,34 +26,34 @@ contract NodeOperatorsRegistryMock is NodeOperatorsRegistry {
         Packed64x4.Packed memory signingKeysStats;
         for (uint256 i; i < nodeOperatorsCount; ++i) {
             signingKeysStats =  _loadOperatorSigningKeysStats(i);
-            testing_setDepositedSigningKeysCount(i, signingKeysStats.get(VETTED_KEYS_COUNT_OFFSET));
+            testing_setDepositedSigningKeysCount(i, signingKeysStats.get(TOTAL_VETTED_KEYS_COUNT_OFFSET));
         }
     }
 
     function testing_markAllKeysDeposited(uint256 _nodeOperatorId) external {
         _onlyExistedNodeOperator(_nodeOperatorId);
         Packed64x4.Packed memory signingKeysStats = _nodeOperators[_nodeOperatorId].signingKeysStats;
-        testing_setDepositedSigningKeysCount(_nodeOperatorId, signingKeysStats.get(VETTED_KEYS_COUNT_OFFSET));
+        testing_setDepositedSigningKeysCount(_nodeOperatorId, signingKeysStats.get(TOTAL_VETTED_KEYS_COUNT_OFFSET));
     }
 
     function testing_setDepositedSigningKeysCount(uint256 _nodeOperatorId, uint256 _depositedSigningKeysCount) public {
         _onlyExistedNodeOperator(_nodeOperatorId);
         // NodeOperator storage nodeOperator = _nodeOperators[_nodeOperatorId];
         Packed64x4.Packed memory signingKeysStats = _loadOperatorSigningKeysStats(_nodeOperatorId);
-        uint64 depositedSigningKeysCountBefore = signingKeysStats.get(DEPOSITED_KEYS_COUNT_OFFSET);
+        uint256 depositedSigningKeysCountBefore = signingKeysStats.get(TOTAL_DEPOSITED_KEYS_COUNT_OFFSET);
         if (_depositedSigningKeysCount == depositedSigningKeysCountBefore) {
             return;
         }
 
         require(
-            _depositedSigningKeysCount <= signingKeysStats.get(VETTED_KEYS_COUNT_OFFSET),
+            _depositedSigningKeysCount <= signingKeysStats.get(TOTAL_VETTED_KEYS_COUNT_OFFSET),
             "DEPOSITED_SIGNING_KEYS_COUNT_TOO_HIGH"
         );
         require(
-            _depositedSigningKeysCount >= signingKeysStats.get(EXITED_KEYS_COUNT_OFFSET), "DEPOSITED_SIGNING_KEYS_COUNT_TOO_LOW"
+            _depositedSigningKeysCount >= signingKeysStats.get(TOTAL_EXITED_KEYS_COUNT_OFFSET), "DEPOSITED_SIGNING_KEYS_COUNT_TOO_LOW"
         );
 
-        signingKeysStats.set(DEPOSITED_KEYS_COUNT_OFFSET, uint64(_depositedSigningKeysCount));
+        signingKeysStats.set(TOTAL_DEPOSITED_KEYS_COUNT_OFFSET, uint64(_depositedSigningKeysCount));
         _saveOperatorSigningKeysStats(_nodeOperatorId, signingKeysStats);
 
         emit DepositedSigningKeysCountChanged(_nodeOperatorId, _depositedSigningKeysCount);
@@ -87,9 +87,9 @@ contract NodeOperatorsRegistryMock is NodeOperatorsRegistry {
         operator.rewardAddress = _rewardAddress;
 
         Packed64x4.Packed memory signingKeysStats;
-        signingKeysStats.set(DEPOSITED_KEYS_COUNT_OFFSET, depositedSigningKeysCount);
-        signingKeysStats.set(VETTED_KEYS_COUNT_OFFSET, vettedSigningKeysCount);
-        signingKeysStats.set(EXITED_KEYS_COUNT_OFFSET, exitedSigningKeysCount);
+        signingKeysStats.set(TOTAL_DEPOSITED_KEYS_COUNT_OFFSET, depositedSigningKeysCount);
+        signingKeysStats.set(TOTAL_VETTED_KEYS_COUNT_OFFSET, vettedSigningKeysCount);
+        signingKeysStats.set(TOTAL_EXITED_KEYS_COUNT_OFFSET, exitedSigningKeysCount);
         signingKeysStats.set(TOTAL_KEYS_COUNT_OFFSET, totalSigningKeysCount);
 
         operator.signingKeysStats = signingKeysStats;
@@ -100,12 +100,12 @@ contract NodeOperatorsRegistryMock is NodeOperatorsRegistry {
 
         emit NodeOperatorAdded(id, _name, _rewardAddress, 0);
 
-        Packed64x4.Packed memory totalSigningKeysStats = _loadSummarySigningKeysStats();
-        totalSigningKeysStats.set(VETTED_KEYS_COUNT_OFFSET, totalSigningKeysStats.get(VETTED_KEYS_COUNT_OFFSET).add(vettedSigningKeysCount));
-        totalSigningKeysStats.set(DEPOSITED_KEYS_COUNT_OFFSET, totalSigningKeysStats.get(DEPOSITED_KEYS_COUNT_OFFSET).add(depositedSigningKeysCount));
-        totalSigningKeysStats.set(EXITED_KEYS_COUNT_OFFSET, totalSigningKeysStats.get(EXITED_KEYS_COUNT_OFFSET).add(exitedSigningKeysCount));
-        totalSigningKeysStats.set(TOTAL_KEYS_COUNT_OFFSET, totalSigningKeysStats.get(TOTAL_KEYS_COUNT_OFFSET).add(totalSigningKeysCount));
-          _saveSummarySigningKeysStats(totalSigningKeysStats);
+        Packed64x4.Packed memory summarySigningKeysStats = _loadSummarySigningKeysStats();
+        summarySigningKeysStats.add(SUMMARY_MAX_VALIDATORS_COUNT_OFFSET, vettedSigningKeysCount);
+        summarySigningKeysStats.add(SUMMARY_EXITED_KEYS_COUNT_OFFSET, exitedSigningKeysCount);
+        summarySigningKeysStats.add(SUMMARY_TOTAL_KEYS_COUNT_OFFSET, totalSigningKeysCount);
+        summarySigningKeysStats.add(SUMMARY_DEPOSITED_KEYS_COUNT_OFFSET, depositedSigningKeysCount);
+        _saveSummarySigningKeysStats(summarySigningKeysStats);
     }
 
     function testing_setNodeOperatorLimits(
@@ -191,7 +191,7 @@ contract NodeOperatorsRegistryMock is NodeOperatorsRegistry {
     }
 
     function testing_getNodeOperator(uint256 operatorId) external view
-        returns (uint64 maxSigningKeysCount, uint64 exitedSigningKeysCount, uint64 depositedSigningKeysCount)
+        returns (uint256 exitedSigningKeysCount, uint256 depositedSigningKeysCount, uint256 maxSigningKeysCount)
     {
         return _getNodeOperator(operatorId);
     }
@@ -200,5 +200,25 @@ contract NodeOperatorsRegistryMock is NodeOperatorsRegistry {
 
     function testing_distributeRewards() external returns (uint256) {
         return _distributeRewards();
+    }
+
+     function testing_setNodeOperatorPenalty(
+        uint256 _nodeOperatorId,
+        uint256 _refundedValidatorsCount,
+        uint256 _stuckValidatorsCount,
+        uint256 _stuckPenaltyEndTimestamp
+    ) external {
+        _requireValidRange(_refundedValidatorsCount <= UINT64_MAX);
+        _requireValidRange(_stuckValidatorsCount <= UINT64_MAX);
+        _requireValidRange(_stuckPenaltyEndTimestamp <= UINT64_MAX);
+        Packed64x4.Packed memory stuckPenaltyStats = _loadOperatorStuckPenaltyStats(
+            _nodeOperatorId
+        );
+
+        stuckPenaltyStats.set(REFUNDED_VALIDATORS_COUNT_OFFSET, uint64(_refundedValidatorsCount));
+        stuckPenaltyStats.set(STUCK_VALIDATORS_COUNT_OFFSET, uint64(_stuckValidatorsCount));
+        stuckPenaltyStats.set(STUCK_PENALTY_END_TIMESTAMP_OFFSET, uint64(_stuckPenaltyEndTimestamp));
+        _saveOperatorStuckPenaltyStats(_nodeOperatorId, stuckPenaltyStats);
+        _updateSummaryMaxValidatorsCount(_nodeOperatorId);
     }
 }

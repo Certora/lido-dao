@@ -55,6 +55,9 @@ interface IStakingModule {
     ///     4. a node operator was activated/deactivated
     ///     5. a node operator's deposit data is used for the deposit
     ///     Note: Depending on the StakingModule implementation above list might be extended
+    /// @dev In some scenarios, it's allowed to update nonce without actual change of the deposit
+    ///      data subset, but it MUST NOT lead to the DOS of the staking module via continuous
+    ///      update of the nonce by the malicious actor
     function getNonce() external view returns (uint256);
 
     /// @notice Returns total number of node operators
@@ -79,6 +82,8 @@ interface IStakingModule {
 
     /// @notice Called by StakingRouter to signal that stETH rewards were minted for this module.
     /// @param _totalShares Amount of stETH shares that were minted to reward all node operators.
+    /// @dev IMPORTANT: this method SHOULD revert with empty error data ONLY because of "out of gas".
+    ///      Details about error data: https://docs.soliditylang.org/en/v0.8.9/control-structures.html#error-handling-assert-require-revert-and-exceptions
     function onRewardsMinted(uint256 _totalShares) external;
 
     /// @notice Updates the number of the validators of the given node operator that were requested
@@ -128,10 +133,11 @@ interface IStakingModule {
     ///     contract
     /// @dev The method MUST revert when the staking module has not enough deposit data items
     /// @param _depositsCount Number of deposits to be done
-    /// @param _calldata Staking module defined data encoded as bytes
+    /// @param _depositCalldata Staking module defined data encoded as bytes.
+    ///        IMPORTANT: _depositCalldata MUST NOT modify the deposit data set of the staking module
     /// @return publicKeys Batch of the concatenated public validators keys
     /// @return signatures Batch of the concatenated deposit signatures for returned public keys
-    function obtainDepositData(uint256 _depositsCount, bytes calldata _calldata)
+    function obtainDepositData(uint256 _depositsCount, bytes calldata _depositCalldata)
         external
         returns (bytes memory publicKeys, bytes memory signatures);
 
@@ -142,11 +148,17 @@ interface IStakingModule {
     /// operator in this module has actually received any updated counts as a result of the report
     /// but given that the total number of exited validators returned from getStakingModuleSummary
     /// is the same as StakingRouter expects based on the total count received from the oracle.
+    ///
+    /// @dev IMPORTANT: this method SHOULD revert with empty error data ONLY because of "out of gas".
+    ///      Details about error data: https://docs.soliditylang.org/en/v0.8.9/control-structures.html#error-handling-assert-require-revert-and-exceptions
     function onExitedAndStuckValidatorsCountsUpdated() external;
 
     /// @notice Called by StakingRouter when withdrawal credentials are changed.
     /// @dev This method MUST discard all StakingModule's unused deposit data cause they become
-    ///     invalid after the withdrawal credentials are changed
+    ///      invalid after the withdrawal credentials are changed
+    ///
+    /// @dev IMPORTANT: this method SHOULD revert with empty error data ONLY because of "out of gas".
+    ///      Details about error data: https://docs.soliditylang.org/en/v0.8.9/control-structures.html#error-handling-assert-require-revert-and-exceptions
     function onWithdrawalCredentialsChanged() external;
 
     /// @dev Event to be emitted on StakingModule's nonce change

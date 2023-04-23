@@ -112,6 +112,8 @@ interface IStakingRouter {
         external
         view
         returns (uint256);
+
+    function TOTAL_BASIS_POINTS() external view returns (uint256);
 }
 
 interface IWithdrawalQueue {
@@ -120,7 +122,7 @@ interface IWithdrawalQueue {
         view
         returns (uint256 ethToLock, uint256 sharesToBurn);
 
-    function finalize(uint256[] _batches, uint256 _maxShareRate) external payable;
+    function finalize(uint256 _lastIdToFinalize, uint256 _maxShareRate) external payable;
 
     function isPaused() external view returns (bool);
 
@@ -266,11 +268,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         payable
         onlyInit
     {
-        uint256 amount = _bootstrapInitialHolder();
-        _setBufferedEther(amount);
-
-        emit Submitted(INITIAL_TOKEN_HOLDER, amount, 0);
-
+        _bootstrapInitialHolder();
         _initialize_v2(_lidoLocator, _eip712StETH);
         initialized();
     }
@@ -284,12 +282,12 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         LIDO_LOCATOR_POSITION.setStorageAddress(_lidoLocator);
         _initializeEIP712StETH(_eip712StETH);
 
-        // set unlimited allowance for burner from withdrawal queue
+        // set infinite allowance for burner from withdrawal queue
         // to burn finalized requests' shares
         _approve(
             ILidoLocator(_lidoLocator).withdrawalQueue(),
             ILidoLocator(_lidoLocator).burner(),
-           ~uint256(0)
+            INFINITE_ALLOWANCE
         );
 
         emit LidoLocatorSet(_lidoLocator);
@@ -340,6 +338,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
      */
     function resumeStaking() external {
         _auth(STAKING_CONTROL_ROLE);
+        require(hasInitialized(), "NOT_INITIALIZED");
 
         _resumeStaking();
     }
@@ -673,7 +672,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
      * Depends on the bunker state and protocol's pause state
      */
     function canDeposit() public view returns (bool) {
-        return !IWithdrawalQueue(getLidoLocator().withdrawalQueue()).isBunkerModeActive() && !isStopped();
+        return !_withdrawalQueue().isBunkerModeActive() && !isStopped();
     }
 
     /**
@@ -682,7 +681,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
      */
     function getDepositableEther() public view returns (uint256) {
         uint256 bufferedEther = _getBufferedEther();
-        uint256 withdrawalReserve = IWithdrawalQueue(getLidoLocator().withdrawalQueue()).unfinalizedStETH();
+        uint256 withdrawalReserve = _withdrawalQueue().unfinalizedStETH();
         return bufferedEther > withdrawalReserve ? bufferedEther - withdrawalReserve : 0;
     }
 
@@ -698,7 +697,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         require(msg.sender == locator.depositSecurityModule(), "APP_AUTH_DSM_FAILED");
         require(canDeposit(), "CAN_NOT_DEPOSIT");
 
-        IStakingRouter stakingRouter = IStakingRouter(locator.stakingRouter());
+        IStakingRouter stakingRouter = _stakingRouter();
         uint256 depositsCount = Math256.min(
             _maxDepositsCount,
             stakingRouter.getStakingModuleMaxDepositsCount(_stakingModuleId, getDepositableEther())
@@ -730,7 +729,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
      * @dev DEPRECATED: use StakingRouter.getWithdrawalCredentials() instead
      */
     function getWithdrawalCredentials() external view returns (bytes32) {
-        return IStakingRouter(getLidoLocator().stakingRouter()).getWithdrawalCredentials();
+        return _stakingRouter().getWithdrawalCredentials();
     }
 
     /**
@@ -746,7 +745,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
      * @dev DEPRECATED: use LidoLocator.treasury()
      */
     function getTreasury() external view returns (address) {
-        return getLidoLocator().treasury();
+        return _treasury();
     }
 
     /**
@@ -757,11 +756,11 @@ contract Lido is Versioned, StETHPermit, AragonApp {
      * inaccurate because the actual value is truncated here to 1e4 precision.
      */
     function getFee() external view returns (uint16 totalFee) {
-        totalFee = IStakingRouter(getLidoLocator().stakingRouter()).getTotalFeeE4Precision();
+        totalFee = _stakingRouter().getTotalFeeE4Precision();
     }
 
     /**
-     * @notice Returns current fee distribution
+     * @notice Returns current fee distribution, values relative to the total fee (getFee())
      * @dev DEPRECATED: Now fees information is stored in StakingRouter and
      * with higher precision. Use StakingRouter.getStakingFeeAggregateDistribution() instead.
      * @return treasuryFeeBasisPoints return treasury fee in TOTAL_BASIS_POINTS (10000 is 100% fee) precision
@@ -780,9 +779,15 @@ contract Lido is Versioned, StETHPermit, AragonApp {
             uint16 operatorsFeeBasisPoints
         )
     {
-        insuranceFeeBasisPoints = 0;  // explicitly set to zero
-        (treasuryFeeBasisPoints, operatorsFeeBasisPoints) = IStakingRouter(getLidoLocator().stakingRouter())
+        IStakingRouter stakingRouter = _stakingRouter();
+        uint256 totalBasisPoints = stakingRouter.TOTAL_BASIS_POINTS();
+        uint256 totalFee = stakingRouter.getTotalFeeE4Precision();
+        (uint256 treasuryFeeBasisPointsAbs, uint256 operatorsFeeBasisPointsAbs) = stakingRouter
             .getStakingFeeAggregateDistributionE4Precision();
+
+        insuranceFeeBasisPoints = 0;  // explicitly set to zero
+        treasuryFeeBasisPoints = uint16((treasuryFeeBasisPointsAbs * totalBasisPoints) / totalFee);
+        operatorsFeeBasisPoints = uint16((operatorsFeeBasisPointsAbs * totalBasisPoints) / totalFee);
     }
 
     /*
@@ -846,7 +851,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         if (_etherToLockOnWithdrawalQueue > 0) {
             IWithdrawalQueue withdrawalQueue = IWithdrawalQueue(_contracts.withdrawalQueue);
             withdrawalQueue.finalize.value(_etherToLockOnWithdrawalQueue)(
-                _withdrawalFinalizationBatches,
+                _withdrawalFinalizationBatches[_withdrawalFinalizationBatches.length - 1],
                 _simulatedShareRate
             );
         }
@@ -942,14 +947,6 @@ contract Lido is Versioned, StETHPermit, AragonApp {
     }
 
     /**
-     * @dev Emits {Transfer} and {TransferShares} events where `from` is 0 address. Indicates mint events.
-     */
-    function _emitTransferAfterMintingShares(address _to, uint256 _sharesAmount) internal {
-        emit Transfer(address(0), _to, getPooledEthByShares(_sharesAmount));
-        emit TransferShares(address(0), _to, _sharesAmount);
-    }
-
-    /**
      * @dev Staking router rewards distribution.
      *
      * Corresponds to the return value of `IStakingRouter.newTotalPooledEtherForRewards()`
@@ -970,7 +967,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         StakingRewardsDistribution memory ret,
         IStakingRouter router
     ) {
-        router = IStakingRouter(getLidoLocator().stakingRouter());
+        router = _stakingRouter();
 
         (
             ret.recipients,
@@ -1075,7 +1072,7 @@ contract Lido is Versioned, StETHPermit, AragonApp {
     }
 
     function _transferTreasuryRewards(uint256 treasuryReward) internal {
-        address treasury = getLidoLocator().treasury();
+        address treasury = _treasury();
         _transferShares(address(this), treasury, treasuryReward);
         _emitTransferAfterMintingShares(treasury, treasuryReward);
     }
@@ -1175,8 +1172,8 @@ contract Lido is Versioned, StETHPermit, AragonApp {
      * 4. Pass the accounting values to sanity checker to smoothen positive token rebase
      *    (i.e., postpone the extra rewards to be applied during the next rounds)
      * 5. Invoke finalization of the withdrawal requests
-     * 6. Distribute protocol fee (treasury & node operators)
-     * 7. Burn excess shares within the allowed limit (can postpone some shares to be burnt later)
+     * 6. Burn excess shares within the allowed limit (can postpone some shares to be burnt later)
+     * 7. Distribute protocol fee (treasury & node operators)
      * 8. Complete token rebase by informing observers (emit an event and call the external receivers if any)
      * 9. Sanity check for the provided simulated share rate
      */
@@ -1261,6 +1258,13 @@ contract Lido is Versioned, StETHPermit, AragonApp {
         );
 
         // Step 6.
+        // Burn the previously requested shares
+        if (reportContext.sharesToBurn > 0) {
+            IBurner(contracts.burner).commitSharesToBurn(reportContext.sharesToBurn);
+            _burnShares(contracts.burner, reportContext.sharesToBurn);
+        }
+
+        // Step 7.
         // Distribute protocol fee (treasury & node operators)
         reportContext.sharesMintedAsFees = _processRewards(
             reportContext,
@@ -1268,13 +1272,6 @@ contract Lido is Versioned, StETHPermit, AragonApp {
             withdrawals,
             elRewards
         );
-
-        // Step 7.
-        // Burn the previously requested shares
-        if (reportContext.sharesToBurn > 0) {
-            IBurner(contracts.burner).commitSharesToBurn(reportContext.sharesToBurn);
-            _burnShares(contracts.burner, reportContext.sharesToBurn);
-        }
 
         // Step 8.
         // Complete token rebase by informing observers (emit an event and call the external receivers if any)
@@ -1370,5 +1367,42 @@ contract Lido is Versioned, StETHPermit, AragonApp {
             ret.withdrawalVault,
             ret.postTokenRebaseReceiver
         ) = getLidoLocator().oracleReportComponentsForLido();
+    }
+
+    function _stakingRouter() internal view returns (IStakingRouter) {
+        return IStakingRouter(getLidoLocator().stakingRouter());
+    }
+
+    function _withdrawalQueue() internal view returns (IWithdrawalQueue) {
+        return IWithdrawalQueue(getLidoLocator().withdrawalQueue());
+    }
+
+    function _treasury() internal view returns (address) {
+        return getLidoLocator().treasury();
+    }
+
+    /**
+     * @notice Mints shares on behalf of 0xdead address,
+     * the shares amount is equal to the contract's balance.     *
+     *
+     * Allows to get rid of zero checks for `totalShares` and `totalPooledEther`
+     * and overcome corner cases.
+     *
+     * NB: reverts if the current contract's balance is zero.
+     *
+     * @dev must be invoked before using the token
+     */
+    function _bootstrapInitialHolder() internal {
+        uint256 balance = address(this).balance;
+        assert(balance != 0);
+
+        if (_getTotalShares() == 0) {
+            // if protocol is empty bootstrap it with the contract's balance
+            // address(0xdead) is a holder for initial shares
+            _setBufferedEther(balance);
+            // emitting `Submitted` before Transfer events to preserver events order in tx
+            emit Submitted(INITIAL_TOKEN_HOLDER, balance, 0);
+            _mintInitialShares(balance);
+        }
     }
 }

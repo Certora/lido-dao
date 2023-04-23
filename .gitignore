@@ -2,6 +2,7 @@
 .vscode
 **/build/
 **/node_modules/
+**/lib/abi/*.json
 **/artifacts/
 **/artifacts-userdoc/
 .cache
@@ -49,9 +50,11 @@ foundry/cache
 foundry/out
 
 # certora
+certora/munged*
 .certora*
 .certora*.json
 **.last_conf*
 certora-logs
 certora_debug_log.txt
 resource_errors.json
+certora/conf*

@@ -38,6 +38,7 @@ contract('StakingRouter', ([deployer, lido, admin, appManager, stranger]) => {
     after(revert)
 
     let module1Id, module2Id
+    let module1AddedBlock, module2AddedBlock
     const nodeOperator1 = 0
     let StakingModuleDigest, StakingModuleDigest2
 
@@ -55,6 +56,7 @@ contract('StakingRouter', ([deployer, lido, admin, appManager, stranger]) => {
         5_000, // 50 % _treasuryFee
         { from: admin }
       )
+      module1AddedBlock = await ethers.provider.getBlock()
       module1Id = +(await router.getStakingModuleIds())[0]
     })
 
@@ -67,6 +69,7 @@ contract('StakingRouter', ([deployer, lido, admin, appManager, stranger]) => {
         3_000, // 50 % _treasuryFee
         { from: admin }
       )
+      module2AddedBlock = await ethers.provider.getBlock()
       module2Id = +(await router.getStakingModuleIds())[1]
     })
 
@@ -169,7 +172,7 @@ contract('StakingRouter', ([deployer, lido, admin, appManager, stranger]) => {
     })
     it('getStakingModuleDigests([]uint256) - digests works', async () => {
       await module1.setTotalExitedValidatorsCount(11)
-      await module1.setActiveValidatorsCount(22)
+      await module1.setActiveValidatorsCount(21)
       await module1.setAvailableKeysCount(33)
 
       const digests = await router.getStakingModuleDigests([module1Id, module2Id])
@@ -186,13 +189,13 @@ contract('StakingRouter', ([deployer, lido, admin, appManager, stranger]) => {
           targetShare: '10000',
           status: '0',
           name: 'module 1',
-          lastDepositAt: '0',
-          lastDepositBlock: '0',
+          lastDepositAt: module1AddedBlock.timestamp.toString(),
+          lastDepositBlock: module1AddedBlock.number.toString(),
           exitedValidatorsCount: '0',
         }),
         summary: Object.values({
           totalExitedValidators: '11',
-          totalDepositedValidators: '22',
+          totalDepositedValidators: '32', // 11 exited + 21 active
           depositableValidatorsCount: '33',
         }),
       }
@@ -210,8 +213,8 @@ contract('StakingRouter', ([deployer, lido, admin, appManager, stranger]) => {
           targetShare: '9000',
           status: '0',
           name: 'module 2',
-          lastDepositAt: '0',
-          lastDepositBlock: '0',
+          lastDepositAt: module2AddedBlock.timestamp.toString(),
+          lastDepositBlock: module2AddedBlock.number.toString(),
           exitedValidatorsCount: '0',
         }),
         summary: Object.values({

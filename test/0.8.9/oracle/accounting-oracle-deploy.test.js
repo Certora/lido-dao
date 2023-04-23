@@ -104,6 +104,7 @@ async function deployAccountingOracleSetup(
     getLegacyOracle = deployMockLegacyOracle,
     lidoLocatorAddr: lidoLocatorAddrArg,
     legacyOracleAddr: legacyOracleAddrArg,
+    lidoAddr: lidoAddrArg,
   } = {}
 ) {
   const locatorAddr = (await deployLocatorWithDummyAddressesImplementation(admin)).address
@@ -118,7 +119,7 @@ async function deployAccountingOracleSetup(
 
   const oracle = await AccountingOracle.new(
     lidoLocatorAddrArg || locatorAddr,
-    lido.address,
+    lidoAddrArg || lido.address,
     legacyOracleAddrArg || legacyOracle.address,
     secondsPerSlot,
     genesisTime,
@@ -134,7 +135,7 @@ async function deployAccountingOracleSetup(
     initialEpoch,
   })
   await updateLocatorImplementation(locatorAddr, admin, {
-    lido: lido.address,
+    lido: lidoAddrArg || lido.address,
     stakingRouter: stakingRouter.address,
     withdrawalQueue: withdrawalQueue.address,
     oracleReportSanityChecker: oracleReportSanityChecker.address,
@@ -375,6 +376,10 @@ contract('AccountingOracle', ([admin, member1]) => {
       await snapshot.rollback()
     })
 
+    it('reverts when slotsPerSecond is zero', async () => {
+      await assert.reverts(deployAccountingOracleSetup(admin, { secondsPerSlot: 0 }), 'SecondsPerSlotCannotBeZero()')
+    })
+
     it('deployment and init finishes successfully otherwise', async () => {
       const deployed = await deployAccountingOracleSetup(admin)
 
@@ -447,6 +452,10 @@ contract('AccountingOracle', ([admin, member1]) => {
         deployAccountingOracleSetup(admin, { legacyOracleAddr: ZERO_ADDRESS }),
         'LegacyOracleCannotBeZero()'
       )
+    })
+
+    it('constructor reverts if lido address is zero', async () => {
+      await assert.reverts(deployAccountingOracleSetup(admin, { lidoAddr: ZERO_ADDRESS }), 'LidoCannotBeZero()')
     })
 
     it('initialize reverts if admin address is zero', async () => {
