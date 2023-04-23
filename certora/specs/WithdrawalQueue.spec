@@ -391,17 +391,6 @@ invariant CheckpointFromRequestIdMonotonic(uint256 checkpointIndex1, uint256 che
     }
 
 // /**
-// Timestamp is monotonic increasing. - is this even relevant?
-// **/
-// invariant timestampMonotonicInc(uint256 requestId1, uint256 requestId2, env e) 
-//     (requestId2 <= getLastRequestId() && requestId1 >= 1 && requestId1 < requestId2) => (getRequestTimestamp(requestId1) <= getRequestReportTimestamp(requestId2))
-//     {
-//         preserved {
-//             require e.block.timestamp >= getRequestTimestamp(getLastCheckpointIndex());
-//         }
-//     }
-
-// /**
 // Locked ETH should always be greater or equal to finalized and not claimed ether amount 
 // **/
 // lockedEtherSolvencyParametric
@@ -414,82 +403,4 @@ invariant CheckpointFromRequestIdMonotonic(uint256 checkpointIndex1, uint256 che
 //                 require getRequestCumulativeShares(0) == 0;
 //             }
 //         }
-
-// rule lockedEtherSolvencyParametric(method f) {
-//     env e;
-//     calldataarg args;
-
-//     requireInvariant cantWithdrawLessThanMinWithdrawal(getLastFinalizedRequestId());
-//     require getRequestCumulativeStEth(0) == 0;
-//     require getRequestCumulativeShares(0) == 0;
-
-//     uint256 lockedAmountBefore = getLockedEtherAmount();
-//     uint256 FinalizedAndNotClaimedEthBefore = getFinalizedAndNotClaimedEth();
-
-//     require lockedAmountBefore >= FinalizedAndNotClaimedEthBefore;
-
-//     f(e, args);
-
-//     uint256 lockedAmountAfter = getLockedEtherAmount();
-//     uint256 FinalizedAndNotClaimedEthAfter = getFinalizedAndNotClaimedEth();
-
-//     assert lockedAmountAfter >= FinalizedAndNotClaimedEthAfter;
-// }
-
-/**
-Check how finalizing with defferent requests are affecting the finalization
-**/
-// rule finalizeAloneVsFinalizeBatch(uint256 requestId1, uint256 requestId2, uint256 shareRate) {
-//     env eClaimWithdrawal;
-//     env e1;
-//     env e2;
-//     requireInvariant cumulativeEthMonotonocInc(requestId1);
-//     requireInvariant cumulativeEthMonotonocInc(requestId2);
-//     // e.msg.value == max_uint256;
-//     storage init = lastStorage;
-//     address owner = getRequestsStatusOwner(requestId1);
-
-//     require owner != e1.msg.sender;
-
-//     require requestId1 + 1 == requestId2;
-//     require requestId2 < getLastRequestId();
-//     require requestId1 > getLastFinalizedRequestId();
-
-//     uint256 lockedEtherBefore = getLockedEtherAmount();
-
-//     uint256 ethToLock;
-//     uint256 sharesToBurn;
-//     ethToLock, sharesToBurn = finalizationBatch(requestId1, shareRate);
-//     require e1.msg.value == ethToLock;
-//     finalize(e1, requestId1);
-//     claimWithdrawal(eClaimWithdrawal, requestId1);
-
-//     uint256 userEthBalanceSeperate = balanceOfEth(owner);
-
-//     uint256 ethToLock2;
-//     uint256 sharesToBurn2;
-
-//     ethToLock2, sharesToBurn2 = finalizationBatch(requestId2, shareRate) at init;
-//     require e2.msg.value == ethToLock2; 
-
-//     finalize(e2, requestId2);
-//     claimWithdrawal(eClaimWithdrawal, requestId1);
-
-//     uint256 userEthBalanceBatch = balanceOfEth(owner);
-
-//     assert userEthBalanceSeperate == userEthBalanceBatch;
-// }
-
-
-// // RULES TO IMPLEMENT:
-
-// // rule for share rate: get min and max share rate within finalized batch, claim -> compute effective share rate and assert it is within range.
-// // claim withdrawal with the wrong hint
-// // lockedEth >= finalized and not claimed
-// // finalize dont change fifo order of requests
-
-// // try to finalize more then ethBudget - budget comes from external call
-// // rule finalizeMoreThanETHBudget(uint256 requestIdToFinalize){
-// //     assert false;
-// // }
 
