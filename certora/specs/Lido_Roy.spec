@@ -184,6 +184,9 @@ function isWithdrawalQueuePaused() returns bool {
 /**************************************************
 *                    CVL Helpers                 *
 **************************************************/
+/**
+To avoid overflow
+**/
 function SumOfETHBalancesLEMax(address someUser) returns bool {
     mathint sum = 
         LidoEthBalance() + 
@@ -199,6 +202,9 @@ function SumOfETHBalancesLEMax(address someUser) returns bool {
     return sum <= to_mathint(Uint128());
 }
 
+/**
+To avoid overflow
+**/
 function SumOfSharesLEMax(address someUser) returns bool {
     mathint sum = 
         sharesOf(currentContract) + 
@@ -212,6 +218,9 @@ function SumOfSharesLEMax(address someUser) returns bool {
     return sum <= to_mathint(Uint128());
 }
 
+/**
+To avoid overflow
+**/
 function ReasonableAmountOfShares() returns bool {
     return getTotalShares() < Uint128() && getTotalPooledEther() < Uint128();
 }
@@ -231,7 +240,7 @@ definition isSubmit(method f) returns bool =
 
 definition handleReportStepsMethods(method f) returns bool = 
     isHandleReport(f) || 
-    f.selector == collectRewardsAndProcessWithdrawals(uint256,uint256,uint256[],uint256,uint256).selector ||
+    f.selector == collectRewardsAndProcessWithdrawals(uint256,uint256,uint256,uint256,uint256).selector ||
     f.selector == processRewards(uint256,uint256,uint256).selector ||
     f.selector == processClStateUpdate(uint256,uint256,uint256,uint256).selector ||
     f.selector == distributeFee(uint256,uint256,uint256).selector ||
@@ -324,3 +333,16 @@ rule integrityOfDeposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, byt
     assert (_maxDepositsCount > 0 && maxDepositsCountSR > 0) => bufferedEthBefore > bufferedEthAfter;
     assert bufferedEthBefore - bufferedEthAfter <= bufferedEthBefore;
 }
+
+// rule integrityOfCollectRewardsAndProcessWithdrawals(uint256 withdrawalsToWithdraw, uint256 elRewardsToWithdraw, uint256 withdrawalFinalizationBatch, uint256 simulatedShareRate, uint256 etherToLockOnWithdrawalQueue) {
+
+//     env e;
+
+//     require withdrawalsToWithdraw > 0;
+//     require elRewardsToWithdraw > 0;
+//     require etherToLockOnWithdrawalQueue > 0;
+
+//     collectRewardsAndProcessWithdrawals(e, withdrawalsToWithdraw, elRewardsToWithdraw, withdrawalFinalizationBatch, simulatedShareRate, etherToLockOnWithdrawalQueue);
+
+//     assert false;
+// }
