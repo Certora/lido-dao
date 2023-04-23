@@ -82,7 +82,7 @@ methods{
     hashTypedDataV4(address _stETH, bytes32 _structHash) => ghostHashTypedDataV4(_stETH, _structHash)
     getScriptExecutor(bytes) => CONSTANT
     domainSeparatorV4(address) returns (bytes32) => CONSTANT
-    eip712Domain(address) => DISPATCHER(true) // NONDET // Hopefully the nondeterministic behavior is not crucial
+    eip712Domain(address) =>  NONDET // Hopefully the nondeterministic behavior is not crucial
     canPerform(address, bytes32, uint256[]) => ALWAYS(true); // Warning: optimistic permission summary
     //hasPermission(address, address, bytes32, bytes) returns (bool) => ALWAYS(true);
     getEIP712StETH() => ghostEIP712StETH() //(assuming after initialize)
@@ -184,7 +184,7 @@ function isWithdrawalQueuePaused() returns bool {
 /**************************************************
 *                    CVL Helpers                 *
 **************************************************/
-function SumOfETHBalancesLEMAXUINT(address someUser) returns bool {
+function SumOfETHBalancesLEMax(address someUser) returns bool {
     mathint sum = 
         LidoEthBalance() + 
         getTotalELRewardsCollected() +
@@ -196,13 +196,31 @@ function SumOfETHBalancesLEMAXUINT(address someUser) returns bool {
         getEthBalance(ghostRecoveryVault()) + 
         getEthBalance(ghostDSM()) +
         getEthBalance(someUser);
-    return sum <= max_uint;
+    return sum <= to_mathint(Uint128());
+}
+
+function SumOfSharesLEMax(address someUser) returns bool {
+    mathint sum = 
+        sharesOf(currentContract) + 
+        sharesOf(ghostRecoveryVault()) +
+        sharesOf(ghostStakingRouter()) +
+        sharesOf(ghostWithdrawalQueue()) + 
+        sharesOf(ghostTreasury()) + 
+        sharesOf(ghostRecoveryVault()) + 
+        sharesOf(ghostDSM()) +
+        sharesOf(someUser);
+    return sum <= to_mathint(Uint128());
+}
+
+function ReasonableAmountOfShares() returns bool {
+    return getTotalShares() < Uint128() && getTotalPooledEther() < Uint128();
 }
 
 /**************************************************
 *                    Definitions                 *
 **************************************************/
 definition DEPOSIT_SIZE() returns uint256 = 32000000000000000000;
+definition Uint128() returns uint256 = (1 << 128);  
 
 definition isHandleReport(method f) returns bool = 
     f.selector == 
@@ -224,13 +242,28 @@ definition handleReportStepsMethods(method f) returns bool =
 /**************************************************
 *                    Rules                 *
 **************************************************/
+invariant BufferedEthIsAtMostLidoBalance()
+    getBufferedEther() <= LidoEthBalance()
+    filtered{f -> !isHandleReport(f)}
+    {
+        preserved with (env e) {
+            require e.msg.sender != currentContract;
+            require SumOfETHBalancesLEMax(e.msg.sender);
+            require ReasonableAmountOfShares();
+        }
+    }
+
 /// Fails due to overflows.
 /// Need to come up with a condition on the total shares to prevent the overflows cases.
 rule getSharesByPooledEthDoesntRevert(uint256 amount, method f) 
-filtered{f -> !f.isView && !handleReportStepsMethods(f)} {
+filtered{f -> !f.isView && !isHandleReport(f)} {
     env e;
     calldataarg args;
-    require SumOfETHBalancesLEMAXUINT(e.msg.sender);
+    require SumOfETHBalancesLEMax(e.msg.sender);
+    require SumOfSharesLEMax(e.msg.sender);
+    require ReasonableAmountOfShares();
+    require amount < Uint128();
+
     getSharesByPooledEth(amount);
         f(e, args);
     getSharesByPooledEth@withrevert(amount);
@@ -248,7 +281,8 @@ filtered{f -> !(handleReportStepsMethods(f) || isSubmit(f))} {
     uint256 amount;
 
     storage initState = lastStorage;
-    require SumOfETHBalancesLEMAXUINT(e2.msg.sender);
+    require SumOfETHBalancesLEMax(e2.msg.sender);
+    require ReasonableAmountOfShares();
     
     f(e1, args);
     
