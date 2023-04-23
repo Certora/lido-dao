@@ -51,6 +51,7 @@ foundry/out
 
 # certora
 certora/munged*
+.certora*
 .certora*.json
 **.last_conf*
 certora-logs
