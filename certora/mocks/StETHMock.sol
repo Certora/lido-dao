@@ -9,7 +9,6 @@ contract StETHMock is StETH {
 
     constructor() public payable{
         _resume();
-        _bootstrapInitialHolder();
     }
 
     function _getTotalPooledEther() internal view returns (uint256) {
