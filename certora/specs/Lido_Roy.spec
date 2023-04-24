@@ -1,3 +1,5 @@
+using NativeTransferFuncs as NTF
+
 /**************************************************
 *                   Methods                       *
 **************************************************/
@@ -51,6 +53,8 @@ methods{
     stakingModuleMaxDepositsCount(uint256, uint256) returns (uint256) envfree
     LidoEthBalance() returns (uint256) envfree
     getEthBalance(address) returns (uint256) envfree
+    collectRewardsAndProcessWithdrawals(uint256, uint256, uint256, uint256, uint256)
+
     // Summarizations:
 
     // WithdrawalQueue:
@@ -86,6 +90,15 @@ methods{
     canPerform(address, bytes32, uint256[]) => ALWAYS(true); // Warning: optimistic permission summary
     //hasPermission(address, address, bytes32, bytes) returns (bool) => ALWAYS(true);
     getEIP712StETH() => ghostEIP712StETH() //(assuming after initialize)
+
+    // nativeTransferFuncs:
+    NTF.withdrawRewards(uint256) returns (uint256)
+    NTF.withdrawWithdrawals(uint256)
+
+    withdrawRewards(uint256) returns (uint256) => DISPATCHER(true)
+    withdrawWithdrawals(uint256) => DISPATCHER(true)
+
+    finalize(uint256, uint256) => DISPATCHER(true)
 }
 
 /**************************************************
@@ -302,6 +315,12 @@ filtered{f -> !(handleReportStepsMethods(f) || isSubmit(f))} {
     assert !lastReverted;
 }
 
+/**
+After calling submit:
+    1. If there is a satke limit then it must decrease by ther submited eth amount.
+    2. The user gets the expected amount of shares.
+    3. Total shares is increased as expected.
+**/
 rule integrityOfSubmit(address _referral) {
     env e;
     uint256 ethToSubmit = e.msg.value;
@@ -316,6 +335,12 @@ rule integrityOfSubmit(address _referral) {
     assert expectedShares == shareAmount;
 }
 
+/**
+After a successful call for deposit:
+    1. Bunker mode is inactive and the protocol is not stopped
+    2. If any of max deposits is greater than zero then the buffered ETH must decrease.
+    3. The buffered ETH must not increase.
+**/
 rule integrityOfDeposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, bytes _depositCalldata) {
     env e;
 
@@ -334,15 +359,28 @@ rule integrityOfDeposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, byt
     assert bufferedEthBefore - bufferedEthAfter <= bufferedEthBefore;
 }
 
-// rule integrityOfCollectRewardsAndProcessWithdrawals(uint256 withdrawalsToWithdraw, uint256 elRewardsToWithdraw, uint256 withdrawalFinalizationBatch, uint256 simulatedShareRate, uint256 etherToLockOnWithdrawalQueue) {
+/**
+After a successful call for collectRewardsAndProcessWithdrawals:
+    1. TOTAL_EL_REWARDS_COLLECTED_POSITION increase by
+    2. contracts ETH balance must increase by elRewardsToWithdraw + withdrawalsToWithdraw - etherToLockOnWithdrawalQueue
+    3. The buffered ETH must increase elRewardsToWithdraw + withdrawalsToWithdraw - etherToLockOnWithdrawalQueue
+**/
+rule integrityOfCollectRewardsAndProcessWithdrawals(uint256 withdrawalsToWithdraw, uint256 elRewardsToWithdraw, uint256 withdrawalFinalizationBatch, uint256 simulatedShareRate, uint256 etherToLockOnWithdrawalQueue) {
+    env e;
+    require SumOfETHBalancesLEMax(e.msg.sender);
+    require ReasonableAmountOfShares();
 
-//     env e;
+    uint256 contractEthBalanceBefore = LidoEthBalance();
+    uint256 totalElRewardsBefore = getTotalELRewardsCollected();
+    uint256 bufferedEthBefore = getBufferedEther();
 
-//     require withdrawalsToWithdraw > 0;
-//     require elRewardsToWithdraw > 0;
-//     require etherToLockOnWithdrawalQueue > 0;
+    collectRewardsAndProcessWithdrawals(e, withdrawalsToWithdraw, elRewardsToWithdraw, withdrawalFinalizationBatch, simulatedShareRate, etherToLockOnWithdrawalQueue);
 
-//     collectRewardsAndProcessWithdrawals(e, withdrawalsToWithdraw, elRewardsToWithdraw, withdrawalFinalizationBatch, simulatedShareRate, etherToLockOnWithdrawalQueue);
+    uint256 contractEthBalanceAfter = LidoEthBalance();
+    uint256 totalElRewardsAfter = getTotalELRewardsCollected();
+    uint256 bufferedEthAfter = getBufferedEther();
 
-//     assert false;
-// }
+    assert contractEthBalanceBefore + withdrawalsToWithdraw + elRewardsToWithdraw - etherToLockOnWithdrawalQueue == contractEthBalanceAfter;
+    assert totalElRewardsBefore + elRewardsToWithdraw == totalElRewardsAfter;
+    assert bufferedEthBefore + withdrawalsToWithdraw + elRewardsToWithdraw - etherToLockOnWithdrawalQueue == bufferedEthAfter;
+}
