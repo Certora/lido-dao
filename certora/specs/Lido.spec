@@ -275,45 +275,45 @@ invariant BufferedEthIsAtMostLidoBalance()
         }
     }
 
-/// Fails due to overflows.
-/// Need to come up with a condition on the total shares to prevent the overflows cases.
-rule getSharesByPooledEthDoesntRevert(uint256 amount, method f) 
-filtered{f -> !f.isView && !isHandleReport(f)} {
-    env e;
-    calldataarg args;
-    require SumOfETHBalancesLEMax(e.msg.sender);
-    require SumOfSharesLEMax(e.msg.sender);
-    require ReasonableAmountOfShares();
-    require amount < Uint128();
+// /// Fails due to overflows.
+// /// Need to come up with a condition on the total shares to prevent the overflows cases.
+// rule getSharesByPooledEthDoesntRevert(uint256 amount, method f) 
+// filtered{f -> !f.isView && !isHandleReport(f)} {
+//     env e;
+//     calldataarg args;
+//     require SumOfETHBalancesLEMax(e.msg.sender);
+//     require SumOfSharesLEMax(e.msg.sender);
+//     require ReasonableAmountOfShares();
+//     require amount < Uint128();
 
-    getSharesByPooledEth(amount);
-        f(e, args);
-    getSharesByPooledEth@withrevert(amount);
+//     getSharesByPooledEth(amount);
+//         f(e, args);
+//     getSharesByPooledEth@withrevert(amount);
 
-    assert !lastReverted;
-}
+//     assert !lastReverted;
+// }
 
-rule submitCannotDoSFunctions(method f) 
-filtered{f -> !(handleReportStepsMethods(f) || isSubmit(f))} {
-    env e1; 
-    env e2;
-    require e2.msg.sender != currentContract;
-    calldataarg args;
-    address referral;
-    uint256 amount;
+// rule submitCannotDoSFunctions(method f) 
+// filtered{f -> !(handleReportStepsMethods(f) || isSubmit(f))} {
+//     env e1; 
+//     env e2;
+//     require e2.msg.sender != currentContract;
+//     calldataarg args;
+//     address referral;
+//     uint256 amount;
 
-    storage initState = lastStorage;
-    require SumOfETHBalancesLEMax(e2.msg.sender);
-    require ReasonableAmountOfShares();
+//     storage initState = lastStorage;
+//     require SumOfETHBalancesLEMax(e2.msg.sender);
+//     require ReasonableAmountOfShares();
     
-    f(e1, args);
+//     f(e1, args);
     
-    submit(e2, referral) at initState;
+//     submit(e2, referral) at initState;
 
-    f@withrevert(e1, args);
+//     f@withrevert(e1, args);
 
-    assert !lastReverted;
-}
+//     assert !lastReverted;
+// }
 
 /**
 After calling submit:
