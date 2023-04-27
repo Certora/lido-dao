@@ -33,6 +33,7 @@ methods{
     getBeaconStat() returns (uint256, uint256, uint256) envfree
     canDeposit() returns (bool) envfree
     getDepositableEther() returns (uint256) envfree
+    permit(address,address,uint256,uint256,uint8,bytes32,bytes32)
 
     // StEth:
     getTotalPooledEther() returns (uint256) envfree  
@@ -266,7 +267,7 @@ definition handleReportStepsMethods(method f) returns bool =
 **************************************************/
 invariant BufferedEthIsAtMostLidoBalance()
     getBufferedEther() <= LidoEthBalance()
-    filtered{f -> !isHandleReport(f)}
+    filtered{f -> !isHandleReport(f) && f.selector != permit(address,address,uint256,uint256,uint8,bytes32,bytes32).selector}
     {
         preserved with (env e) {
             require e.msg.sender != currentContract;

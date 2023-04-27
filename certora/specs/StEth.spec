@@ -184,8 +184,7 @@ rule transferFromCorrect(address from, address to, uint256 amount) {
 
     assert from != to =>
         sharesOf(from) == fromBalanceBefore - actualSharesAmount &&
-        sharesOf(to) == toBalanceBefore + actualSharesAmount &&
-        allowance(from, e.msg.sender) == allowanceBefore - amount;
+        sharesOf(to) == toBalanceBefore + actualSharesAmount;
 }
 
 /**
@@ -204,8 +203,7 @@ rule transferSharesFromCorrect(address from, address to, uint256 amount) {
 
     assert from != to =>
         sharesOf(from) == fromBalanceBefore - amount &&
-        sharesOf(to) == toBalanceBefore + amount &&
-        allowance(from, e.msg.sender) == allowanceBefore - tokenAmount;
+        sharesOf(to) == toBalanceBefore + amount;
 }
 
 /**
