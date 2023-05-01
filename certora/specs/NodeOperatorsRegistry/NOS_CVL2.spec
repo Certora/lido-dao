@@ -328,7 +328,7 @@ invariant KeysOfUnregisteredNodeAreZero(uint256 nodeOperatorId)
 /// Required for preventing unexpected reverts.
 invariant TargetPlusExitedDoesntOverflow(uint256 nodeOperatorId)
     getNodeOperatorSigningStats_exited(nodeOperatorId) +
-    getNodeOperatorTargetStats_target(nodeOperatorId) <= to_mathint(max_uint)
+    getNodeOperatorTargetStats_target(nodeOperatorId) <= to_mathint(2*max_uint64)
     {
         preserved{
             requireInvariant AllModulesAreActiveConsistency(nodeOperatorId);
@@ -950,9 +950,6 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     /// If the deposits count is zero, the system doesn't call the deposit function
     /// inside Staking Router.
     require depositsCount > 0;
-
-    uint256 allocated = loadKeysHelper(e);
-    require allocated == depositsCount;
     
     // Call again with an arbitraty depositCount
     loadAllocatedSigningKeys@withrevert(e, depositsCount);

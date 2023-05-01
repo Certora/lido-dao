@@ -974,36 +974,28 @@ rule noRestrictionOnAddingKeys(uint256 nodeOperatorId) {
 **************************************************/
 /// The function should never revert for a valid deposit count input.
 /// and revert if the deposit count is larger than the depositable amount.
-/// https://vaas-stg.certora.com/output/41958/c12fac737f73407ab18b030f8046ebf2/?anonymousKey=87f87d83886c0727e16cf4139e61ce4862fdebf4
 rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     env e;
-    bytes depositData;
-    uint256 totalExited;
-    uint256 totalDeposited;
-    uint256 depositable;
-
+    uint256 totalExited; uint256 totalDeposited; uint256 depositable;
     totalExited, totalDeposited, depositable = getStakingModuleSummary();
-
+    requireInvariant SumOfMaxKeysEqualsSummary();
+    requireInvariant SumOfDepositedKeysEqualsSummary();
+    requireInvariant SumOfExitedKeysEqualsSummary();
     require depositable <= UINT32_MAX();
     require totalExited <= totalDeposited;
     require totalDeposited + depositable <= to_mathint(UINT32_MAX());
 
     safeAssumptions_NOS(0);
     safeAssumptions_NOS(getNodeOperatorsCount());
-    //safeAssumptions_NOS(2);
 
     require getActiveNodeOperatorsCount() > 0;
 
     /// If the deposits count is zero, the system doesn't call the deposit function
     /// inside Staking Router.
     require depositsCount > 0;
-
-    // Call with zero depositCount to filter all trivial (access control) revert paths.
-    loadKeysHelper(e);
     
     // Call again with an arbitraty depositCount
     loadAllocatedSigningKeys@withrevert(e, depositsCount);
-    //obtainDepositData@withrevert(e, depositsCount, depositData);
     assert depositsCount <= depositable => !lastReverted;
 }
 
