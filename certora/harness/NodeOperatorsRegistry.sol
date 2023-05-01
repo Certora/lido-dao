@@ -11,6 +11,7 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
     using Packed64x4 for Packed64x4.Packed;
 
     uint256 public test_nodeId;
+    uint256[] public myActiveKeyCountsAfterAllocation;
 
     /// @dev DEPRECATED use addSigningKeys instead
     function addSigningKeysOperatorBH(uint256, uint256, bytes, bytes) external {}
@@ -38,29 +39,40 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
 
     function getSigningKeysAllocationDataPerNode(
         uint256 _depositsCount, uint256 index) 
-        public view returns(uint256, uint256) {
+        public view returns (uint256, uint256, uint256) {
         (
-             ,
+            uint256 allocated,
             uint256[] memory nodeOperatorIds,
             uint256[] memory activeKeysCountAfterAllocation
         ) = _getSigningKeysAllocationData(_depositsCount);
         
-        return (nodeOperatorIds[index], activeKeysCountAfterAllocation[index]);
+        return (allocated, nodeOperatorIds[index], activeKeysCountAfterAllocation[index]);
     }
 
-    function loadAllocatedSigningKeys(
-        uint256 _keysCountToLoad,
-        uint256[] memory _activeKeyCountsAfterAllocation) public returns (uint256, uint256) {
-        uint256 count = getNodeOperatorsCount();
-        uint256[] memory nodeOperatorIds = new uint256[](count);
-        require (_activeKeyCountsAfterAllocation.length == count);
-        for (uint256 i; i < count; ++i) {
-            (uint256 exitedSigningKeysCount, ,uint256 maxSigningKeysCount) = _getNodeOperator(i);
+    function loadAllocatedSigningKeys(uint256 _keysCountToLoad) public returns (uint256, uint256) {
+        uint256[] memory nodeOperatorIds = new uint256[](getNodeOperatorsCount());
+        for (uint256 i; i < nodeOperatorIds.length; ++i) {
             nodeOperatorIds[i] = i;
-            require(_activeKeyCountsAfterAllocation[i] <= maxSigningKeysCount - exitedSigningKeysCount);
         }
-        (bytes memory pubkeys, bytes memory signatures) = _loadAllocatedSigningKeys(_keysCountToLoad,nodeOperatorIds,_activeKeyCountsAfterAllocation);
+        if(_keysCountToLoad == 0) return (0,0);
+        (bytes memory pubkeys, bytes memory signatures) = 
+            _loadAllocatedSigningKeys(_keysCountToLoad,nodeOperatorIds,myActiveKeyCountsAfterAllocation);
         return (pubkeys.length, signatures.length);
+    }
+
+    function loadKeysHelper() public view returns (uint256) {
+        uint256 count = getNodeOperatorsCount();
+        uint256 allocated = 0;
+        require (myActiveKeyCountsAfterAllocation.length == count);
+        uint256[] memory nodeOperatorIds = new uint256[](count);
+        for (uint256 i; i < count; ++i) {
+            (uint256 exitedSigningKeysCount, uint256 depositedSigningKeysCount ,uint256 maxSigningKeysCount) = _getNodeOperator(i);
+            nodeOperatorIds[i] = i;
+            allocated += myActiveKeyCountsAfterAllocation[i] - (depositedSigningKeysCount - exitedSigningKeysCount);
+            require(myActiveKeyCountsAfterAllocation[i] <= maxSigningKeysCount - exitedSigningKeysCount);
+            require(myActiveKeyCountsAfterAllocation[i] >= depositedSigningKeysCount - exitedSigningKeysCount);
+        }
+        return allocated;
     }
 
     function updateExitedValidatorsCount(uint256 nodeOperatorId, uint64 validatorsCount) external {

@@ -1,4 +1,4 @@
---- ../contracts/0.8.9/StakingRouter.sol	2023-04-19 09:09:23.600423300 +0300
+--- ../contracts/0.8.9/StakingRouter.sol	2023-04-23 13:50:04.760134300 +0300
 +++ 	2023-04-19 11:44:55.041438500 +0300
 @@ -4,18 +4,18 @@
  /* See contracts/COMPILERS.md */
@@ -109,8 +109,8 @@
      }
  
      /// @dev computes the deposit_root_hash required by official Beacon Deposit contract
---- ../contracts/0.4.24/nos/NodeOperatorsRegistry.sol	2023-04-19 09:09:23.592368900 +0300
-+++ 	2023-04-19 09:15:50.232238500 +0300
+--- ../contracts/0.4.24/nos/NodeOperatorsRegistry.sol	2023-04-23 13:50:04.751085900 +0300
++++ 	2023-05-01 14:46:10.020825200 +0300
 @@ -8,13 +8,13 @@
  import {SafeMath} from "@aragon/os/contracts/lib/math/SafeMath.sol";
  import {UnstructuredStorage} from "@aragon/os/contracts/common/UnstructuredStorage.sol";
@@ -145,6 +145,17 @@
              loadedKeysCount += keysCount;
  
              emit DepositedSigningKeysCountChanged(_nodeOperatorIds[i], depositedSigningKeysCountAfter);
+@@ -1030,8 +1030,8 @@
+ 
+         _requireValidRange(totalSigningKeysCount.add(_keysCount) <= UINT64_MAX);
+ 
+-        totalSigningKeysCount =
+-            SIGNING_KEYS_MAPPING_NAME.saveKeysSigs(_nodeOperatorId, totalSigningKeysCount, _keysCount, _publicKeys, _signatures);
++        totalSigningKeysCount = totalSigningKeysCount.add(_keysCount);
++        //    SIGNING_KEYS_MAPPING_NAME.saveKeysSigs(_nodeOperatorId, totalSigningKeysCount, _keysCount, _publicKeys, _signatures);
+ 
+         emit TotalSigningKeysCountChanged(_nodeOperatorId, totalSigningKeysCount);
+ 
 @@ -1142,23 +1142,26 @@
          view
          returns (bytes key, bytes depositSignature, bool used)
@@ -200,7 +211,7 @@
          view
          returns (
              bool isTargetLimitActive,
---- ../contracts/0.4.24/lib/SigningKeys.sol	2023-04-19 09:09:23.587919200 +0300
+--- ../contracts/0.4.24/lib/SigningKeys.sol	2023-04-23 13:50:04.750092000 +0300
 +++ 	2023-04-19 09:13:49.367212500 +0300
 @@ -114,21 +114,41 @@
              if (i < _totalKeysCount) {

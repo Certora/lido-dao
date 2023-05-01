@@ -1,0 +1,78 @@
+# Node operators registry
+
+# non-parametric rules
+--rule operatorPenaltyStatusAfterKeysUpdate \
+--rule invalidateReadyIndexIntegrity \
+--rule afterDeactivateNoDepositableKeys \
+--rule obtainDepositDataDoesntRevert \
+--rule signingKeysAllocationDataPerNodeBounded \
+--rule afterClearPenaltyOperatorIsNotPenalized \
+--rule clearingPenaltyDoesntChangeDepositSummary \
+--rule noRestrictionOnAddingKeys \
+--rule rewardSharesAreMonotonicWithTotalShares \
+--rule sumOfRewardsSharesLETotalShares \
+
+# Invariants / parametric rules (batch 1)
+--rule NodeOperatorsCountLEMAX \
+--rule ActiveOperatorsLECount \
+--rule SumOfActiveOperatorsEqualsActiveCount \
+--rule AllModulesAreActiveConsistency \
+--rule ExitedKeysLEDepositedKeys \
+--rule DepositedKeysLEVettedKeys \
+--rule VettedKeysLETotalKeys \
+--rule TargetPlusExitedDoesntOverflow \
+--rule KeysOfUnregisteredNodeAreZero \
+--rule DepositedKeysLEMaxValidators \
+--rule VettedKeysGEMaxValidators \
+--rule NoDepositableKeysForInactiveModule \
+--rule StuckPlusExitedLEDeposited \
+--rule PenaltyClearedForUnregistered \
+
+--rule SumOfDepositedKeysEqualsSummary \
+--rule SumOfExitedKeysEqualsSummary \
+--rule SumOfTotalKeysEqualsSummary \
+--rule SumOfMaxKeysEqualsSummary \
+
+# Invariants/ parametric rules (batch 2)
+--rule whichFunctionsChangeKeys \
+--rule keyCountChangesTogetherWithSummary \
+--rule canAlwaysDeactivateAddedNodeOperator \
+--rule canDeactivateAfterActivate \
+--rule canActivateAfterDeactivate \
+--rule cannotFinalizeUpgradeTwice \
+--rule whoDeactivatesNodeOperators \
+--rule cannotInitializeTwice \
+--rule exitedKeysDontDecrease \
+--rule exitedKeysChangeForOnlyOneNodeOperator \
+--rule depositedKeysDontDecrease \
+--rule depositedKeysDontChangeByOtherFunctions \
+--rule totalKeysChangeIntegrity \
+--rule totalKeysChangeForOnlyOneNodeOperator \
+--rule maxValidatorsChangeForOnlyOneNodeOperator \
+--rule penalizeStatusChange \
+--rule cannotClearPenaltyForUnRegisteredOperators \
+
+# StakingRouter
+--rule moduleStatusDefinition \
+--rule canAddModuleIfNotActive \
+--rule cannotAddStakingModuleIfAlreadyRegistered \
+--rule aggregatedFeeLT100Percent_init \
+--rule aggregatedFeeLT100Percent_preserve \
+--rule validMaxDepositCountBound \
+--rule depositDoesntAlterStakingModules \
+--rule afterDepositSummaryIsUpdatedCorrectly \
+--rule feeDistributionDoesntRevertAfterAddingModule \
+--rule canAlwaysAddAnotherStakingModule \
+--rule canAlwaysGetAddedStakingModule \
+--rule getMaxDepositsCountReverts_init \
+
+--rule StatusChangedToActive \
+--rule StatusChangedToPaused \
+--rule StatusChangedToStopped \
+--rule oneStatusChangeAtATime \
+--rule ExitedValidatorsCountCannotDecrease \
+--rule moduleActiveValidatorsDoesntUnderflow \
+--rule cannotInitializeTwice \
+--rule getMaxDepositsCountRevert_preserve \
+--rule reportStakingModuleExitedDoesntRevert \
+--rule whichFunctionsRevertIfStatusIsNotActive \
