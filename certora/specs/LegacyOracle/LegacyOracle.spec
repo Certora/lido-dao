@@ -1,23 +1,23 @@
-using HashConsensus as hashCon
+using HashConsensus as hashCon;
 
 methods {
     // HashConsensus dispatched methods
-    getCurrentFrame() => DISPATCHER(true)
-    getFrameConfig() => DISPATCHER(true)
-    getChainConfig() => DISPATCHER(true)
+    function _.getCurrentFrame() external => DISPATCHER(true);
+    function _.getFrameConfig() external => DISPATCHER(true);
+    function _.getChainConfig() external => DISPATCHER(true);
 
     // LegacyOracle methods
-    getBeaconSpec() returns (uint64,uint64,uint64,uint64)
-    getLastCompletedReportDelta() returns (uint256,uint256,uint256) envfree
+    function getBeaconSpec() external returns (uint64,uint64,uint64,uint64);
+    function getLastCompletedReportDelta() external returns (uint256,uint256,uint256) envfree;
     
     // Summaries - addresses
-    getApp(bytes32 a,bytes32 b) => getAppGhost(a, b)
-    getScriptExecutor(bytes) => CONSTANT
-    getRecoveryVault() => recoveryVaultAddress()
-    getConsensusContract() => consensusContract()
-    getAccountingOracle() => accountingAddress()
-    accountingOracle() => accountingAddress()
-    lido() => lidoAddress()
+    function _.getApp(bytes32 a,bytes32 b) external => getAppGhost(a, b) expect address ALL;
+    function _.getScriptExecutor(bytes) external => CONSTANT;
+    function _.getRecoveryVault() external => recoveryVaultAddress() expect address ALL;
+    function _.getConsensusContract() external => consensusContract() expect address ALL;
+    function _.getAccountingOracle() external => accountingAddress() expect address ALL;
+    function _.accountingOracle() external => accountingAddress() expect address ALL;
+    function _.lido() external => lidoAddress() expect address ALL;
 }
 
 /**************************************************
@@ -25,25 +25,25 @@ methods {
  **************************************************/
 
 definition isInitialize(method f) returns bool = 
-    f.selector == initialize(address,address).selector;
+    f.selector == sig:initialize(address,address).selector;
 
 definition isFinalize(method f) returns bool = 
-    f.selector == finalizeUpgrade_v4(address).selector;
+    f.selector == sig:finalizeUpgrade_v4(address).selector;
 
 definition isHandleRebase(method f) returns bool = 
     f.selector == 
-        handlePostTokenRebase(uint256,uint256,uint256,uint256,uint256,uint256,uint256).selector;
+        sig:handlePostTokenRebase(uint256,uint256,uint256,uint256,uint256,uint256,uint256).selector;
 
 definition isHandleConsensus(method f) returns bool = 
-    f.selector == handleConsensusLayerReport(uint256,uint256,uint256).selector;
+    f.selector == sig:handleConsensusLayerReport(uint256,uint256,uint256).selector;
 
 definition externalChangingMethods(method f) returns bool = 
     isHandleRebase(f) || isHandleConsensus(f);
 
 // Filtering functions that give me trouble but shouldn't.
 definition customFilter(method f) returns bool = !(
-    f.selector == canPerform(address,bytes32,uint256[]).selector ||
-    f.selector == transferToVault(address).selector);
+    f.selector == sig:canPerform(address,bytes32,uint256[]).selector ||
+    f.selector == sig:transferToVault(address).selector);
 
 /**************************************************
  *             Beacon spec assumption             *
@@ -166,7 +166,7 @@ filtered{f -> f.isView && customFilter(f)} {
     require nonZeroBeaconSpec(e1);
 
     require e2.msg.value == 0;
-    require e2.block.timestamp < to_uint256(1 << 32);
+    require e2.block.timestamp < require_uint256(1 << 32);
     f@withrevert(e2, args2);
     assert !lastReverted;
 }
@@ -185,7 +185,7 @@ filtered{f -> f.isView && customFilter(f), g -> externalChangingMethods(g)} {
     g(e2, args2);
 
     require e3.msg.value == e1.msg.value;
-    require e3.block.timestamp < to_uint256(1 << 32);
+    require e3.block.timestamp < require_uint256(1 << 32);
     f@withrevert(e3, args3);
     assert !lastReverted;
 }

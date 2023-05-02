@@ -9,6 +9,7 @@ methods {
     // NodeOperatorsRegistry
     function nos._canPerformNoParams(address sender, bytes32 role) internal returns(bool) => canPerformNoParams(sender, role);
     function nos.canPerform(address, bytes32, uint256[]) external returns(bool) => ALWAYS(true);
+    function nos.loadKeysHelper() external returns (uint256) envfree; 
 
     // StEth
     function _.sharesOf(address) external => DISPATCHER(true);
@@ -932,7 +933,7 @@ filtered{f -> !f.isView && !isFinalizeUpgrade(f) && !isObtainDepData(f)} {
 /// The function should never revert for a valid deposit count input.
 /// and revert if the deposit count is larger than the depositable amount.
 rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
-    env e;
+    env e; require e.msg.value ==0;
     uint256 totalExited; uint256 totalDeposited; uint256 depositable;
     totalExited, totalDeposited, depositable = getStakingModuleSummary();
     requireInvariant SumOfMaxKeysEqualsSummary();
@@ -943,13 +944,15 @@ rule obtainDepositDataDoesntRevert(uint256 depositsCount) {
     require totalDeposited + depositable <= to_mathint(UINT32_MAX());
 
     safeAssumptions_NOS(0);
-    safeAssumptions_NOS(getNodeOperatorsCount());
+    safeAssumptions_NOS(require_uint256(getNodeOperatorsCount()-1));
 
     require getActiveNodeOperatorsCount() > 0;
 
     /// If the deposits count is zero, the system doesn't call the deposit function
     /// inside Staking Router.
     require depositsCount > 0;
+    uint256 allocated = nos.loadKeysHelper();
+    require allocated == depositsCount;
     
     // Call again with an arbitraty depositCount
     loadAllocatedSigningKeys@withrevert(e, depositsCount);

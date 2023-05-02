@@ -50,7 +50,6 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
     }
 
     function loadAllocatedSigningKeys(uint256 _keysCountToLoad) public returns (uint256, uint256) {
-        require (_loadKeysHelper() == _keysCountToLoad);
         uint256[] memory nodeOperatorIds = new uint256[](getNodeOperatorsCount());
         for (uint256 i; i < nodeOperatorIds.length; ++i) {
             nodeOperatorIds[i] = i;
@@ -61,7 +60,7 @@ contract NodeOperatorsRegistryHarness is NodeOperatorsRegistry {
         return (pubkeys.length, signatures.length);
     }
 
-    function _loadKeysHelper() internal view returns (uint256) {
+    function loadKeysHelper() public view returns (uint256) {
         uint256 count = getNodeOperatorsCount();
         uint256 allocated = 0;
         require (myActiveKeyCountsAfterAllocation.length == count);

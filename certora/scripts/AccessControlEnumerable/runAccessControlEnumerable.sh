@@ -5,7 +5,7 @@ certoraRun \
 \
 --solc_map AccessControlEnumerableTest=solc8.9 \
 --loop_iter 3 \
---cloud pre_cvl2 \
+--cloud master \
 --optimistic_loop \
 --send_only \
 --rule_sanity advanced \

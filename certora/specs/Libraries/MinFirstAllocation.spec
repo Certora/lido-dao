@@ -1,14 +1,14 @@
 methods {
-    getLength() returns(uint256) envfree
-    sumOfBuckets() returns (uint256) envfree
-    sumOfCapacities() returns (uint256) envfree
-    sumOfIncrements() returns (uint256) envfree
-    getBucket(uint256) returns (uint256) envfree
-    getCapacity(uint256) returns (uint256) envfree
-    getIncrement(uint256) returns (uint256) envfree
+    function getLength() external returns(uint256) envfree;
+    function sumOfBuckets() external returns (uint256) envfree;
+    function sumOfCapacities() external returns (uint256) envfree;
+    function sumOfIncrements() external returns (uint256) envfree;
+    function getBucket(uint256) external returns (uint256) envfree;
+    function getCapacity(uint256) external returns (uint256) envfree;
+    function getIncrement(uint256) external returns (uint256) envfree;
 
-    addBucket(uint256, uint256) envfree
-    allocate(uint256) returns(uint256) envfree
+    function addBucket(uint256, uint256) external envfree;
+    function allocate(uint256) external returns(uint256) envfree;
 }
 
 definition bucketLength() returns uint256 = 5;
@@ -42,7 +42,7 @@ rule capacityIsNeverSurpassed(uint256 index, uint256 allocationSize) {
 
     uint256 allocated = allocate(allocationSize);
 
-    assert getBucket(index) + getIncrement(index) <= getCapacity(index);
+    assert getBucket(index) + getIncrement(index) <= to_mathint(getCapacity(index));
 }
 
 rule minimumBucketIsAlwaysIncrementedWhenPossible(uint256 allocationSize) {

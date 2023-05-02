@@ -6,11 +6,9 @@ certoraRun \
 \
 --solc_map HashConsensus=solc8.9,LegacyOracle=solc4.24 \
 --loop_iter 3 \
---staging master \
+--cloud master \
 --optimistic_loop \
 --send_only \
---rule viewFunctionsDontRevertPostFinalize \
---rule viewFunctionsDontRevertPreserve \
 --rule_sanity \
 --settings -t=500,-mediumTimeout=100,-depth=12,-copyLoopUnroll=5,-optimisticUnboundedHashing=true,-contractRecursionLimit=1 \
---msg "Legacy Oracle viewFunctionsDontRevert"
+--msg "Legacy Oracle"

@@ -1,22 +1,22 @@
 methods {
-    hasRole(bytes32, address) returns (bool) envfree
-    getRoleAdmin(bytes32) returns (bytes32) envfree
-    contains(bytes32, address) returns (bool) envfree
-    getRoleMember(bytes32, uint256) returns (address) envfree
-    getRoleMemberCount(bytes32) returns (uint256) envfree
-    indexOfMember(bytes32, address) returns (uint256) envfree
-    realValue(bytes32, uint256) returns (uint256) envfree
+    function hasRole(bytes32, address) external returns (bool) envfree;
+    function getRoleAdmin(bytes32) external returns (bytes32) envfree;
+    function contains(bytes32, address) external returns (bool) envfree;
+    function getRoleMember(bytes32, uint256) external returns (address) envfree;
+    function getRoleMemberCount(bytes32) external returns (uint256) envfree;
+    function indexOfMember(bytes32, address) external returns (uint256) envfree;
+    function realValue(bytes32, uint256) external returns (uint256) envfree;
 }
 
 definition roleChangingMethods(method f) returns bool = 
-    f.selector == revokeRole(bytes32,address).selector ||
-    f.selector == renounceRole(bytes32,address).selector ||
-    f.selector == grantRole(bytes32,address).selector;
+    f.selector == sig:revokeRole(bytes32,address).selector ||
+    f.selector == sig:renounceRole(bytes32,address).selector ||
+    f.selector == sig:grantRole(bytes32,address).selector;
 
 invariant indexNeverSurpassesLength(bytes32 role, address account)
     indexOfMember(role, account) <= getRoleMemberCount(role)
     && getRoleMemberCount(role) < max_uint
-    && to_mathint(realValue(role, to_uint256(indexOfMember(role, account)-1))) < (1 << 160)
+    && to_mathint(realValue(role, require_uint256(indexOfMember(role, account)-1))) < to_mathint(1 << 160)
     filtered{f -> roleChangingMethods(f)}
     {
         preserved grantRole(bytes32 role0, address account0) with (env e)
@@ -33,7 +33,7 @@ invariant indexNeverSurpassesLength(bytes32 role, address account)
 
 invariant valueIndexConsistency(bytes32 role, address account) 
     indexOfMember(role, account) != 0 =>
-    getRoleMember(role, to_uint256(indexOfMember(role, account)-1)) == account
+    getRoleMember(role, require_uint256(indexOfMember(role, account)-1)) == account
     filtered{f -> roleChangingMethods(f)}
     {
         preserved revokeRole(bytes32 role0, address account0) with (env e) {
@@ -65,12 +65,12 @@ invariant noDuplicates(bytes32 role, uint256 index1, uint256 index2)
     getRoleMember(role, index1) != getRoleMember(role, index2)
     {
         preserved revokeRole(bytes32 role0, address account0) with (env e) {
-            requireInvariant noDuplicates(role, index1, to_uint256(getRoleMemberCount(role)-1));
-            requireInvariant noDuplicates(role, index2, to_uint256(getRoleMemberCount(role)-1));}
+            requireInvariant noDuplicates(role, index1, require_uint256(getRoleMemberCount(role)-1));
+            requireInvariant noDuplicates(role, index2, require_uint256(getRoleMemberCount(role)-1));}
 
         preserved renounceRole(bytes32 role0, address account0) with (env e) {
-            requireInvariant noDuplicates(role, index1, to_uint256(getRoleMemberCount(role)-1));
-            requireInvariant noDuplicates(role, index2, to_uint256(getRoleMemberCount(role)-1));}
+            requireInvariant noDuplicates(role, index1, require_uint256(getRoleMemberCount(role)-1));
+            requireInvariant noDuplicates(role, index2, require_uint256(getRoleMemberCount(role)-1));}
     }
 
 
@@ -171,16 +171,16 @@ filtered{f -> roleChangingMethods(f)} {
 
     bool has_role_before = hasRole(role, sender);
     bool has_admin_role = hasRole(getRoleAdmin(role), e.msg.sender);
-        if(f.selector == revokeRole(bytes32,address).selector) {
+        if(f.selector == sig:revokeRole(bytes32,address).selector) {
             revokeRole(e, role, sender);
             require !has_role;
         }
-        else if(f.selector == renounceRole(bytes32,address).selector) {
+        else if(f.selector == sig:renounceRole(bytes32,address).selector) {
             renounceRole(e, role, sender);
             require !has_role;
             assert sender == e.msg.sender;
         }
-        else if(f.selector == grantRole(bytes32,address).selector) {
+        else if(f.selector == sig:grantRole(bytes32,address).selector) {
             grantRole(e, role, sender);
             require has_role;
         }
@@ -189,7 +189,7 @@ filtered{f -> roleChangingMethods(f)} {
         }
     bool has_role_after = hasRole(role, sender);
     
-    if(f.selector != renounceRole(bytes32,address).selector) {
+    if(f.selector != sig:renounceRole(bytes32,address).selector) {
         assert has_admin_role;
     }
     assert has_role_after == has_role;
