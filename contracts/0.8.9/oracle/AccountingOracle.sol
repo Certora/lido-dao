@@ -258,11 +258,11 @@ contract AccountingOracle is BaseOracle {
         bool isBunkerMode;
 
         ///
-        /// Extra data — the oracle information that can be processed asynchronously in chunks
-        /// after the main data is processed. The oracle doesn't enforce that extra data attached
-        /// to some data report is processed in full before the processing deadline expires or a
-        /// new data report starts being processed, but enforces that no processing of extra data
-        /// for a report is possible after its processing deadline passes or a new data report
+        /// Extra data — the oracle information that allows asynchronous processing, potentially in
+        /// chunks, after the main data is processed. The oracle doesn't enforce that extra data
+        /// attached to some data report is processed in full before the processing deadline expires
+        /// or a new data report starts being processed, but enforces that no processing of extra
+        /// data for a report is possible after its processing deadline passes or a new data report
         /// arrives.
         ///
         /// Extra data is an array of items, each item being encoded as follows:
@@ -441,7 +441,7 @@ contract AccountingOracle is BaseOracle {
         ConsensusReport memory report = _storageConsensusReport().value;
         result.currentFrameRefSlot = _getCurrentRefSlot();
 
-        if (result.currentFrameRefSlot != report.refSlot) {
+        if (report.hash == bytes32(0) || result.currentFrameRefSlot != report.refSlot) {
             return result;
         }
 
@@ -449,7 +449,7 @@ contract AccountingOracle is BaseOracle {
         result.mainDataHash = report.hash;
 
         uint256 processingRefSlot = LAST_PROCESSING_REF_SLOT_POSITION.getStorageUint256();
-        result.mainDataSubmitted = report.hash != bytes32(0) && report.refSlot == processingRefSlot;
+        result.mainDataSubmitted = report.refSlot == processingRefSlot;
         if (!result.mainDataSubmitted) {
             return result;
         }
@@ -672,6 +672,33 @@ contract AccountingOracle is BaseOracle {
 
         IOracleReportSanityChecker(LOCATOR.oracleReportSanityChecker())
             .checkExitedValidatorsRatePerDay(exitedValidatorsRatePerDay);
+    }
+
+    function _submitReportExtraDataEmpty() internal {
+        ExtraDataProcessingState memory procState = _storageExtraDataProcessingState().value;
+        _checkCanSubmitExtraData(procState, EXTRA_DATA_FORMAT_EMPTY);
+        if (procState.submitted) revert ExtraDataAlreadyProcessed();
+        IStakingRouter(LOCATOR.stakingRouter()).onValidatorsCountsByNodeOperatorReportingFinished();
+        _storageExtraDataProcessingState().value.submitted = true;
+        emit ExtraDataSubmitted(procState.refSlot, 0, 0);
+    }
+
+    function _checkCanSubmitExtraData(ExtraDataProcessingState memory procState, uint256 format)
+        internal view
+    {
+        _checkMsgSenderIsAllowedToSubmitData();
+
+        ConsensusReport memory report = _storageConsensusReport().value;
+
+        if (report.hash == bytes32(0) || procState.refSlot != report.refSlot) {
+            revert CannotSubmitExtraDataBeforeMainData();
+        }
+
+        _checkProcessingDeadline();
+
+        if (procState.dataFormat != format) {
+            revert UnexpectedExtraDataFormat(procState.dataFormat, format);
+        }
     }
 
     function _submitReportExtraDataEmpty() internal {

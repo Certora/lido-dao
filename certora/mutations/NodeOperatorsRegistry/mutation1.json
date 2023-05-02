@@ -1,0 +1,34 @@
+[
+    {
+        "filename": ".certora/munged/NodeOperatorsRegistry.sol",
+        "contract": "NodeOperatorsRegistry",
+        "functions": ["_updateSummaryMaxValidatorsCount"],
+        "solc": "solc4.24",
+        "num-mutants": 3,
+        "mutations":[
+            "delete-expression-mutation",
+            "require-mutation"
+        ],
+        "remappings": [
+            "@aragon=.\\node_modules\\@aragon",
+            "@openzeppelin=.\\node_modules\\@openzeppelin",
+            "@openzeppelin-solidity=.\\node_modules\\@openzeppelin-solidity"
+        ]
+    },
+    {
+        "filename": ".certora/munged/NodeOperatorsRegistry.sol",
+        "contract": "NodeOperatorsRegistry",
+        "functions": ["_applyNodeOperatorLimits"],
+        "solc": "solc4.24",
+        "num-mutants": 3,
+        "mutations":[
+            "delete-expression-mutation",
+            "require-mutation"
+        ],
+        "remappings": [
+            "@aragon=.\\node_modules\\@aragon",
+            "@openzeppelin=.\\node_modules\\@openzeppelin",
+            "@openzeppelin-solidity=.\\node_modules\\@openzeppelin-solidity"
+        ]
+    }
+]
