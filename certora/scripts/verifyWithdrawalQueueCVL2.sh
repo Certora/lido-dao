@@ -4,6 +4,6 @@ certoraRun certora/harness/WithdrawalQueueHarness.sol certora/mocks/StETHMock.so
     --optimistic_loop \
     --solc_map WithdrawalQueueHarness=solc8.9,StETHMock=solc4.24,DummyERC20=solc8.9 \
     --loop_iter 3 \
-    --settings -optimisticFallback=true \
-    --staging \
+    --prover_args '-optimisticFallback true' \
+    --server production \
     --msg "WithdrawalQueue run"
