@@ -118,6 +118,28 @@ contract WithdrawalQueueHarness is WithdrawalQueue {
         return res[0];
     }
 
+    function requestWithdrawalsWstETHWithPermitHarness(
+            uint256 amount,
+            address owner,
+            uint256 value,
+            uint256 deadline,
+            uint8 v,
+            bytes32 r,
+            bytes32 s) public returns (uint256)
+    {
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+        PermitInput memory _permit;
+        _permit.value = value;
+        _permit.deadline = deadline;
+        _permit.v = v;
+        _permit.r = r;
+        _permit.s = s;
+
+        uint256[] memory res = requestWithdrawalsWstETHWithPermit(amounts, owner, _permit);
+        return res[0];
+    }
+
     function claimWithdrawal(uint256 requestId, uint256 hintIndex) public {
         _claim(requestId, hintIndex, msg.sender);
     }
