@@ -1,0 +1,10 @@
+set -x
+diff -u contracts/0.4.24/Lido.sol contracts/0.8.25/Lido/LidoNew.sol                                                                                                                         
+diff -u contracts/0.4.24/StETH.sol contracts/0.8.25/Lido/StETH.sol                                                                                                                          
+diff -u contracts/0.4.24/StETHPermit.sol contracts/0.8.25/Lido/StETHPermit.sol                                                                                                              
+diff -u contracts/0.4.24/utils/Versioned.sol contracts/0.8.25/Lido/utils/Versioned.sol                                                                                                      
+diff -u contracts/0.4.24/utils/Pausable.sol contracts/0.8.25/Lido/utils/Pausable.sol                                                                                                        
+diff -u contracts/0.4.24/utils/UnstructuredStorageExt.sol contracts/0.8.25/Lido/utils/UnstructuredStorageExt.sol                                                                            
+diff -u contracts/0.4.24/lib/StakeLimitUtils.sol contracts/0.8.25/Lido/lib/StakeLimitUtils.sol                                                                                              
+diff -u tmp/aragon_UnstructuredStorage.sol contracts/0.8.25/Lido/lib/UnstructuredStorage.sol                                                                                                
+diff -u tmp/aragon_AragonApp.sol contracts/0.8.25/Lido/lib/AragonApp.sol      
