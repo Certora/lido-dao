@@ -52,7 +52,7 @@ METHODS=(
 # Iterate over all methods
 for method in "${METHODS[@]}"; do
     echo "Checking method: $method"
-    certoraConcord.py contracts/0.4.24/Lido.sol contracts/0.8.25/Lido/LidoNew.sol --check_method "$method" --solc_map Lido=solc4.24,LidoNew=solc8.25 --server prover --prover_version master --group_id $gId
+    certoraConcord.py contracts/0.4.24/Lido.sol contracts/0.8.25/Lido/LidoNew.sol --check_method "$method" --solc_map Lido=solc4.24,LidoNew=solc8.25 --server prover --prover_version shelly/equiv --group_id $gId
 done
 
 mv package_tmp.json package.json
