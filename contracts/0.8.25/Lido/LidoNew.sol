@@ -4,6 +4,7 @@
 pragma solidity 0.8.25;
 
 import {AragonApp, UnstructuredStorage} from "./lib/AragonApp.sol";
+import {Solc4Call} from "./lib/Solc4Call.sol";
 
 import {ILidoLocator} from "../../common/interfaces/ILidoLocator.sol";
 
@@ -990,35 +991,10 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
      * inaccurate because the actual value is truncated here to 1e4 precision.
      */
     function getFee() external view returns (uint16 totalFee) {
-        IStakingRouter router = _stakingRouter();
-        assembly {
-            // Check that router has code
-            if iszero(extcodesize(router)) {
-                revert(0, 0)
-            }
-
-            // Allocate memory for the call
-            let ptr := mload(0x40)
-            // Store the selector for getTotalFeeE4Precision() = bytes4(keccak256("getTotalFeeE4Precision()"))
-            mstore(ptr, 0x9fbb7bae00000000000000000000000000000000000000000000000000000000)
-
-            // Perform staticcall
-            let success := staticcall(gas(), router, ptr, 4, ptr, 32)
-
-            // Check call success
-            if iszero(success) {
-                returndatacopy(0, 0, returndatasize())
-                revert(0, returndatasize())
-            }
-
-            // Check that return data is at least 32 bytes
-            if lt(returndatasize(), 32) {
-                revert(0, 0)
-            }
-
-            // Load the result and mask to uint16 (clean upper 240 bits)
-            totalFee := and(mload(ptr), 0xffff)
-        }
+        totalFee = Solc4Call.staticcallUint16(
+            address(_stakingRouter()),
+            abi.encodeWithSelector(IStakingRouter.getTotalFeeE4Precision.selector)
+        );
     }
 
     /**
@@ -1195,36 +1171,12 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
     }
 
     function _stakingRouter(ILidoLocator _locator) internal view returns (IStakingRouter) {
-        address result;
-        assembly {
-            // Check that _locator has code
-            if iszero(extcodesize(_locator)) {
-                revert(0, 0)
-            }
-
-            // Allocate memory for the call
-            let ptr := mload(0x40)
-            // Store the selector for stakingRouter() = bytes4(keccak256("stakingRouter()"))
-            mstore(ptr, 0xef6c064c00000000000000000000000000000000000000000000000000000000)
-
-            // Perform staticcall
-            let success := staticcall(gas(), _locator, ptr, 4, ptr, 32)
-
-            // Check call success
-            if iszero(success) {
-                returndatacopy(0, 0, returndatasize())
-                revert(0, returndatasize())
-            }
-
-            // Check that return data is at least 32 bytes
-            if lt(returndatasize(), 32) {
-                revert(0, 0)
-            }
-
-            // Load the result and mask to address (clean upper 96 bits)
-            result := and(mload(ptr), 0xffffffffffffffffffffffffffffffffffffffff)
-        }
-        return IStakingRouter(result);
+        return IStakingRouter(
+            Solc4Call.staticcallAddress(
+                address(_locator),
+                abi.encodeWithSelector(ILidoLocator.stakingRouter.selector)
+            )
+        );
     }
 
     function _stakingRouter() internal view returns (IStakingRouter) {
