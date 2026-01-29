@@ -620,7 +620,7 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
      * @dev Depends on the bunker mode and protocol pause state
      */
     function canDeposit() public view returns (bool) {
-        return !_withdrawalQueue().isBunkerModeActive() && !isStopped();
+        return Solc4Call.staticcallUint256(address(_withdrawalQueue()), abi.encodeWithSelector(IWithdrawalQueue.isBunkerModeActive.selector)) == 0 && !isStopped();
     }
 
     /**
@@ -629,7 +629,7 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
      */
     function getDepositableEther() public view returns (uint256) {
         uint256 bufferedEther = _getBufferedEther();
-        uint256 withdrawalReserve = _withdrawalQueue().unfinalizedStETH();
+        uint256 withdrawalReserve = Solc4Call.staticcallUint256(address(_withdrawalQueue()), abi.encodeWithSelector(IWithdrawalQueue.unfinalizedStETH.selector));
         return bufferedEther > withdrawalReserve ? bufferedEther - withdrawalReserve : 0;
     }
 
@@ -642,13 +642,13 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
     function deposit(uint256 _maxDepositsCount, uint256 _stakingModuleId, bytes calldata _depositCalldata) external {
         ILidoLocator locator = _getLidoLocator();
 
-        require(msg.sender == locator.depositSecurityModule(), "APP_AUTH_DSM_FAILED");
+        require(msg.sender == Solc4Call.staticcallAddress(address(locator), abi.encodeWithSelector(ILidoLocator.depositSecurityModule.selector)), "APP_AUTH_DSM_FAILED");
         require(canDeposit(), "CAN_NOT_DEPOSIT");
 
         IStakingRouter stakingRouter = _stakingRouter(locator);
         uint256 depositsCount = Math256.min(
             _maxDepositsCount,
-            stakingRouter.getStakingModuleMaxDepositsCount(_stakingModuleId, getDepositableEther())
+            Solc4Call.staticcallUint256(address(stakingRouter), abi.encodeWithSelector(IStakingRouter.getStakingModuleMaxDepositsCount.selector, _stakingModuleId, getDepositableEther()))
         );
 
         uint256 depositsValue;
@@ -972,7 +972,7 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
      * @dev DEPRECATED: use StakingRouter.getWithdrawalCredentials() instead
      */
     function getWithdrawalCredentials() external view returns (bytes32) {
-        return _stakingRouter().getWithdrawalCredentials();
+        return Solc4Call.staticcallBytes32(address(_stakingRouter()), abi.encodeWithSelector(IStakingRouter.getWithdrawalCredentials.selector));
     }
 
     /**
@@ -980,7 +980,8 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
      * @dev DEPRECATED: use LidoLocator.treasury()
      */
     function getTreasury() external view returns (address) {
-        return _getLidoLocator().treasury();
+        ILidoLocator locator = _getLidoLocator();
+        return Solc4Call.staticcallAddress(address(locator), abi.encodeWithSelector(ILidoLocator.treasury.selector));
     }
 
     /**
@@ -991,10 +992,7 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
      * inaccurate because the actual value is truncated here to 1e4 precision.
      */
     function getFee() external view returns (uint16 totalFee) {
-        totalFee = Solc4Call.staticcallUint16(
-            address(_stakingRouter()),
-            abi.encodeWithSelector(IStakingRouter.getTotalFeeE4Precision.selector)
-        );
+        totalFee = Solc4Call.staticcallUint16(address(_stakingRouter()), abi.encodeWithSelector(IStakingRouter.getTotalFeeE4Precision.selector));
     }
 
     /**
@@ -1015,8 +1013,8 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
         returns (uint16 treasuryFeeBasisPoints, uint16 insuranceFeeBasisPoints, uint16 operatorsFeeBasisPoints)
     {
         IStakingRouter stakingRouter = _stakingRouter();
-        uint256 totalBasisPoints = stakingRouter.TOTAL_BASIS_POINTS();
-        uint256 totalFee = stakingRouter.getTotalFeeE4Precision();
+        uint256 totalBasisPoints = Solc4Call.staticcallUint256(address(stakingRouter), abi.encodeWithSelector(IStakingRouter.TOTAL_BASIS_POINTS.selector));
+        uint256 totalFee = Solc4Call.staticcallUint16(address(stakingRouter), abi.encodeWithSelector(IStakingRouter.getTotalFeeE4Precision.selector));
         (uint256 treasuryFeeBasisPointsAbs, uint256 operatorsFeeBasisPointsAbs) = stakingRouter
             .getStakingFeeAggregateDistributionE4Precision();
 
@@ -1110,9 +1108,12 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
 
         if (totalShares * maxRatioBP <= externalShares * TOTAL_BASIS_POINTS) return 0;
 
+        uint256 tmp;
+        unchecked { tmp = TOTAL_BASIS_POINTS - maxRatioBP; }
+
         return
             (totalShares * maxRatioBP - externalShares * TOTAL_BASIS_POINTS) /
-            (TOTAL_BASIS_POINTS - maxRatioBP);
+            tmp;
     }
 
     function _pauseStaking() internal {
@@ -1172,10 +1173,7 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
 
     function _stakingRouter(ILidoLocator _locator) internal view returns (IStakingRouter) {
         return IStakingRouter(
-            Solc4Call.staticcallAddress(
-                address(_locator),
-                abi.encodeWithSelector(ILidoLocator.stakingRouter.selector)
-            )
+            Solc4Call.staticcallAddress(address(_locator), abi.encodeWithSelector(ILidoLocator.stakingRouter.selector))
         );
     }
 
@@ -1184,7 +1182,9 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
     }
 
     function _withdrawalQueue(ILidoLocator _locator) internal view returns (IWithdrawalQueue) {
-        return IWithdrawalQueue(_locator.withdrawalQueue());
+        return IWithdrawalQueue(
+            Solc4Call.staticcallAddress(address(_locator), abi.encodeWithSelector(ILidoLocator.withdrawalQueue.selector))
+        );
     }
 
     function _withdrawalQueue() internal view returns (IWithdrawalQueue) {
@@ -1192,19 +1192,20 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
     }
 
     function _vaultHub() internal view returns (address) {
-        return _getLidoLocator().vaultHub();
+        ILidoLocator locator = _getLidoLocator();
+        return Solc4Call.staticcallAddress(address(locator), abi.encodeWithSelector(ILidoLocator.vaultHub.selector));
     }
 
     function _burner(ILidoLocator _locator) internal view returns (address) {
-        return _locator.burner();
+        return Solc4Call.staticcallAddress(address(_locator), abi.encodeWithSelector(ILidoLocator.burner.selector));
     }
 
     function _burner() internal view returns (address) {
-        return _getLidoLocator().burner();
+        return _burner(_getLidoLocator());
     }
 
     function _accounting(ILidoLocator _locator) internal view returns (address) {
-        return _locator.accounting();
+        return Solc4Call.staticcallAddress(address(_locator), abi.encodeWithSelector(ILidoLocator.accounting.selector));
     }
 
     function _accounting() internal view returns (address) {
@@ -1212,7 +1213,9 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
     }
 
     function _elRewardsVault(ILidoLocator _locator) internal view returns (ILidoExecutionLayerRewardsVault) {
-        return ILidoExecutionLayerRewardsVault(_locator.elRewardsVault());
+        return ILidoExecutionLayerRewardsVault(
+            Solc4Call.staticcallAddress(address(_locator), abi.encodeWithSelector(ILidoLocator.elRewardsVault.selector))
+        );
     }
 
     function _elRewardsVault() internal view returns (address) {
@@ -1220,7 +1223,9 @@ contract LidoNew is Versioned, StETHPermit, AragonApp {
     }
 
     function _withdrawalVault(ILidoLocator _locator) internal view returns (IWithdrawalVault) {
-        return IWithdrawalVault(_locator.withdrawalVault());
+        return IWithdrawalVault(
+            Solc4Call.staticcallAddress(address(_locator), abi.encodeWithSelector(ILidoLocator.withdrawalVault.selector))
+        );
     }
 
     function _withdrawalVault() internal view returns (address) {
